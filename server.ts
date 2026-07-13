@@ -187,7 +187,16 @@ function getSupabaseClient() {
   const key = process.env.SUPABASE_ANON_KEY;
   if (url && key && url.trim() !== "" && key.trim() !== "") {
     try {
-      supabaseClient = createClient(url, key);
+      let cleanUrl = url.trim();
+      if (cleanUrl.endsWith("/rest/v1/")) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 9);
+      } else if (cleanUrl.endsWith("/rest/v1")) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 8);
+      }
+      if (cleanUrl.endsWith("/")) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
+      supabaseClient = createClient(cleanUrl, key.trim());
       return supabaseClient;
     } catch (err) {
       console.error("Erro ao inicializar cliente do Supabase:", err);
@@ -744,6 +753,24 @@ app.get("/api/supabase-status", (req, res) => {
     url: process.env.SUPABASE_URL || "",
     schema: `
 -- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
+
+-- ----------------- DIAGNÓSTICO E LIMPEZA (OPCIONAL) -----------------
+-- Se você receber erros como 'column "email" does not exist' ou conflitos de colunas,
+-- descomente as linhas abaixo para limpar as tabelas antigas antes de criá-las novamente:
+-- DROP TABLE IF EXISTS deficit_actions CASCADE;
+-- DROP TABLE IF EXISTS action_plans CASCADE;
+-- DROP TABLE IF EXISTS shopping_list CASCADE;
+-- DROP TABLE IF EXISTS annual_planning CASCADE;
+-- DROP TABLE IF EXISTS expenses CASCADE;
+-- DROP TABLE IF EXISTS incomes CASCADE;
+-- DROP TABLE IF EXISTS expense_categories CASCADE;
+-- DROP TABLE IF EXISTS income_categories CASCADE;
+-- DROP TABLE IF EXISTS payment_statuses CASCADE;
+-- DROP TABLE IF EXISTS payment_types CASCADE;
+-- DROP TABLE IF EXISTS subscriptions CASCADE;
+-- DROP TABLE IF EXISTS profiles CASCADE;
+-- DROP TABLE IF EXISTS user_data CASCADE;
+-- DROP TABLE IF EXISTS users CASCADE;
 
 -- 1. Tabela de Usuários (Login e credenciais básicas)
 CREATE TABLE IF NOT EXISTS users (
