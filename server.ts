@@ -200,7 +200,7 @@ function getSupabaseClient() {
   return null;
 }
 
-// Get user by email with auto-migration from local JSON DB to Supabase
+// Get user by email with auto-migration from local JSON DB to relational Supabase tables
 async function getUserByEmail(email: string): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
   const supabase = getSupabaseClient();
@@ -209,19 +209,57 @@ async function getUserByEmail(email: string): Promise<any> {
 
   if (supabase) {
     try {
-      const { data, error } = await supabase
+      // Query relational 'users' table
+      const { data: userData, error: userErr } = await supabase
         .from('users')
         .select('*')
         .eq('email', lowerEmail)
         .maybeSingle();
       
-      if (!error && data) {
-        return data;
+      if (userErr && userErr.code === '42P01') {
+        // Table not created yet - fall back
+        throw new Error("Tabela 'users' não existe no Supabase.");
+      }
+
+      if (userData) {
+        // Query profiles and subscriptions in parallel for full user model
+        const [profileRes, subRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
+          supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
+        ]);
+
+        const profileData = profileRes.data;
+        const subData = subRes.data;
+
+        return {
+          email: userData.email,
+          password: userData.password,
+          role: userData.role || 'user',
+          createdAt: userData.created_at || userData.createdAt || new Date().toISOString(),
+          name: profileData ? profileData.name : (userData.name || ''),
+          address: profileData ? profileData.address : (userData.address || ''),
+          city: profileData ? profileData.city : (userData.city || ''),
+          state: profileData ? profileData.state : (userData.state || ''),
+          phone: profileData ? profileData.phone : (userData.phone || ''),
+          subscription: subData ? {
+            plan: subData.plan || 'none',
+            validUntil: subData.valid_until,
+            selectedAt: subData.selected_at,
+            freePlanUsed: !!subData.free_plan_used,
+            approved: !!subData.approved
+          } : {
+            plan: 'none',
+            validUntil: null,
+            selectedAt: null,
+            freePlanUsed: false,
+            approved: false
+          }
+        };
       }
 
       // If user exists locally but not in Supabase, migrate them automatically
-      if (!data && localUser) {
-        console.log(`Migrando usuário ${lowerEmail} para o Supabase...`);
+      if (!userData && localUser) {
+        console.log(`Migrando usuário ${lowerEmail} para tabelas relacionais do Supabase...`);
         await saveUser(localUser);
         const localData = db.userData[lowerEmail];
         if (localData) {
@@ -237,7 +275,7 @@ async function getUserByEmail(email: string): Promise<any> {
   return localUser || null;
 }
 
-// Save/Update user profile
+// Save/Update user profile across users, profiles, and subscriptions tables
 async function saveUser(user: any): Promise<boolean> {
   const lowerEmail = user.email.toLowerCase().trim();
   
@@ -249,34 +287,59 @@ async function saveUser(user: any): Promise<boolean> {
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      const { error } = await supabase
+      // 1. Upsert users table (for credential validation)
+      const { error: userErr } = await supabase
         .from('users')
         .upsert({
           email: lowerEmail,
-          name: user.name,
-          address: user.address,
-          city: user.city,
-          state: user.state,
-          phone: user.phone,
-          role: user.role,
           password: user.password,
-          subscription: user.subscription,
-          created_at: user.createdAt || new Date().toISOString()
+          role: user.role || 'user',
+          created_at: user.createdAt || user.created_at || new Date().toISOString()
         });
       
-      if (error) {
-        console.error("Erro ao salvar usuário no Supabase:", error);
+      if (userErr) {
+        if (userErr.code === '42P01') throw new Error("Relation 'users' does not exist");
+        console.error("Erro ao salvar login do usuário no Supabase:", userErr);
         return false;
       }
+
+      // 2. Upsert profiles table (for personal details)
+      await supabase
+        .from('profiles')
+        .upsert({
+          email: lowerEmail,
+          name: user.name || '',
+          address: user.address || '',
+          city: user.city || '',
+          state: user.state || '',
+          phone: user.phone || '',
+          updated_at: new Date().toISOString()
+        });
+
+      // 3. Upsert subscriptions table (for user subscription tier)
+      if (user.subscription) {
+        await supabase
+          .from('subscriptions')
+          .upsert({
+            email: lowerEmail,
+            plan: user.subscription.plan || 'none',
+            valid_until: user.subscription.validUntil || null,
+            selected_at: user.subscription.selectedAt || null,
+            free_plan_used: !!user.subscription.freePlanUsed,
+            approved: !!user.subscription.approved,
+            updated_at: new Date().toISOString()
+          });
+      }
+
       return true;
     } catch (err) {
-      console.error("Falha ao salvar usuário no Supabase:", err);
+      console.error("Falha ao salvar perfil relacional no Supabase:", err);
     }
   }
   return true;
 }
 
-// Get user workspace data
+// Get user workspace data from all 10 relational tables in parallel
 async function getUserDataByEmail(email: string): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
   const supabase = getSupabaseClient();
@@ -285,35 +348,145 @@ async function getUserDataByEmail(email: string): Promise<any> {
 
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('user_data')
-        .select('data')
-        .eq('email', lowerEmail)
-        .maybeSingle();
-      
-      if (!error && data && data.data) {
-        return data.data;
+      // Fetch relational tables in parallel
+      const [
+        pTypesRes,
+        pStatusesRes,
+        incCatsRes,
+        expCatsRes,
+        incomesRes,
+        expensesRes,
+        annualRes,
+        shopRes,
+        actPlansRes,
+        defActionsRes
+      ] = await Promise.all([
+        supabase.from('payment_types').select('name').eq('email', lowerEmail),
+        supabase.from('payment_statuses').select('name').eq('email', lowerEmail),
+        supabase.from('income_categories').select('name').eq('email', lowerEmail),
+        supabase.from('expense_categories').select('name').eq('email', lowerEmail),
+        supabase.from('incomes').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
+        supabase.from('expenses').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
+        supabase.from('annual_planning').select('*').eq('email', lowerEmail),
+        supabase.from('shopping_list').select('*').eq('email', lowerEmail),
+        supabase.from('action_plans').select('*').eq('email', lowerEmail).order('target_date', { ascending: true }),
+        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false })
+      ]);
+
+      // If database schema is missing, fall back to monolithic user_data table or local DB
+      const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && res.error.code === '42P01');
+
+      if (relationMissing) {
+        console.log("Tabelas relacionais ainda não foram configuradas. Carregando dados do fallback...");
+        const { data, error } = await supabase
+          .from('user_data')
+          .select('data')
+          .eq('email', lowerEmail)
+          .maybeSingle();
+        
+        if (!error && data && data.data) {
+          return data.data;
+        }
+        return localData || null;
       }
 
-      // If user has local data but not in Supabase, migrate it
-      if ((!data || !data.data) && localData) {
-        console.log(`Migrando dados do workspace de ${lowerEmail} para o Supabase...`);
+      // Check if user has no relational records but we have local backup to migrate
+      const hasAnyRelationalData = 
+        (pTypesRes.data && pTypesRes.data.length > 0) ||
+        (incomesRes.data && incomesRes.data.length > 0) ||
+        (expensesRes.data && expensesRes.data.length > 0) ||
+        (shopRes.data && shopRes.data.length > 0);
+
+      if (!hasAnyRelationalData && localData) {
+        console.log(`Migrando dados locais de ${lowerEmail} para as novas tabelas relacionais do Supabase...`);
         await saveUserDataByEmail(lowerEmail, localData);
         return localData;
       }
+
+      // Map relational results to application structures
+      const responseData: any = {
+        paymentTypes: pTypesRes.data ? pTypesRes.data.map((r: any) => r.name) : [],
+        paymentStatuses: pStatusesRes.data ? pStatusesRes.data.map((r: any) => r.name) : [],
+        incomeCategories: incCatsRes.data ? incCatsRes.data.map((r: any) => r.name) : [],
+        expenseCategories: expCatsRes.data ? expCatsRes.data.map((r: any) => r.name) : [],
+        incomes: incomesRes.data ? incomesRes.data.map((r: any) => ({
+          id: r.id,
+          date: r.date,
+          description: r.description,
+          value: Number(r.value),
+          category: r.category,
+          status: r.status,
+          paymentType: r.payment_type
+        })) : [],
+        expenses: expensesRes.data ? expensesRes.data.map((r: any) => ({
+          id: r.id,
+          date: r.date,
+          description: r.description,
+          value: Number(r.value),
+          category: r.category,
+          status: r.status,
+          paymentType: r.payment_type
+        })) : [],
+        annualPlanning: annualRes.data ? annualRes.data.map((r: any) => ({
+          year: r.year,
+          monthlyBudgets: r.monthly_budgets
+        })) : [],
+        shoppingList: shopRes.data ? shopRes.data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          quantity: Number(r.quantity),
+          price: Number(r.price),
+          category: r.category,
+          checked: !!r.checked,
+          date: r.date || undefined
+        })) : [],
+        actionPlans: actPlansRes.data ? actPlansRes.data.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          targetDate: r.target_date,
+          value: Number(r.value),
+          status: r.status
+        })) : [],
+        deficitActions: defActionsRes.data ? defActionsRes.data.map((r: any) => ({
+          id: r.id,
+          costCenter: r.cost_center,
+          reason: r.reason,
+          correctionAction: r.correction_action,
+          responsible: r.responsible,
+          date: r.date,
+          status: r.status
+        })) : []
+      };
+
+      // Set elegant default templates if arrays are fresh/empty
+      if (responseData.paymentTypes.length === 0) {
+        responseData.paymentTypes = ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"];
+      }
+      if (responseData.paymentStatuses.length === 0) {
+        responseData.paymentStatuses = ["Pago", "Pendente", "Atrasado"];
+      }
+      if (responseData.incomeCategories.length === 0) {
+        responseData.incomeCategories = ["Salário", "Investimentos", "Freelance", "Outros"];
+      }
+      if (responseData.expenseCategories.length === 0) {
+        responseData.expenseCategories = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"];
+      }
+
+      return responseData;
     } catch (err) {
-      console.error("Falha ao buscar dados do usuário no Supabase:", err);
+      console.error("Falha ao ler dados relacionais no Supabase:", err);
     }
   }
 
   return localData || null;
 }
 
-// Save/Update user workspace data
+// Save/Update user workspace data by syncing modified lists to their relational tables
 async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
   const lowerEmail = email.toLowerCase().trim();
 
-  // Always update local database as backup/fallback
+  // Always update local database as backup/fallback first
   const db = getDb();
   db.userData[lowerEmail] = {
     ...db.userData[lowerEmail],
@@ -324,47 +497,233 @@ async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      const { error } = await supabase
-        .from('user_data')
-        .upsert({
+      const promises: Promise<any>[] = [];
+
+      // 1. Sync paymentTypes
+      if (data.paymentTypes) {
+        promises.push((async () => {
+          await supabase.from('payment_types').delete().eq('email', lowerEmail);
+          if (data.paymentTypes.length > 0) {
+            const rows = data.paymentTypes.map((name: string) => ({ email: lowerEmail, name }));
+            await supabase.from('payment_types').insert(rows);
+          }
+        })());
+      }
+
+      // 2. Sync paymentStatuses
+      if (data.paymentStatuses) {
+        promises.push((async () => {
+          await supabase.from('payment_statuses').delete().eq('email', lowerEmail);
+          if (data.paymentStatuses.length > 0) {
+            const rows = data.paymentStatuses.map((name: string) => ({ email: lowerEmail, name }));
+            await supabase.from('payment_statuses').insert(rows);
+          }
+        })());
+      }
+
+      // 3. Sync incomeCategories
+      if (data.incomeCategories) {
+        promises.push((async () => {
+          await supabase.from('income_categories').delete().eq('email', lowerEmail);
+          if (data.incomeCategories.length > 0) {
+            const rows = data.incomeCategories.map((name: string) => ({ email: lowerEmail, name }));
+            await supabase.from('income_categories').insert(rows);
+          }
+        })());
+      }
+
+      // 4. Sync expenseCategories
+      if (data.expenseCategories) {
+        promises.push((async () => {
+          await supabase.from('expense_categories').delete().eq('email', lowerEmail);
+          if (data.expenseCategories.length > 0) {
+            const rows = data.expenseCategories.map((name: string) => ({ email: lowerEmail, name }));
+            await supabase.from('expense_categories').insert(rows);
+          }
+        })());
+      }
+
+      // 5. Sync incomes
+      if (data.incomes) {
+        promises.push((async () => {
+          await supabase.from('incomes').delete().eq('email', lowerEmail);
+          if (data.incomes.length > 0) {
+            const rows = data.incomes.map((inc: any) => ({
+              id: inc.id,
+              email: lowerEmail,
+              date: inc.date,
+              description: inc.description,
+              value: Number(inc.value),
+              category: inc.category,
+              status: inc.status,
+              payment_type: inc.paymentType
+            }));
+            await supabase.from('incomes').insert(rows);
+          }
+        })());
+      }
+
+      // 6. Sync expenses
+      if (data.expenses) {
+        promises.push((async () => {
+          await supabase.from('expenses').delete().eq('email', lowerEmail);
+          if (data.expenses.length > 0) {
+            const rows = data.expenses.map((exp: any) => ({
+              id: exp.id,
+              email: lowerEmail,
+              date: exp.date,
+              description: exp.description,
+              value: Number(exp.value),
+              category: exp.category,
+              status: exp.status,
+              payment_type: exp.paymentType
+            }));
+            await supabase.from('expenses').insert(rows);
+          }
+        })());
+      }
+
+      // 7. Sync annualPlanning
+      if (data.annualPlanning) {
+        promises.push((async () => {
+          for (const plan of data.annualPlanning) {
+            await supabase.from('annual_planning').upsert({
+              email: lowerEmail,
+              year: Number(plan.year),
+              monthly_budgets: plan.monthlyBudgets
+            }, { onConflict: 'email,year' });
+          }
+        })());
+      }
+
+      // 8. Sync shoppingList
+      if (data.shoppingList) {
+        promises.push((async () => {
+          await supabase.from('shopping_list').delete().eq('email', lowerEmail);
+          if (data.shoppingList.length > 0) {
+            const rows = data.shoppingList.map((item: any) => ({
+              id: item.id,
+              email: lowerEmail,
+              name: item.name,
+              quantity: Number(item.quantity),
+              price: Number(item.price),
+              category: item.category,
+              checked: !!item.checked,
+              date: item.date || null
+            }));
+            await supabase.from('shopping_list').insert(rows);
+          }
+        })());
+      }
+
+      // 9. Sync actionPlans
+      if (data.actionPlans) {
+        promises.push((async () => {
+          await supabase.from('action_plans').delete().eq('email', lowerEmail);
+          if (data.actionPlans.length > 0) {
+            const rows = data.actionPlans.map((plan: any) => ({
+              id: plan.id,
+              email: lowerEmail,
+              title: plan.title,
+              description: plan.description,
+              target_date: plan.targetDate,
+              value: Number(plan.value),
+              status: plan.status
+            }));
+            await supabase.from('action_plans').insert(rows);
+          }
+        })());
+      }
+
+      // 10. Sync deficitActions
+      if (data.deficitActions) {
+        promises.push((async () => {
+          await supabase.from('deficit_actions').delete().eq('email', lowerEmail);
+          if (data.deficitActions.length > 0) {
+            const rows = data.deficitActions.map((action: any) => ({
+              id: action.id,
+              email: lowerEmail,
+              cost_center: action.costCenter,
+              reason: action.reason,
+              correction_action: action.correctionAction,
+              responsible: action.responsible,
+              date: action.date,
+              status: action.status
+            }));
+            await supabase.from('deficit_actions').insert(rows);
+          }
+        })());
+      }
+
+      await Promise.all(promises);
+
+      // Also upsert to legacy monolithic backup user_data for complete rollback resilience
+      await supabase.from('user_data').upsert({
+        email: lowerEmail,
+        data: db.userData[lowerEmail],
+        updated_at: new Date().toISOString()
+      });
+
+      return true;
+    } catch (err) {
+      console.error("Erro ao salvar dados relacionais no Supabase. Usando fallback de dados...", err);
+      try {
+        await supabase.from('user_data').upsert({
           email: lowerEmail,
           data: db.userData[lowerEmail],
           updated_at: new Date().toISOString()
         });
-      
-      if (error) {
-        console.error("Erro ao salvar dados no Supabase:", error);
-        return false;
+      } catch (fallbackErr) {
+        console.error("Falha inclusive no fallback de dados:", fallbackErr);
       }
-      return true;
-    } catch (err) {
-      console.error("Falha ao salvar dados no Supabase:", err);
     }
   }
   return true;
 }
 
-// Get all users (Admin only)
+// Get all users (Admin only) by merging users, profiles, and subscriptions
 async function getAllUsersList(): Promise<any[]> {
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*');
-      
-      if (!error && data) {
-        return data.map((u: any) => ({
-          email: u.email,
-          name: u.name,
-          address: u.address,
-          city: u.city,
-          state: u.state,
-          phone: u.phone,
-          role: u.role,
-          subscription: u.subscription,
-          createdAt: u.created_at || u.createdAt || new Date().toISOString()
-        }));
+      const { data: usersData, error: userErr } = await supabase.from('users').select('*');
+      if (!userErr && usersData) {
+        const [profilesRes, subsRes] = await Promise.all([
+          supabase.from('profiles').select('*'),
+          supabase.from('subscriptions').select('*')
+        ]);
+
+        const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.email, p]));
+        const subsMap = new Map((subsRes.data || []).map((s: any) => [s.email, s]));
+
+        return usersData.map((u: any) => {
+          const prof: any = profilesMap.get(u.email);
+          const sub: any = subsMap.get(u.email);
+
+          return {
+            email: u.email,
+            name: prof ? prof.name : '',
+            address: prof ? prof.address : '',
+            city: prof ? prof.city : '',
+            state: prof ? prof.state : '',
+            phone: prof ? prof.phone : '',
+            role: u.role || 'user',
+            subscription: sub ? {
+              plan: sub.plan || 'none',
+              validUntil: sub.valid_until,
+              selectedAt: sub.selected_at,
+              freePlanUsed: !!sub.free_plan_used,
+              approved: !!sub.approved
+            } : {
+              plan: 'none',
+              validUntil: null,
+              selectedAt: null,
+              freePlanUsed: false,
+              approved: false
+            },
+            createdAt: u.created_at || u.createdAt || new Date().toISOString()
+          };
+        });
       }
     } catch (err) {
       console.error("Falha ao buscar todos os usuários no Supabase:", err);
@@ -390,24 +749,213 @@ app.get("/api/supabase-status", (req, res) => {
     schema: `
 -- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
 
+-- 1. Tabela de Usuários (Login e credenciais básicas)
 CREATE TABLE IF NOT EXISTS users (
   email TEXT PRIMARY KEY,
-  name TEXT,
+  password TEXT NOT NULL,
+  role TEXT DEFAULT 'user',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Tabela de Perfis de Usuários (Dados pessoais)
+CREATE TABLE IF NOT EXISTS profiles (
+  email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
   address TEXT,
   city TEXT,
   state TEXT,
   phone TEXT,
-  role TEXT DEFAULT 'user',
-  password TEXT,
-  subscription JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Tabela de Assinaturas (Status do plano)
+CREATE TABLE IF NOT EXISTS subscriptions (
+  email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+  plan TEXT DEFAULT 'none',
+  valid_until TIMESTAMPTZ,
+  selected_at TIMESTAMPTZ,
+  free_plan_used BOOLEAN DEFAULT FALSE,
+  approved BOOLEAN DEFAULT FALSE,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Tabela de Tipos de Pagamento
+CREATE TABLE IF NOT EXISTS payment_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);
+
+-- 5. Tabela de Status de Pagamento
+CREATE TABLE IF NOT EXISTS payment_statuses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);
+
+-- 6. Tabela de Categorias de Receita
+CREATE TABLE IF NOT EXISTS income_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);
+
+-- 7. Tabela de Categorias de Despesa
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);
+
+-- 8. Tabela de Lançamentos de Receitas (Incomes)
+CREATE TABLE IF NOT EXISTS incomes (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  description TEXT NOT NULL,
+  value NUMERIC(15, 2) NOT NULL,
+  category TEXT NOT NULL,
+  status TEXT NOT NULL,
+  payment_type TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 9. Tabela de Lançamentos de Despesas (Expenses)
+CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  description TEXT NOT NULL,
+  value NUMERIC(15, 2) NOT NULL,
+  category TEXT NOT NULL,
+  status TEXT NOT NULL,
+  payment_type TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 10. Tabela de Planejamento Anual
+CREATE TABLE IF NOT EXISTS annual_planning (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  year INTEGER NOT NULL,
+  monthly_budgets JSONB NOT NULL,
+  UNIQUE (email, year)
+);
+
+-- 11. Tabela de Lista de Compras (Shopping List)
+CREATE TABLE IF NOT EXISTS shopping_list (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  quantity NUMERIC(12, 2) NOT NULL,
+  price NUMERIC(15, 2) NOT NULL,
+  category TEXT NOT NULL,
+  checked BOOLEAN DEFAULT FALSE,
+  date DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. Tabela de Metas / Planos de Ação (Action Plans)
+CREATE TABLE IF NOT EXISTS action_plans (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  target_date DATE NOT NULL,
+  value NUMERIC(15, 2) NOT NULL,
+  status TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. Tabela de Ações de Déficit (Deficit Actions)
+CREATE TABLE IF NOT EXISTS deficit_actions (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  cost_center TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  correction_action TEXT NOT NULL,
+  responsible TEXT NOT NULL,
+  date DATE NOT NULL,
+  status TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Tabela de Suporte para Compatibilidade e Transição
 CREATE TABLE IF NOT EXISTS user_data (
   email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
   data JSONB,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ---------------- CRIAÇÃO DE ÍNDICES DE PERFORMANCE ----------------
+CREATE INDEX IF NOT EXISTS idx_incomes_email_date ON incomes(email, date);
+CREATE INDEX IF NOT EXISTS idx_expenses_email_date ON expenses(email, date);
+CREATE INDEX IF NOT EXISTS idx_shopping_list_email ON shopping_list(email);
+CREATE INDEX IF NOT EXISTS idx_action_plans_email ON action_plans(email);
+CREATE INDEX IF NOT EXISTS idx_deficit_actions_email ON deficit_actions(email);
+
+-- ---------------- Row Level Security (RLS) ----------------
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_statuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE income_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expense_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE incomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE annual_planning ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopping_list ENABLE ROW LEVEL SECURITY;
+ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deficit_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_data ENABLE ROW LEVEL SECURITY;
+
+-- ---------------- POLÍTICAS DE ACESSO INDIVIDUAL ----------------
+DROP POLICY IF EXISTS "Acesso próprio - users" ON users;
+CREATE POLICY "Acesso próprio - users" ON users FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - profiles" ON profiles;
+CREATE POLICY "Acesso próprio - profiles" ON profiles FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - subscriptions" ON subscriptions;
+CREATE POLICY "Acesso próprio - subscriptions" ON subscriptions FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - pt" ON payment_types;
+CREATE POLICY "Acesso próprio - pt" ON payment_types FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - ps" ON payment_statuses;
+CREATE POLICY "Acesso próprio - ps" ON payment_statuses FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - ic" ON income_categories;
+CREATE POLICY "Acesso próprio - ic" ON income_categories FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - ec" ON expense_categories;
+CREATE POLICY "Acesso próprio - ec" ON expense_categories FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - incomes" ON incomes;
+CREATE POLICY "Acesso próprio - incomes" ON incomes FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - expenses" ON expenses;
+CREATE POLICY "Acesso próprio - expenses" ON expenses FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - annual" ON annual_planning;
+CREATE POLICY "Acesso próprio - annual" ON annual_planning FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - shop" ON shopping_list;
+CREATE POLICY "Acesso próprio - shop" ON shopping_list FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - action" ON action_plans;
+CREATE POLICY "Acesso próprio - action" ON action_plans FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - deficit" ON deficit_actions;
+CREATE POLICY "Acesso próprio - deficit" ON deficit_actions FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+
+DROP POLICY IF EXISTS "Acesso próprio - user_data" ON user_data;
+CREATE POLICY "Acesso próprio - user_data" ON user_data FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
 `
   });
 });
