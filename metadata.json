@@ -1,0 +1,6 @@
+{
+  "name": "Finanfly",
+  "description": "Aplicativo de Controle Financeiro completo com painel administrativo, controle de receitas, despesas, planejamento anual e resumo mensal/anual.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
