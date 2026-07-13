@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy } from 'lucide-react';
 
 interface PageProps {
   userData: UserData;
@@ -1787,14 +1787,26 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
   const monthData = useMemo(() => {
     // Filter incomes
     const incomes = userData.incomes.filter(inc => {
-      const d = new Date(inc.date);
-      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+      if (!inc.date) return false;
+      const parts = inc.date.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        return y === selectedYear && m === selectedMonth;
+      }
+      return false;
     });
 
     // Filter expenses
     const expenses = userData.expenses.filter(exp => {
-      const d = new Date(exp.date);
-      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+      if (!exp.date) return false;
+      const parts = exp.date.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        return y === selectedYear && m === selectedMonth;
+      }
+      return false;
     });
 
     const sumIncome = incomes.reduce((acc, curr) => acc + curr.value, 0);
@@ -1882,20 +1894,33 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
   const annualStats = useMemo(() => {
     let yearIncomes = 0;
     let yearExpenses = 0;
+    let yearPlannedExpenses = 0;
 
     // Allocate totals per month
     const monthlySummary = Array.from({ length: 12 }, (_, idx) => {
       const monthIncomes = userData.incomes
         .filter(inc => {
-          const d = new Date(inc.date);
-          return d.getFullYear() === selectedYear && d.getMonth() === idx;
+          if (!inc.date) return false;
+          const parts = inc.date.split('-');
+          if (parts.length >= 2) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            return y === selectedYear && m === idx;
+          }
+          return false;
         })
         .reduce((sum, item) => sum + item.value, 0);
 
       const monthExpenses = userData.expenses
         .filter(exp => {
-          const d = new Date(exp.date);
-          return d.getFullYear() === selectedYear && d.getMonth() === idx;
+          if (!exp.date) return false;
+          const parts = exp.date.split('-');
+          if (parts.length >= 2) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            return y === selectedYear && m === idx;
+          }
+          return false;
         })
         .reduce((sum, item) => sum + item.value, 0);
 
@@ -1905,22 +1930,24 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
       // Find monthly planning budgets if registered
       const yearPlan = userData.annualPlanning.find(p => p.year === selectedYear);
       const budget = yearPlan?.monthlyBudgets.find(b => b.month === idx);
+      const plannedExp = budget?.expenseBudget || 0;
+      yearPlannedExpenses += plannedExp;
 
       return {
         monthIndex: idx,
         monthName: monthsList[idx],
         income: monthIncomes,
         expense: monthExpenses,
-        balance: monthIncomes - monthExpenses,
+        balance: plannedExp - monthIncomes,
         plannedIncome: budget?.incomeBudget || 0,
-        plannedExpense: budget?.expenseBudget || 0
+        plannedExpense: plannedExp
       };
     });
 
     return {
       yearIncomes,
       yearExpenses,
-      balance: yearIncomes - yearExpenses,
+      balance: yearPlannedExpenses - yearIncomes,
       monthlySummary
     };
   }, [userData.incomes, userData.expenses, userData.annualPlanning, selectedYear]);
@@ -1969,27 +1996,21 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
             <thead>
               <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
                 <th className="pb-3.5 font-semibold">Mês</th>
-                <th className="pb-3.5 font-semibold text-right">Receita Real</th>
-                <th className="pb-3.5 font-semibold text-right">Receita Planejada</th>
-                <th className="pb-3.5 font-semibold text-right">Despesa Real</th>
-                <th className="pb-3.5 font-semibold text-right">Orçamento Limite</th>
-                <th className="pb-3.5 font-semibold text-right">Balanço Real</th>
+                <th className="pb-3.5 font-semibold text-right">Orçamento</th>
+                <th className="pb-3.5 font-semibold text-right">Despesa</th>
+                <th className="pb-3.5 font-semibold text-right">Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {annualStats.monthlySummary.map((m) => {
-                const overBudget = m.expense > m.plannedExpense && m.plannedExpense > 0;
                 return (
                   <tr key={m.monthIndex} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
                     <td className="py-3 font-bold text-slate-700 dark:text-slate-300">{m.monthName}</td>
-                    <td className="py-3 text-right font-mono text-blue-600">R$ {m.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    <td className="py-3 text-right font-mono text-slate-400">R$ {m.plannedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    <td className={`py-3 text-right font-mono font-bold ${overBudget ? 'text-red-600' : 'text-slate-800 dark:text-slate-200'}`}>
-                      R$ {m.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      {overBudget && <span className="ml-1 text-[8px] bg-red-100 text-red-600 px-1 py-0.5 rounded">EXCEDIDO</span>}
+                    <td className="py-3 text-right font-mono font-extrabold text-slate-950 dark:text-white">R$ {m.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="py-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                      R$ {m.plannedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="py-3 text-right font-mono text-slate-400">R$ {m.plannedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    <td className={`py-3 text-right font-mono font-bold ${m.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    <td className={`py-3 text-right font-mono font-bold ${m.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       R$ {m.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
@@ -2412,6 +2433,72 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
     });
   };
 
+  const copyPreviousMonthBudget = (monthIdx: number) => {
+    const targetYear = monthIdx === 0 ? selectedYear - 1 : selectedYear;
+    const prevMonthIdx = monthIdx === 0 ? 11 : monthIdx - 1;
+
+    const yearPlan = userData.annualPlanning.find(p => p.year === targetYear);
+    if (!yearPlan) return;
+
+    const prevMonthBudget = yearPlan.monthlyBudgets.find(b => b.month === prevMonthIdx);
+    if (!prevMonthBudget || !prevMonthBudget.categoryBudgets || prevMonthBudget.categoryBudgets.length === 0) {
+      return;
+    }
+
+    const copiedCategories = prevMonthBudget.categoryBudgets.filter(cb =>
+      userData.expenseCategories.includes(cb.category)
+    );
+
+    if (copiedCategories.length === 0) return;
+
+    const sum = copiedCategories.reduce((s, item) => s + item.budgetedValue, 0);
+
+    const existingYearPlanIdx = userData.annualPlanning.findIndex(p => p.year === selectedYear);
+    let updatedPlanningList = [...userData.annualPlanning];
+
+    if (existingYearPlanIdx !== -1) {
+      const updatedBudgets = updatedPlanningList[existingYearPlanIdx].monthlyBudgets.map(b => {
+        if (b.month === monthIdx) {
+          return {
+            ...b,
+            expenseBudget: sum,
+            categoryBudgets: copiedCategories
+          };
+        }
+        return b;
+      });
+      updatedPlanningList[existingYearPlanIdx] = {
+        ...updatedPlanningList[existingYearPlanIdx],
+        monthlyBudgets: updatedBudgets
+      };
+    } else {
+      const defaultBudgets = Array.from({ length: 12 }, (_, idx) => {
+        if (idx === monthIdx) {
+          return {
+            month: idx,
+            incomeBudget: 0,
+            expenseBudget: sum,
+            categoryBudgets: copiedCategories
+          };
+        }
+        return {
+          month: idx,
+          incomeBudget: 0,
+          expenseBudget: 0,
+          categoryBudgets: []
+        };
+      });
+      updatedPlanningList.push({
+        year: selectedYear,
+        monthlyBudgets: defaultBudgets
+      });
+    }
+
+    onUpdateUserData({
+      annualPlanning: updatedPlanningList
+    });
+  };
+
   const openDetailedBudget = (monthIdx: number) => {
     const monthBudget = currentPlanning.monthlyBudgets.find(b => b.month === monthIdx);
     const existingDetails = monthBudget?.categoryBudgets || [];
@@ -2625,6 +2712,24 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {monthsList.map((m, idx) => {
             const currentBudget = currentPlanning.monthlyBudgets.find(b => b.month === idx) || { incomeBudget: 0, expenseBudget: 0, categoryBudgets: [] };
+            const monthRealIncome = userData.incomes
+              .filter(inc => {
+                if (!inc.date) return false;
+                const parts = inc.date.split('-');
+                if (parts.length >= 2) {
+                  const y = parseInt(parts[0], 10);
+                  const m = parseInt(parts[1], 10) - 1;
+                  return y === selectedYear && m === idx;
+                }
+                return false;
+              })
+              .reduce((sum, item) => sum + item.value, 0);
+
+            const hasDetailedBudgets = currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0;
+            const detailedSum = hasDetailedBudgets
+              ? currentBudget.categoryBudgets.reduce((sum, item) => sum + item.budgetedValue, 0)
+              : 0;
+
             return (
               <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800/80 dark:bg-slate-900/40 text-xs space-y-3 flex flex-col justify-between">
                 <div>
@@ -2632,41 +2737,51 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                   
                   <div className="space-y-2">
                     <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400 font-bold uppercase">Meta de Receita (R$)</label>
+                      <label className="text-[10px] text-slate-400 font-bold uppercase">Receita (R$)</label>
                       <input
-                        type="number"
-                        value={currentBudget.incomeBudget || ''}
-                        placeholder="Ex: 5000,00"
-                        onChange={(e) => handleBudgetChange(idx, 'incomeBudget', e.target.value)}
-                        className="w-full rounded bg-white border border-slate-200 px-2.5 py-1.5 font-mono text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                        type="text"
+                        value={`R$ ${monthRealIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                        disabled={true}
+                        className="w-full rounded border px-2.5 py-1.5 font-mono text-slate-500 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
+                        title="Preenchido automaticamente com o total de receitas reais do mês"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400 font-bold uppercase">Teto de Despesa (R$)</label>
+                      <label className="text-[10px] text-slate-400 font-bold uppercase">Orçado mensal (R$)</label>
                       <input
-                        type="number"
-                        value={currentBudget.expenseBudget || ''}
-                        placeholder="Ex: 3500,00"
-                        onChange={(e) => handleBudgetChange(idx, 'expenseBudget', e.target.value)}
-                        className="w-full rounded bg-white border border-slate-200 px-2.5 py-1.5 font-mono text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                        type="text"
+                        value={`R$ ${detailedSum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                        disabled={true}
+                        className="w-full rounded border px-2.5 py-1.5 font-mono text-slate-500 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
+                        title="Calculado a partir do orçamento detalhado"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between gap-1 mt-1">
-                  <span className="text-[10px] text-slate-400 font-medium truncate">
-                    {currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0
-                      ? `${currentBudget.categoryBudgets.length} item(ns) orçado(s)`
-                      : 'Nenhum detalhe'}
-                  </span>
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 mt-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] text-slate-400 font-medium truncate">
+                      {currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0
+                        ? `${currentBudget.categoryBudgets.length} item(ns) orçado(s)`
+                        : 'Nenhum detalhe'}
+                    </span>
+                    <button
+                      onClick={() => openDetailedBudget(idx)}
+                      className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 shrink-0"
+                    >
+                      <Sliders className="h-3 w-3" />
+                      Orçar por Item
+                    </button>
+                  </div>
                   <button
-                    onClick={() => openDetailedBudget(idx)}
-                    className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 shrink-0"
+                    onClick={() => copyPreviousMonthBudget(idx)}
+                    className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/50 text-[10px] font-bold text-slate-600 dark:text-slate-300 transition-colors border border-slate-200 dark:border-slate-800/80"
+                    title={idx === 0 ? "Copiar do Dezembro do ano anterior" : "Copiar do mês anterior"}
                   >
-                    <Sliders className="h-3 w-3" />
-                    Orçar por Item
+                    <Copy className="h-3 w-3 text-slate-400 shrink-0" />
+                    copiar orçado mês anterior
                   </button>
                 </div>
               </div>
