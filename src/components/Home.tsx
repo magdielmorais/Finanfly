@@ -1,5 +1,5 @@
-import React from 'react';
-import { BookOpen, TrendingUp, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info } from 'lucide-react';
 
 interface HomeProps {
   userName: string;
@@ -8,6 +8,8 @@ interface HomeProps {
 }
 
 export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => {
+  const [isComoComecarOpen, setIsComoComecarOpen] = useState(false);
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Welcome Banner */}
@@ -33,10 +35,18 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
               <ArrowRight className="h-4 w-4" />
             </button>
             <button
-              onClick={() => onNavigate('Metas')}
+              onClick={() => onNavigate('Receitas')}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50"
             >
-              Criar Metas
+              <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse" />
+              Adicionar Receitas
+            </button>
+            <button
+              onClick={() => onNavigate('Despesas')}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50"
+            >
+              <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse" />
+              Adicionar Despesas
             </button>
           </div>
         </div>
@@ -85,6 +95,34 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           Dicas para Saúde Financeira
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
+          {/* Card COMO COMEÇAR */}
+          <div className="sm:col-span-2 bg-white rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 overflow-hidden transition-all duration-300">
+            <button
+              onClick={() => setIsComoComecarOpen(!isComoComecarOpen)}
+              className="w-full flex items-center justify-between p-4 text-left font-semibold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <Info className="h-5 w-5 text-blue-600" />
+                <span className="font-bold tracking-wide">COMO COMEÇAR</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400 font-medium uppercase">
+                  {isComoComecarOpen ? 'Clique para fechar' : 'Clique para abrir'}
+                </span>
+                {isComoComecarOpen ? (
+                  <ChevronUp className="h-4 w-4 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                )}
+              </div>
+            </button>
+            {isComoComecarOpen && (
+              <div className="px-4 pb-4 text-xs text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800/50 pt-3 animate-fade-in">
+                Para começar você deve realizar o cadastro de <strong>Tipo de pagamento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro dos tipos de Receitas e Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Planejamento anual</strong> clicando em <strong>Orçar por item</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
+              </div>
+            )}
+          </div>
+
           <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
             <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Regra 50-30-20</h4>
             <p className="text-xs text-slate-600 dark:text-slate-400">

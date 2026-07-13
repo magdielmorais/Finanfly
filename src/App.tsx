@@ -17,6 +17,7 @@ import {
   ListManagerPage,
   DadosPessoaisPage
 } from './components/Pages';
+import { SuportePage } from './components/SuportePage';
 
 import {
   Home as HomeIcon,
@@ -39,7 +40,8 @@ import {
   FileText,
   Sun,
   Moon,
-  AlertTriangle
+  AlertTriangle,
+  HelpCircle
 } from 'lucide-react';
 
 export default function App() {
@@ -327,6 +329,8 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
+      case 'Suporte':
+        return <SuportePage />;
       
       // Configuration Submenus
       case 'Planejamento anual':
@@ -471,6 +475,7 @@ export default function App() {
     { name: 'Metas', icon: Target, type: 'link' },
     { name: 'Ação de melhoria', icon: AlertTriangle, type: 'link' },
     { name: 'Lista de compras', icon: ShoppingCart, type: 'link' },
+    { name: 'Suporte', icon: HelpCircle, type: 'link' },
   ];
 
   const configSubmenus = [
