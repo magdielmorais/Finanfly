@@ -56,6 +56,7 @@ export interface ShoppingItem {
   price: number;
   category: string;
   checked: boolean;
+  date?: string; // YYYY-MM-DD
 }
 
 export interface AnnualPlanning {
@@ -71,6 +72,16 @@ export interface AnnualPlanning {
   }[];
 }
 
+export interface DeficitAction {
+  id: string;
+  costCenter: string; // Centro de custo ocorrido (category where budget was exceeded)
+  reason: string; // Motivo
+  correctionAction: string; // Ação de correção
+  responsible: string; // Responsável
+  date: string; // Data (YYYY-MM-DD)
+  status: 'Pendente' | 'Em Andamento' | 'Concluído';
+}
+
 export interface UserData {
   incomes: Income[];
   expenses: Expense[];
@@ -81,4 +92,6 @@ export interface UserData {
   paymentStatuses: string[];
   incomeCategories: string[];
   expenseCategories: string[];
+  deficitActions?: DeficitAction[];
 }
+

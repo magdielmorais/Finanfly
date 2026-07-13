@@ -181,139 +181,379 @@ function saveDb(db: Database) {
   }
 }
 
+import { createClient } from "@supabase/supabase-js";
+
+let supabaseClient: any = null;
+
+function getSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (url && key && url.trim() !== "" && key.trim() !== "") {
+    try {
+      supabaseClient = createClient(url, key);
+      return supabaseClient;
+    } catch (err) {
+      console.error("Erro ao inicializar cliente do Supabase:", err);
+    }
+  }
+  return null;
+}
+
+// Get user by email with auto-migration from local JSON DB to Supabase
+async function getUserByEmail(email: string): Promise<any> {
+  const lowerEmail = email.toLowerCase().trim();
+  const supabase = getSupabaseClient();
+  const db = getDb();
+  const localUser = db.users[lowerEmail];
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', lowerEmail)
+        .maybeSingle();
+      
+      if (!error && data) {
+        return data;
+      }
+
+      // If user exists locally but not in Supabase, migrate them automatically
+      if (!data && localUser) {
+        console.log(`Migrando usuário ${lowerEmail} para o Supabase...`);
+        await saveUser(localUser);
+        const localData = db.userData[lowerEmail];
+        if (localData) {
+          await saveUserDataByEmail(lowerEmail, localData);
+        }
+        return localUser;
+      }
+    } catch (err) {
+      console.error("Falha ao consultar usuário no Supabase:", err);
+    }
+  }
+
+  return localUser || null;
+}
+
+// Save/Update user profile
+async function saveUser(user: any): Promise<boolean> {
+  const lowerEmail = user.email.toLowerCase().trim();
+  
+  // Always update local database as backup/fallback
+  const db = getDb();
+  db.users[lowerEmail] = user;
+  saveDb(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .upsert({
+          email: lowerEmail,
+          name: user.name,
+          address: user.address,
+          city: user.city,
+          state: user.state,
+          phone: user.phone,
+          role: user.role,
+          password: user.password,
+          subscription: user.subscription,
+          created_at: user.createdAt || new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error("Erro ao salvar usuário no Supabase:", error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Falha ao salvar usuário no Supabase:", err);
+    }
+  }
+  return true;
+}
+
+// Get user workspace data
+async function getUserDataByEmail(email: string): Promise<any> {
+  const lowerEmail = email.toLowerCase().trim();
+  const supabase = getSupabaseClient();
+  const db = getDb();
+  const localData = db.userData[lowerEmail];
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('data')
+        .eq('email', lowerEmail)
+        .maybeSingle();
+      
+      if (!error && data && data.data) {
+        return data.data;
+      }
+
+      // If user has local data but not in Supabase, migrate it
+      if ((!data || !data.data) && localData) {
+        console.log(`Migrando dados do workspace de ${lowerEmail} para o Supabase...`);
+        await saveUserDataByEmail(lowerEmail, localData);
+        return localData;
+      }
+    } catch (err) {
+      console.error("Falha ao buscar dados do usuário no Supabase:", err);
+    }
+  }
+
+  return localData || null;
+}
+
+// Save/Update user workspace data
+async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
+  const lowerEmail = email.toLowerCase().trim();
+
+  // Always update local database as backup/fallback
+  const db = getDb();
+  db.userData[lowerEmail] = {
+    ...db.userData[lowerEmail],
+    ...data
+  };
+  saveDb(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from('user_data')
+        .upsert({
+          email: lowerEmail,
+          data: db.userData[lowerEmail],
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error("Erro ao salvar dados no Supabase:", error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Falha ao salvar dados no Supabase:", err);
+    }
+  }
+  return true;
+}
+
+// Get all users (Admin only)
+async function getAllUsersList(): Promise<any[]> {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*');
+      
+      if (!error && data) {
+        return data.map((u: any) => ({
+          email: u.email,
+          name: u.name,
+          address: u.address,
+          city: u.city,
+          state: u.state,
+          phone: u.phone,
+          role: u.role,
+          subscription: u.subscription,
+          createdAt: u.created_at || u.createdAt || new Date().toISOString()
+        }));
+      }
+    } catch (err) {
+      console.error("Falha ao buscar todos os usuários no Supabase:", err);
+    }
+  }
+
+  // Fallback to local
+  const db = getDb();
+  return Object.values(db.users).map((user: any) => {
+    const { password: _, ...rest } = user;
+    return rest;
+  });
+}
+
 // ---------------- API ENDPOINTS ----------------
 
+// Supabase Connection Status and Schema Info
+app.get("/api/supabase-status", (req, res) => {
+  const active = !!getSupabaseClient();
+  res.json({
+    active,
+    url: process.env.SUPABASE_URL || "",
+    schema: `
+-- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
+
+CREATE TABLE IF NOT EXISTS users (
+  email TEXT PRIMARY KEY,
+  name TEXT,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  phone TEXT,
+  role TEXT DEFAULT 'user',
+  password TEXT,
+  subscription JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_data (
+  email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+  data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+`
+  });
+});
+
 // Login
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "E-mail e senha são obrigatórios." });
   }
 
-  const db = getDb();
-  const lowerEmail = email.toLowerCase().trim();
-  const user = db.users[lowerEmail];
+  try {
+    const user = await getUserByEmail(email);
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: "E-mail ou senha incorretos." });
+    }
 
-  if (!user || user.password !== password) {
-    return res.status(401).json({ error: "E-mail ou senha incorretos." });
+    const { password: _, ...userProfile } = user;
+    res.json({ user: userProfile });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
   }
-
-  // Omit password before sending
-  const { password: _, ...userProfile } = user;
-  res.json({ user: userProfile });
 });
 
 // Register
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   const { email, password, name, address, phone, city, state } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: "Nome, E-mail e senha são obrigatórios." });
   }
 
-  const db = getDb();
-  const lowerEmail = email.toLowerCase().trim();
+  try {
+    const lowerEmail = email.toLowerCase().trim();
+    const existingUser = await getUserByEmail(lowerEmail);
 
-  if (db.users[lowerEmail]) {
-    return res.status(400).json({ error: "Este e-mail já está cadastrado." });
+    if (existingUser) {
+      return res.status(400).json({ error: "Este e-mail já está cadastrado." });
+    }
+
+    const newUser = {
+      email: lowerEmail,
+      name,
+      address: address || "",
+      city: city || "",
+      state: state || "",
+      phone: phone || "",
+      role: "user",
+      password,
+      subscription: {
+        plan: "none",
+        validUntil: null,
+        selectedAt: null,
+        freePlanUsed: false,
+        approved: false,
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    await saveUser(newUser);
+
+    const defaultData = {
+      paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
+      paymentStatuses: ["Pago", "Pendente", "Atrasado"],
+      incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
+      expenseCategories: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"],
+      incomes: [],
+      expenses: [],
+      actionPlans: [],
+      shoppingList: [],
+      annualPlanning: [
+        {
+          year: 2026,
+          monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
+            month: i,
+            incomeBudget: 0,
+            expenseBudget: 0
+          }))
+        }
+      ]
+    };
+
+    await saveUserDataByEmail(lowerEmail, defaultData);
+
+    const { password: _, ...userProfile } = newUser;
+    res.json({ user: userProfile });
+  } catch (err) {
+    console.error("Registration error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
   }
-
-  const newUser = {
-    email: lowerEmail,
-    name,
-    address: address || "",
-    city: city || "",
-    state: state || "",
-    phone: phone || "",
-    role: "user",
-    password,
-    subscription: {
-      plan: "none",
-      validUntil: null,
-      selectedAt: null,
-      freePlanUsed: false,
-      approved: false, // Wait for admin approval or direct payment
-    },
-    createdAt: new Date().toISOString(),
-  };
-
-  db.users[lowerEmail] = newUser;
-
-  // Initialize their workspace data
-  db.userData[lowerEmail] = {
-    paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
-    paymentStatuses: ["Pago", "Pendente", "Atrasado"],
-    incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
-    expenseCategories: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"],
-    incomes: [],
-    expenses: [],
-    actionPlans: [],
-    shoppingList: [],
-    annualPlanning: [
-      {
-        year: 2026,
-        monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-          month: i,
-          incomeBudget: 0,
-          expenseBudget: 0
-        }))
-      }
-    ]
-  };
-
-  saveDb(db);
-
-  const { password: _, ...userProfile } = newUser;
-  res.json({ user: userProfile });
 });
 
 // Get User Profile
-app.get("/api/user/profile", (req, res) => {
+app.get("/api/user/profile", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
 
-  const db = getDb();
-  const user = db.users[email.toLowerCase().trim()];
-  if (!user) {
-    return res.status(404).json({ error: "Usuário não encontrado." });
-  }
+  try {
+    const user = await getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
 
-  const { password: _, ...userProfile } = user;
-  res.json({ user: userProfile });
+    const { password: _, ...userProfile } = user;
+    res.json({ user: userProfile });
+  } catch (err) {
+    console.error("Profile get error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
 });
 
 // Update User Profile (Dados Pessoais)
-app.post("/api/user/profile", (req, res) => {
+app.post("/api/user/profile", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
 
-  const { name, address, phone, city, state } = req.body;
-  const db = getDb();
-  const lowerEmail = email.toLowerCase().trim();
-  const user = db.users[lowerEmail];
+  try {
+    const { name, address, phone, city, state } = req.body;
+    const user = await getUserByEmail(email);
 
-  if (!user) {
-    return res.status(404).json({ error: "Usuário não encontrado." });
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    user.name = name || user.name;
+    user.address = address !== undefined ? address : user.address;
+    user.phone = phone !== undefined ? phone : user.phone;
+    user.city = city !== undefined ? city : user.city;
+    user.state = state !== undefined ? state : user.state;
+
+    await saveUser(user);
+
+    const { password: _, ...userProfile } = user;
+    res.json({ user: userProfile });
+  } catch (err) {
+    console.error("Profile update error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
   }
-
-  user.name = name || user.name;
-  user.address = address !== undefined ? address : user.address;
-  user.phone = phone !== undefined ? phone : user.phone;
-  user.city = city !== undefined ? city : user.city;
-  user.state = state !== undefined ? state : user.state;
-
-  db.users[lowerEmail] = user;
-  saveDb(db);
-
-  const { password: _, ...userProfile } = user;
-  res.json({ user: userProfile });
 });
 
 // Update Subscription
-app.post("/api/user/subscription", (req, res) => {
+app.post("/api/user/subscription", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
@@ -324,64 +564,232 @@ app.post("/api/user/subscription", (req, res) => {
     return res.status(400).json({ error: "Plano inválido." });
   }
 
-  const db = getDb();
-  const lowerEmail = email.toLowerCase().trim();
-  const user = db.users[lowerEmail];
-
-  if (!user) {
-    return res.status(404).json({ error: "Usuário não encontrado." });
-  }
-
-  if (plan === "gratis") {
-    if (user.subscription.freePlanUsed) {
-      return res.status(400).json({ error: "Você já utilizou o período grátis de 45 dias anteriormente." });
+  try {
+    const user = await getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
     }
-    user.subscription = {
-      plan: "gratis",
-      validUntil: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(), // 45 days
-      selectedAt: new Date().toISOString(),
-      freePlanUsed: true,
-      approved: true,
-    };
-  } else if (plan === "mensal") {
-    user.subscription = {
-      plan: "mensal",
-      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-      selectedAt: new Date().toISOString(),
-      freePlanUsed: user.subscription.freePlanUsed || false,
-      approved: true, // Auto-approved for simulation
-    };
-  } else if (plan === "anual") {
-    user.subscription = {
-      plan: "anual",
-      validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 365 days
-      selectedAt: new Date().toISOString(),
-      freePlanUsed: user.subscription.freePlanUsed || false,
-      approved: true, // Auto-approved for simulation
-    };
+
+    if (!user.subscription) {
+      user.subscription = {
+        plan: "none",
+        validUntil: null,
+        selectedAt: null,
+        freePlanUsed: false,
+        approved: false,
+      };
+    }
+
+    if (plan === "gratis") {
+      if (user.subscription.freePlanUsed) {
+        return res.status(400).json({ error: "Você já utilizou o período grátis de 45 dias anteriormente." });
+      }
+      user.subscription = {
+        plan: "gratis",
+        validUntil: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+        selectedAt: new Date().toISOString(),
+        freePlanUsed: true,
+        approved: true,
+      };
+    } else if (plan === "mensal") {
+      user.subscription = {
+        plan: "mensal",
+        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        selectedAt: new Date().toISOString(),
+        freePlanUsed: user.subscription.freePlanUsed || false,
+        approved: true,
+      };
+    } else if (plan === "anual") {
+      user.subscription = {
+        plan: "anual",
+        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        selectedAt: new Date().toISOString(),
+        freePlanUsed: user.subscription.freePlanUsed || false,
+        approved: true,
+      };
+    }
+
+    await saveUser(user);
+
+    const { password: _, ...userProfile } = user;
+    res.json({ user: userProfile });
+  } catch (err) {
+    console.error("Subscription update error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
   }
-
-  db.users[lowerEmail] = user;
-  saveDb(db);
-
-  const { password: _, ...userProfile } = user;
-  res.json({ user: userProfile });
 });
 
 // Get User Data
-app.get("/api/user/data", (req, res) => {
+app.get("/api/user/data", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
 
-  const db = getDb();
-  const lowerEmail = email.toLowerCase().trim();
-  const userData = db.userData[lowerEmail];
+  try {
+    const userData = await getUserDataByEmail(email);
+    if (!userData) {
+      return res.json({
+        paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
+        paymentStatuses: ["Pago", "Pendente", "Atrasado"],
+        incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
+        expenseCategories: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"],
+        incomes: [],
+        expenses: [],
+        actionPlans: [],
+        shoppingList: [],
+        annualPlanning: []
+      });
+    }
 
-  if (!userData) {
-    // Return empty templates if somehow missing
-    return res.json({
+    res.json(userData);
+  } catch (err) {
+    console.error("User data get error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Update User Data
+app.post("/api/user/data", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const newData = req.body;
+    const currentData = await getUserDataByEmail(email) || {};
+    const updatedData = {
+      ...currentData,
+      ...newData,
+    };
+
+    await saveUserDataByEmail(email, updatedData);
+    res.json({ success: true, data: updatedData });
+  } catch (err) {
+    console.error("User data post error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// ---------------- ADMIN ENDPOINTS ----------------
+
+// Get All Users (Admin only)
+app.get("/api/admin/users", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const list = await getAllUsersList();
+    res.json({ users: list });
+  } catch (err) {
+    console.error("Admin users error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Approve user manually (Admin only)
+app.post("/api/admin/approve-user", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { targetEmail, approve } = req.body;
+    const targetUser = await getUserByEmail(targetEmail);
+    if (!targetUser) {
+      return res.status(404).json({ error: "Usuário alvo não encontrado." });
+    }
+
+    if (!targetUser.subscription) {
+      targetUser.subscription = {
+        plan: "none",
+        validUntil: null,
+        selectedAt: null,
+        freePlanUsed: false,
+        approved: false,
+      };
+    }
+
+    targetUser.subscription.approved = approve;
+    if (approve && targetUser.subscription.plan === "none") {
+      targetUser.subscription.plan = "mensal";
+      targetUser.subscription.validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    await saveUser(targetUser);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Admin approve-user error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Admin registers new user (Admin only)
+app.post("/api/admin/create-user", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { targetEmail, password, name, role, plan } = req.body;
+    const lowerTargetEmail = targetEmail.toLowerCase().trim();
+    const existing = await getUserByEmail(lowerTargetEmail);
+
+    if (existing) {
+      return res.status(400).json({ error: "Este e-mail já está cadastrado." });
+    }
+
+    let validUntil = null;
+    if (plan === "gratis") {
+      validUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (plan === "mensal") {
+      validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (plan === "anual") {
+      validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    const newUser = {
+      email: lowerTargetEmail,
+      name,
+      address: "",
+      city: "",
+      state: "",
+      phone: "",
+      role: role || "user",
+      password: password || "user123",
+      subscription: {
+        plan: plan || "none",
+        validUntil,
+        selectedAt: new Date().toISOString(),
+        freePlanUsed: plan === "gratis",
+        approved: true,
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    await saveUser(newUser);
+
+    const defaultData = {
       paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
       paymentStatuses: ["Pago", "Pendente", "Atrasado"],
       incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
@@ -391,254 +799,126 @@ app.get("/api/user/data", (req, res) => {
       actionPlans: [],
       shoppingList: [],
       annualPlanning: []
-    });
+    };
+
+    await saveUserDataByEmail(lowerTargetEmail, defaultData);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Admin create-user error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
   }
-
-  res.json(userData);
-});
-
-// Update User Data
-app.post("/api/user/data", (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
-
-  const newData = req.body;
-  const db = getDb();
-  const lowerEmail = email.toLowerCase().trim();
-
-  db.userData[lowerEmail] = {
-    ...db.userData[lowerEmail],
-    ...newData,
-  };
-
-  saveDb(db);
-  res.json({ success: true, data: db.userData[lowerEmail] });
-});
-
-// ---------------- ADMIN ENDPOINTS ----------------
-
-// Get All Users (Admin only)
-app.get("/api/admin/users", (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
-
-  const db = getDb();
-  const adminUser = db.users[email.toLowerCase().trim()];
-  if (!adminUser || adminUser.role !== "admin") {
-    return res.status(403).json({ error: "Acesso restrito ao administrador." });
-  }
-
-  // Return all users (excluding passwords)
-  const usersList = Object.values(db.users).map(user => {
-    const { password: _, ...rest } = user;
-    return rest;
-  });
-
-  res.json({ users: usersList });
-});
-
-// Approve user manually (Admin only)
-app.post("/api/admin/approve-user", (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
-
-  const db = getDb();
-  const adminUser = db.users[email.toLowerCase().trim()];
-  if (!adminUser || adminUser.role !== "admin") {
-    return res.status(403).json({ error: "Acesso restrito ao administrador." });
-  }
-
-  const { targetEmail, approve } = req.body;
-  const targetUser = db.users[targetEmail.toLowerCase().trim()];
-  if (!targetUser) {
-    return res.status(404).json({ error: "Usuário alvo não encontrado." });
-  }
-
-  targetUser.subscription.approved = approve;
-  if (approve && targetUser.subscription.plan === "none") {
-    // If approved and no plan, give them a monthly trial or manual admin plan
-    targetUser.subscription.plan = "mensal";
-    targetUser.subscription.validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  }
-
-  db.users[targetEmail.toLowerCase().trim()] = targetUser;
-  saveDb(db);
-
-  res.json({ success: true });
-});
-
-// Admin registers new user (Admin only)
-app.post("/api/admin/create-user", (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
-
-  const db = getDb();
-  const adminUser = db.users[email.toLowerCase().trim()];
-  if (!adminUser || adminUser.role !== "admin") {
-    return res.status(403).json({ error: "Acesso restrito ao administrador." });
-  }
-
-  const { targetEmail, password, name, role, plan } = req.body;
-  const lowerTargetEmail = targetEmail.toLowerCase().trim();
-
-  if (db.users[lowerTargetEmail]) {
-    return res.status(400).json({ error: "Este e-mail já está cadastrado." });
-  }
-
-  let validUntil = null;
-  if (plan === "gratis") {
-    validUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
-  } else if (plan === "mensal") {
-    validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  } else if (plan === "anual") {
-    validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-  }
-
-  const newUser = {
-    email: lowerTargetEmail,
-    name,
-    address: "",
-    city: "",
-    state: "",
-    phone: "",
-    role: role || "user",
-    password: password || "user123",
-    subscription: {
-      plan: plan || "none",
-      validUntil,
-      selectedAt: new Date().toISOString(),
-      freePlanUsed: plan === "gratis",
-      approved: true,
-    },
-    createdAt: new Date().toISOString(),
-  };
-
-  db.users[lowerTargetEmail] = newUser;
-
-  db.userData[lowerTargetEmail] = {
-    paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
-    paymentStatuses: ["Pago", "Pendente", "Atrasado"],
-    incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
-    expenseCategories: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"],
-    incomes: [],
-    expenses: [],
-    actionPlans: [],
-    shoppingList: [],
-    annualPlanning: []
-  };
-
-  saveDb(db);
-  res.json({ success: true });
 });
 
 // Admin edits user profile and subscription (Admin only)
-app.post("/api/admin/edit-user", (req, res) => {
+app.post("/api/admin/edit-user", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
 
-  const db = getDb();
-  const adminUser = db.users[email.toLowerCase().trim()];
-  if (!adminUser || adminUser.role !== "admin") {
-    return res.status(403).json({ error: "Acesso restrito ao administrador." });
-  }
-
-  const { targetEmail, name, role, plan, password, address, phone, city, state } = req.body;
-  const lowerTargetEmail = targetEmail.toLowerCase().trim();
-
-  const user = db.users[lowerTargetEmail];
-  if (!user) {
-    return res.status(404).json({ error: "Usuário não encontrado." });
-  }
-
-  if (name !== undefined) user.name = name;
-  if (role !== undefined) user.role = role;
-  if (password !== undefined && password.trim() !== "") user.password = password;
-  if (address !== undefined) user.address = address;
-  if (phone !== undefined) user.phone = phone;
-  if (city !== undefined) user.city = city;
-  if (state !== undefined) user.state = state;
-
-  if (plan !== undefined) {
-    if (!user.subscription) {
-      user.subscription = {
-        plan: "none",
-        validUntil: null,
-        selectedAt: new Date().toISOString(),
-        freePlanUsed: false,
-        approved: true,
-      };
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
     }
-    
-    if (user.subscription.plan !== plan) {
-      user.subscription.plan = plan;
-      let validUntil = null;
-      if (plan === "gratis") {
-        validUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
-      } else if (plan === "mensal") {
-        validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      } else if (plan === "anual") {
-        validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { targetEmail, name, role, plan, password, address, phone, city, state } = req.body;
+    const lowerTargetEmail = targetEmail.toLowerCase().trim();
+
+    const user = await getUserByEmail(lowerTargetEmail);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    if (name !== undefined) user.name = name;
+    if (role !== undefined) user.role = role;
+    if (password !== undefined && password.trim() !== "") user.password = password;
+    if (address !== undefined) user.address = address;
+    if (phone !== undefined) user.phone = phone;
+    if (city !== undefined) user.city = city;
+    if (state !== undefined) user.state = state;
+
+    if (plan !== undefined) {
+      if (!user.subscription) {
+        user.subscription = {
+          plan: "none",
+          validUntil: null,
+          selectedAt: new Date().toISOString(),
+          freePlanUsed: false,
+          approved: true,
+        };
       }
-      user.subscription.validUntil = validUntil;
-      user.subscription.selectedAt = new Date().toISOString();
-      user.subscription.approved = true; // Auto approve admin changes
+      
+      if (user.subscription.plan !== plan) {
+        user.subscription.plan = plan;
+        let validUntil = null;
+        if (plan === "gratis") {
+          validUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
+        } else if (plan === "mensal") {
+          validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        } else if (plan === "anual") {
+          validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        }
+        user.subscription.validUntil = validUntil;
+        user.subscription.selectedAt = new Date().toISOString();
+        user.subscription.approved = true;
+      }
     }
+
+    await saveUser(user);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Admin edit-user error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
   }
-
-  db.users[lowerTargetEmail] = user;
-  saveDb(db);
-
-  res.json({ success: true });
 });
 
 // Admin retrieves target user's password (Admin only)
-app.get("/api/admin/retrieve-password/:targetEmail", (req, res) => {
+app.get("/api/admin/retrieve-password/:targetEmail", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
 
-  const db = getDb();
-  const adminUser = db.users[email.toLowerCase().trim()];
-  if (!adminUser || adminUser.role !== "admin") {
-    return res.status(403).json({ error: "Acesso restrito ao administrador." });
-  }
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
 
-  const targetEmail = req.params.targetEmail.toLowerCase().trim();
-  const targetUser = db.users[targetEmail];
-  if (!targetUser) {
-    return res.status(404).json({ error: "Usuário não encontrado." });
-  }
+    const targetEmail = req.params.targetEmail.toLowerCase().trim();
+    const targetUser = await getUserByEmail(targetEmail);
+    if (!targetUser) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
 
-  res.json({ password: targetUser.password });
+    res.json({ password: targetUser.password });
+  } catch (err) {
+    console.error("Admin retrieve-password error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
 });
 
 // Admin views target user's direct financial records / lists (for administrative audit)
-app.get("/api/admin/user-details/:userEmail", (req, res) => {
+app.get("/api/admin/user-details/:userEmail", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
 
-  const db = getDb();
-  const adminUser = db.users[email.toLowerCase().trim()];
-  if (!adminUser || adminUser.role !== "admin") {
-    return res.status(403).json({ error: "Acesso restrito ao administrador." });
-  }
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
 
-  const targetEmail = req.params.userEmail.toLowerCase().trim();
-  const targetUserData = db.userData[targetEmail] || {};
-  res.json(targetUserData);
+    const targetEmail = req.params.userEmail.toLowerCase().trim();
+    const targetUserData = await getUserDataByEmail(targetEmail) || {};
+    res.json(targetUserData);
+  } catch (err) {
+    console.error("Admin user-details error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
 });
 
 

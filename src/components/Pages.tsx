@@ -1824,14 +1824,36 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       ...expenses.map(e => ({ ...e, type: 'despesa' as const }))
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+    const yearPlan = userData.annualPlanning.find(p => p.year === selectedYear);
+    const budget = yearPlan?.monthlyBudgets.find(b => b.month === selectedMonth);
+
+    const categoriesTableData = userData.expenseCategories.map(cat => {
+      const catBudget = budget?.categoryBudgets?.find(cb => cb.category === cat);
+      const budgetedValue = catBudget?.budgetedValue || 0;
+
+      const realizedValue = expenses
+        .filter(exp => exp.category === cat)
+        .reduce((sum, item) => sum + item.value, 0);
+
+      const balanceValue = budgetedValue - realizedValue;
+
+      return {
+        category: cat,
+        budgetedValue,
+        realizedValue,
+        balanceValue
+      };
+    }).sort((a, b) => a.category.localeCompare(b.category, 'pt-BR'));
+
     return {
       sumIncome,
       sumExpense,
       balance: sumIncome - sumExpense,
       catStats: Object.entries(catStats).map(([category, value]) => ({ category, value })),
-      statement
+      statement,
+      categoriesTableData
     };
-  }, [userData.incomes, userData.expenses, selectedMonth, selectedYear]);
+  }, [userData.incomes, userData.expenses, userData.annualPlanning, userData.expenseCategories, selectedMonth, selectedYear]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -1876,6 +1898,44 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
           <div className={`text-xl font-bold mt-1 font-mono ${monthData.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
             R$ {monthData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
+        </div>
+      </div>
+
+      {/* Performance by Cost Center Table */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Desempenho por Centro de Custo</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
+                <th className="pb-3.5 font-semibold">Centro de Custo</th>
+                <th className="pb-3.5 font-semibold text-right">Orçado Mês</th>
+                <th className="pb-3.5 font-semibold text-right">Realizado Mês</th>
+                <th className="pb-3.5 font-semibold text-right">Saldo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+              {monthData.categoriesTableData.map((item) => (
+                <tr key={item.category} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
+                  <td className="py-3 font-bold text-slate-700 dark:text-slate-300">{item.category}</td>
+                  <td className="py-3 text-right font-mono font-medium text-slate-600 dark:text-slate-400">
+                    R$ {item.budgetedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
+                    R$ {item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className={`py-3 text-right font-mono font-bold ${item.balanceValue < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    R$ {item.balanceValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              ))}
+              {monthData.categoriesTableData.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-4 text-center text-slate-400">Nenhum Centro de Custo cadastrado.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1938,16 +1998,15 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
         monthName: monthsList[idx],
         income: monthIncomes,
         expense: monthExpenses,
-        balance: plannedExp - monthIncomes,
-        plannedIncome: budget?.incomeBudget || 0,
-        plannedExpense: plannedExp
+        budget: plannedExp,
+        balance: plannedExp - monthExpenses
       };
     });
 
     return {
       yearIncomes,
       yearExpenses,
-      balance: yearPlannedExpenses - yearIncomes,
+      balance: yearIncomes - yearExpenses,
       monthlySummary
     };
   }, [userData.incomes, userData.expenses, userData.annualPlanning, selectedYear]);
@@ -2006,11 +2065,11 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
                 return (
                   <tr key={m.monthIndex} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
                     <td className="py-3 font-bold text-slate-700 dark:text-slate-300">{m.monthName}</td>
-                    <td className="py-3 text-right font-mono font-extrabold text-slate-950 dark:text-white">R$ {m.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="py-3 text-right font-mono font-extrabold text-slate-950 dark:text-white">R$ {m.budget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     <td className="py-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
-                      R$ {m.plannedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {m.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className={`py-3 text-right font-mono font-bold ${m.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <td className={`py-3 text-right font-mono font-bold ${m.balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       R$ {m.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
@@ -2024,36 +2083,73 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
   );
 };
 
-// ======================== PLANO DE AÇÃO ========================
-export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
+// ======================== METAS ========================
+export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAdd, setShowAdd] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [value, setValue] = useState('');
   const [status, setStatus] = useState<'Pendente' | 'Em Andamento' | 'Concluído'>('Pendente');
 
+  // Filters State
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !value) return;
 
-    const newPlan: ActionPlan = {
-      id: 'plan-' + Date.now(),
-      title,
-      description,
-      targetDate,
-      value: parseFloat(value),
-      status
-    };
+    if (editingPlanId) {
+      onUpdateUserData({
+        actionPlans: userData.actionPlans.map(p =>
+          p.id === editingPlanId
+            ? { ...p, title, description, targetDate, value: parseFloat(value), status }
+            : p
+        )
+      });
+      setEditingPlanId(null);
+    } else {
+      const newPlan: ActionPlan = {
+        id: 'plan-' + Date.now(),
+        title,
+        description,
+        targetDate,
+        value: parseFloat(value),
+        status
+      };
 
-    onUpdateUserData({
-      actionPlans: [...userData.actionPlans, newPlan]
-    });
+      onUpdateUserData({
+        actionPlans: [...userData.actionPlans, newPlan]
+      });
+    }
 
     setTitle('');
     setDescription('');
     setTargetDate('');
     setValue('');
+    setStatus('Pendente');
+    setShowAdd(false);
+  };
+
+  const handleStartEdit = (plan: ActionPlan) => {
+    setEditingPlanId(plan.id);
+    setTitle(plan.title);
+    setDescription(plan.description);
+    setTargetDate(plan.targetDate);
+    setValue(plan.value.toString());
+    setStatus(plan.status);
+    setShowAdd(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPlanId(null);
+    setTitle('');
+    setDescription('');
+    setTargetDate('');
+    setValue('');
+    setStatus('Pendente');
     setShowAdd(false);
   };
 
@@ -2061,6 +2157,9 @@ export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     onUpdateUserData({
       actionPlans: userData.actionPlans.filter(p => p.id !== id)
     });
+    if (editingPlanId === id) {
+      handleCancelEdit();
+    }
   };
 
   const handleStatusChange = (id: string, newStatus: 'Pendente' | 'Em Andamento' | 'Concluído') => {
@@ -2069,26 +2168,56 @@ export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     });
   };
 
+  // Extract list of years dynamically for filters
+  const planYears = useMemo(() => {
+    const years = new Set<string>();
+    userData.actionPlans.forEach(p => {
+      if (p.targetDate) {
+        const y = p.targetDate.split('-')[0];
+        if (y) years.add(y);
+      }
+    });
+    return Array.from(years).sort().reverse();
+  }, [userData.actionPlans]);
+
+  // Filter actions
+  const filteredPlans = useMemo(() => {
+    return userData.actionPlans.filter(p => {
+      const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
+      const planYear = p.targetDate ? p.targetDate.split('-')[0] : '';
+      const matchesYear = filterYear === 'all' || planYear === filterYear;
+      return matchesStatus && matchesYear;
+    });
+  }, [userData.actionPlans, filterStatus, filterYear]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Planos de Ação Financeira</h2>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Metas</h2>
           <p className="text-xs text-slate-400">Defina objetivos de curto/médio prazo (comprar carro, fundo de reserva) e acompanhe seu progresso.</p>
         </div>
         <button
-          onClick={() => setShowAdd(!showAdd)}
+          onClick={() => {
+            if (showAdd) {
+              handleCancelEdit();
+            } else {
+              setShowAdd(true);
+            }
+          }}
           className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Novo Objetivo
+          {editingPlanId ? 'Editar Objetivo' : 'Novo Objetivo'}
         </button>
       </div>
 
       {showAdd && (
         <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-2 text-xs">
           <div className="sm:col-span-2">
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Título da Meta</label>
+            <label className="block text-[10px] font-bold uppercase text-slate-400">
+              {editingPlanId ? 'Editar Título da Meta' : 'Título da Meta'}
+            </label>
             <input type="text" required placeholder="Ex: Fundo de Emergência de 6 meses" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
           </div>
           <div className="sm:col-span-2">
@@ -2103,8 +2232,8 @@ export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
             <label className="block text-[10px] font-bold uppercase text-slate-400">Data Limite</label>
             <input type="date" required value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
           </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Status Inicial</label>
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
             <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
               <option value="Pendente">Pendente</option>
               <option value="Em Andamento">Em Andamento</option>
@@ -2112,18 +2241,60 @@ export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
             </select>
           </div>
           <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowAdd(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
-            <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">Cadastrar Meta</button>
+            <button type="button" onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
+            <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">
+              {editingPlanId ? 'Salvar Alterações' : 'Cadastrar Meta'}
+            </button>
           </div>
         </form>
       )}
 
+      {/* Filters Bar */}
+      <div className="flex flex-wrap gap-4 bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs items-center justify-between">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">
+          <Filter className="h-4 w-4 text-slate-400 shrink-0" />
+          Filtrar Metas
+        </div>
+        
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 font-medium">Status:</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="all">Todos os Status</option>
+              <option value="Pendente">Pendente</option>
+              <option value="Em Andamento">Em Andamento</option>
+              <option value="Concluído">Concluído</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 font-medium">Ano Alvo:</span>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="all">Todos os Anos</option>
+              {planYears.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Grid of Action cards */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {userData.actionPlans.length === 0 ? (
-          <div className="sm:col-span-3 text-center py-12 text-slate-400 text-xs rounded-xl border border-dashed border-slate-200 bg-slate-50 dark:bg-slate-900/40 dark:border-slate-800">Nenhum plano de ação registrado ainda. Comece criando seu primeiro objetivo!</div>
+        {filteredPlans.length === 0 ? (
+          <div className="sm:col-span-3 text-center py-12 text-slate-400 text-xs rounded-xl border border-dashed border-slate-200 bg-slate-50 dark:bg-slate-900/40 dark:border-slate-800">
+            Nenhum plano de ação encontrado para os filtros selecionados.
+          </div>
         ) : (
-          userData.actionPlans.map((plan) => (
+          filteredPlans.map((plan) => (
             <div key={plan.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -2135,9 +2306,22 @@ export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
                       : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                   }`}>{plan.status}</span>
                   
-                  <button onClick={() => handleDelete(plan.id)} className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleStartEdit(plan)}
+                      className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                      title="Editar Meta"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(plan.id)}
+                      className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                      title="Excluir Meta"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 
                 <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">{plan.title}</h3>
@@ -2152,7 +2336,9 @@ export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400">Meta até:</span>
-                  <span className="text-slate-700 font-mono font-medium dark:text-slate-300">{plan.targetDate.split('-').reverse().join('/')}</span>
+                  <span className="text-slate-700 font-mono font-medium dark:text-slate-300">
+                    {plan.targetDate ? plan.targetDate.split('-').reverse().join('/') : '-'}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg dark:bg-slate-950 text-[10px] font-bold uppercase text-slate-500">
@@ -2179,6 +2365,288 @@ export const PlanoDeAcaoPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
   );
 };
 
+// ======================== AÇÃO DÉFICIT PAGE ========================
+export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
+
+  // Form Fields
+  const [costCenter, setCostCenter] = useState('');
+  const [reason, setReason] = useState('');
+  const [correctionAction, setCorrectionAction] = useState('');
+  const [responsible, setResponsible] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [status, setStatus] = useState<'Pendente' | 'Em Andamento' | 'Concluído'>('Pendente');
+
+  const deficitActions = userData.deficitActions || [];
+
+  // Initialize Cost Center to first category
+  React.useEffect(() => {
+    if (userData.expenseCategories && userData.expenseCategories.length > 0 && !costCenter) {
+      setCostCenter(userData.expenseCategories[0]);
+    }
+  }, [userData.expenseCategories, costCenter]);
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!costCenter || !reason || !correctionAction || !responsible || !date) return;
+
+    if (editingActionId) {
+      onUpdateUserData({
+        deficitActions: deficitActions.map(a =>
+          a.id === editingActionId
+            ? { ...a, costCenter, reason, correctionAction, responsible, date, status }
+            : a
+        )
+      });
+      setEditingActionId(null);
+    } else {
+      const newAction = {
+        id: 'deficit-' + Date.now(),
+        costCenter,
+        reason,
+        correctionAction,
+        responsible,
+        date,
+        status
+      };
+      onUpdateUserData({
+        deficitActions: [...deficitActions, newAction]
+      });
+    }
+
+    setReason('');
+    setCorrectionAction('');
+    setResponsible('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setStatus('Pendente');
+    setShowAdd(false);
+  };
+
+  const handleStartEdit = (action: any) => {
+    setEditingActionId(action.id);
+    setCostCenter(action.costCenter);
+    setReason(action.reason);
+    setCorrectionAction(action.correctionAction);
+    setResponsible(action.responsible);
+    setDate(action.date);
+    setStatus(action.status);
+    setShowAdd(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingActionId(null);
+    setReason('');
+    setCorrectionAction('');
+    setResponsible('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setStatus('Pendente');
+    setShowAdd(false);
+  };
+
+  const handleDelete = (id: string) => {
+    onUpdateUserData({
+      deficitActions: deficitActions.filter(a => a.id !== id)
+    });
+    if (editingActionId === id) {
+      handleCancelEdit();
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Ação déficit</h2>
+          <p className="text-xs text-slate-400">Crie ações corretivas para os centros de custos estourados para gerar aprendizados e melhorias.</p>
+        </div>
+        <button
+          onClick={() => {
+            if (showAdd) {
+              handleCancelEdit();
+            } else {
+              setShowAdd(true);
+            }
+          }}
+          className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-500 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          {editingActionId ? 'Editar Ação' : 'Nova ação'}
+        </button>
+      </div>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-2 text-xs">
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Centro de Custo Ocorrido</label>
+            <select
+              value={costCenter}
+              onChange={(e) => setCostCenter(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            >
+              {userData.expenseCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+              <option value="Geral">Geral</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Responsável</label>
+            <input
+              type="text"
+              required
+              placeholder="Ex: João da Silva"
+              value={responsible}
+              onChange={(e) => setResponsible(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Motivo do Estouro</label>
+            <textarea
+              required
+              placeholder="Ex: Compra de materiais de escritório não planejada devido a quebra de equipamentos antigos."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Ação de Correção (Aprendizado)</label>
+            <textarea
+              required
+              placeholder="Ex: Revisar a política de manutenção e reservar uma margem de segurança no orçamento de TI."
+              value={correctionAction}
+              onChange={(e) => setCorrectionAction(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Data de Identificação / Execução</label>
+            <input
+              type="date"
+              required
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as any)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="Pendente">Pendente</option>
+              <option value="Em Andamento">Em Andamento</option>
+              <option value="Concluído">Concluído</option>
+            </select>
+          </div>
+
+          <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-red-600 px-5 py-2 font-bold text-white hover:bg-red-500 transition-colors"
+            >
+              {editingActionId ? 'Salvar Alterações' : 'Cadastrar Ação'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* List layout style rows (uma embaixo das outras estilo linhas) */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+          <thead className="bg-slate-50 dark:bg-slate-950/60 text-slate-400 font-bold uppercase text-[10px]">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left">Centro de Custo</th>
+              <th scope="col" className="px-6 py-3 text-left">Motivo</th>
+              <th scope="col" className="px-6 py-3 text-left">Ação de Correção</th>
+              <th scope="col" className="px-6 py-3 text-left">Responsável</th>
+              <th scope="col" className="px-6 py-3 text-left">Data</th>
+              <th scope="col" className="px-6 py-3 text-left">Status</th>
+              <th scope="col" className="px-6 py-3 text-center w-24">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+            {deficitActions.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-xs">
+                  Nenhuma ação corretiva de déficit cadastrada.
+                </td>
+              </tr>
+            ) : (
+              deficitActions.map((action) => (
+                <tr key={action.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/10">
+                  <td className="px-6 py-4 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
+                    <span className="px-2 py-1 bg-red-50 text-red-700 rounded-md dark:bg-red-950/40 dark:text-red-300 text-[11px]">
+                      {action.costCenter}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400 max-w-xs truncate" title={action.reason}>
+                    {action.reason}
+                  </td>
+                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400 max-w-xs truncate" title={action.correctionAction}>
+                    {action.correctionAction}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium">
+                    {action.responsible}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-slate-500 font-mono">
+                    {action.date ? action.date.split('-').reverse().join('/') : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      action.status === 'Concluído'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                        : action.status === 'Em Andamento'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
+                        : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
+                    }`}>
+                      {action.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-slate-400">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => handleStartEdit(action)}
+                        className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                        title="Editar Ação"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(action.id)}
+                        className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                        title="Excluir Ação"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 // ======================== LISTA DE COMPRAS ========================
 export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAdd, setShowAdd] = useState(false);
@@ -2186,6 +2654,16 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
   const [quantity, setQuantity] = useState('1');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('Alimentação');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Filters State
+  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
+
+  const monthsList = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2197,7 +2675,8 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
       quantity: parseInt(quantity) || 1,
       price: parseFloat(price) || 0,
       category,
-      checked: false
+      checked: false,
+      date
     };
 
     onUpdateUserData({
@@ -2207,6 +2686,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
     setName('');
     setQuantity('1');
     setPrice('');
+    setDate(new Date().toISOString().split('T')[0]);
     setShowAdd(false);
   };
 
@@ -2228,15 +2708,44 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
     });
   };
 
-  // List calculations
+  // Extract years dynamically
+  const shoppingYears = useMemo(() => {
+    const years = new Set<string>();
+    userData.shoppingList.forEach(item => {
+      if (item.date) {
+        const y = item.date.split('-')[0];
+        if (y) years.add(y);
+      }
+    });
+    years.add(new Date().getFullYear().toString());
+    return Array.from(years).sort().reverse();
+  }, [userData.shoppingList]);
+
+  // Filtered items list
+  const filteredItems = useMemo(() => {
+    return userData.shoppingList.filter(item => {
+      if (!item.date) {
+        return filterMonth === 'all' && filterYear === 'all';
+      }
+      const parts = item.date.split('-');
+      const y = parts[0];
+      const m = (parseInt(parts[1], 10) - 1).toString();
+
+      const matchesMonth = filterMonth === 'all' || m === filterMonth;
+      const matchesYear = filterYear === 'all' || y === filterYear;
+      return matchesMonth && matchesYear;
+    });
+  }, [userData.shoppingList, filterMonth, filterYear]);
+
+  // List calculations based on filtered items
   const stats = useMemo(() => {
-    const totalCost = userData.shoppingList.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
-    const checkedCost = userData.shoppingList.filter(i => i.checked).reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
-    const totalItems = userData.shoppingList.length;
-    const checkedItems = userData.shoppingList.filter(i => i.checked).length;
+    const totalCost = filteredItems.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
+    const checkedCost = filteredItems.filter(i => i.checked).reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
+    const totalItems = filteredItems.length;
+    const checkedItems = filteredItems.filter(i => i.checked).length;
 
     return { totalCost, checkedCost, totalItems, checkedItems };
-  }, [userData.shoppingList]);
+  }, [filteredItems]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -2265,7 +2774,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
       </div>
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-4 text-xs">
+        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-5 text-xs">
           <div>
             <label className="block text-[10px] font-bold uppercase text-slate-400">Item / Nome</label>
             <input type="text" required placeholder="Ex: Arroz Integral 5kg" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
@@ -2289,12 +2798,54 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
               <option value="Outros">Outros</option>
             </select>
           </div>
-          <div className="sm:col-span-4 flex justify-end gap-2 pt-2">
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Data de Planejamento</label>
+            <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+          </div>
+          <div className="sm:col-span-5 flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setShowAdd(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
             <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">Adicionar na Lista</button>
           </div>
         </form>
       )}
+
+      {/* Filters Bar */}
+      <div className="flex flex-wrap gap-4 bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs items-center justify-between">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">
+          <Filter className="h-4 w-4 text-slate-400 shrink-0" />
+          Filtrar Lista
+        </div>
+        
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 font-medium">Mês:</span>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="all">Todos os Meses</option>
+              {monthsList.map((m, idx) => (
+                <option key={m} value={idx.toString()}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 font-medium">Ano:</span>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="all">Todos os Anos</option>
+              {shoppingYears.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Metrics Row */}
       <div className="grid gap-4 sm:grid-cols-3 text-xs">
@@ -2321,6 +2872,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
                 <th className="pb-3.5 font-semibold w-10">Status</th>
                 <th className="pb-3.5 font-semibold">Item</th>
                 <th className="pb-3.5 font-semibold">Categoria</th>
+                <th className="pb-3.5 font-semibold">Data Planej.</th>
                 <th className="pb-3.5 font-semibold text-center">Quant.</th>
                 <th className="pb-3.5 font-semibold text-right">Preço Est. Unit.</th>
                 <th className="pb-3.5 font-semibold text-right">Subtotal</th>
@@ -2328,12 +2880,12 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-              {userData.shoppingList.length === 0 ? (
+              {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-400">Sua lista de compras está vazia. Adicione itens para simular o valor total.</td>
+                  <td colSpan={8} className="text-center py-8 text-slate-400">Nenhum item encontrado para os filtros selecionados.</td>
                 </tr>
               ) : (
-                userData.shoppingList.map((item) => {
+                filteredItems.map((item) => {
                   const subtotal = item.price * item.quantity;
                   return (
                     <tr key={item.id} className={`hover:bg-slate-50/40 dark:hover:bg-slate-800/20 ${item.checked ? 'opacity-60' : ''}`}>
@@ -2346,6 +2898,9 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
                         {item.name}
                       </td>
                       <td className="py-3"><span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 text-[10px] dark:bg-slate-800 dark:text-slate-400">{item.category}</span></td>
+                      <td className="py-3 font-mono text-slate-500 dark:text-slate-400">
+                        {item.date ? item.date.split('-').reverse().join('/') : '-'}
+                      </td>
                       <td className="py-3 text-center font-bold">{item.quantity}</td>
                       <td className="py-3 text-right font-mono">R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="py-3 text-right font-mono font-bold text-slate-800 dark:text-white">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -3090,6 +3645,109 @@ export const DadosPessoaisPage: React.FC<PageProps> = ({ userProfile, onUpdateUs
           {loading ? 'Salvando...' : 'Atualizar Meus Dados'}
         </button>
       </form>
+
+      {/* Supabase Status Dashboard */}
+      <SupabaseStatusDashboard />
     </div>
   );
 };
+
+// Sub-component for Supabase Status & Schema Helper
+const SupabaseStatusDashboard: React.FC = () => {
+  const [status, setStatus] = useState<{ active: boolean; url: string; schema: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  React.useEffect(() => {
+    fetch('/api/supabase-status')
+      .then((res) => res.json())
+      .then((data) => {
+        setStatus(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Error fetching Supabase status:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleCopySchema = () => {
+    if (status?.schema) {
+      navigator.clipboard.writeText(status.schema);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-center text-xs text-slate-400">
+        Carregando status do banco de dados Supabase...
+      </div>
+    );
+  }
+
+  const isConnected = !!status?.active;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4 text-xs">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+        <div className="flex items-center space-x-2">
+          <div className={`h-2.5 w-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <h3 className="font-bold text-slate-800 dark:text-white">Status da Conexão Supabase</h3>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${isConnected ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'}`}>
+          {isConnected ? 'Nuvem Conectada' : 'Modo Backup Local'}
+        </span>
+      </div>
+
+      {isConnected ? (
+        <div className="space-y-2">
+          <p className="text-slate-500 leading-relaxed">
+            Parabéns! Sua aplicação está conectada com sucesso ao banco de dados do **Supabase**. Todos os acessos de login, cadastro e lançamentos financeiros estão sendo persistidos de forma segura na nuvem.
+          </p>
+          <div className="rounded-lg bg-slate-50 p-2 text-[10px] font-mono text-slate-500 dark:bg-slate-950 dark:text-slate-400 break-all border border-slate-100 dark:border-slate-800">
+            <strong>SUPABASE_URL:</strong> {status?.url}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-start space-x-2 text-amber-800 dark:text-amber-400">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <p className="text-slate-500 leading-relaxed">
+              As variáveis de ambiente do Supabase não foram configuradas no seu arquivo `.env`. Por segurança, a aplicação está rodando no **Modo Backup Local** salvando seus dados localmente no servidor.
+            </p>
+          </div>
+          <div className="rounded-lg bg-amber-50/50 p-3 border border-amber-100 dark:bg-amber-950/10 dark:border-amber-900/30 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+            <p className="font-bold">Para ativar a persistência em Nuvem com Supabase:</p>
+            <ol className="list-decimal pl-4 space-y-1">
+              <li>Crie um projeto grátis em <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline font-semibold">supabase.com</a></li>
+              <li>Acesse as configurações de API do projeto para obter a URL e a Anon Key.</li>
+              <li>Adicione as variáveis ao seu arquivo `.env` da aplicação.</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-slate-100 pt-3 dark:border-slate-800 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-slate-700 dark:text-slate-300">Esquema do Banco de Dados (DDL)</span>
+          <button
+            onClick={handleCopySchema}
+            className="flex items-center space-x-1.5 rounded bg-slate-100 px-2 py-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Copy className="h-3 w-3" />
+            <span>{copied ? 'Copiado!' : 'Copiar Script SQL'}</span>
+          </button>
+        </div>
+        <p className="text-slate-400 text-[10px]">
+          Execute o script abaixo no **SQL Editor** do painel do seu Supabase para criar as tabelas estruturadas necessárias para a sua conta de login e lançamentos:
+        </p>
+        <pre className="rounded-lg bg-slate-950 p-3 text-[10px] font-mono text-slate-300 overflow-x-auto max-h-40 border border-slate-800">
+          {status?.schema}
+        </pre>
+      </div>
+    </div>
+  );
+};
+

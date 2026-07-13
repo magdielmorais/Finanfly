@@ -10,7 +10,8 @@ import {
   DespesasPage,
   ResumoMensalPage,
   ResumoAnualPage,
-  PlanoDeAcaoPage,
+  MetasPage,
+  AcaoDeficitPage,
   ListaDeComprasPage,
   PlanejamentoAnualPage,
   ListManagerPage,
@@ -35,7 +36,10 @@ import {
   X,
   CreditCard,
   CheckCircle,
-  FileText
+  FileText,
+  Sun,
+  Moon,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
@@ -48,6 +52,25 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Settings menu submenus expanded status
   const [settingsExpanded, setSettingsExpanded] = useState(true);
+
+  // Theme layout: clear vs dark state
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    const saved = localStorage.getItem('finanfly_theme');
+    if (saved) {
+      return saved === 'dark';
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('finanfly_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('finanfly_theme', 'light');
+    }
+  }, [isDark]);
 
   // Load user from localStorage if saved
   useEffect(() => {
@@ -274,10 +297,20 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
-      case 'Plano de ação':
+      case 'Metas':
         if (!userData) return null;
         return (
-          <PlanoDeAcaoPage
+          <MetasPage
+            userData={userData}
+            userProfile={currentUser}
+            onUpdateUserData={handleUpdateUserData}
+            onUpdateUserProfile={handleUpdateUserProfileInState}
+          />
+        );
+      case 'Ação déficit':
+        if (!userData) return null;
+        return (
+          <AcaoDeficitPage
             userData={userData}
             userProfile={currentUser}
             onUpdateUserData={handleUpdateUserData}
@@ -435,7 +468,8 @@ export default function App() {
     { name: 'Despesas', icon: TrendingDown, type: 'link' },
     { name: 'Resumo mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
-    { name: 'Plano de ação', icon: Target, type: 'link' },
+    { name: 'Metas', icon: Target, type: 'link' },
+    { name: 'Ação déficit', icon: AlertTriangle, type: 'link' },
     { name: 'Lista de compras', icon: ShoppingCart, type: 'link' },
   ];
 
@@ -616,6 +650,14 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4 text-xs font-semibold">
+            <button
+              onClick={() => setIsDark(!isDark)}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition-colors"
+              title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
+            >
+              {isDark ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4" />}
+            </button>
+
             {/* Display profile initials */}
             <div className="flex items-center gap-2.5">
               <div className="text-right hidden sm:block">

@@ -297,3 +297,195 @@ export const TopItemsBarChart: React.FC<{
     </div>
   );
 };
+
+export interface MonthlyComparisonData {
+  month: string;
+  budgeted: number;
+  realized: number;
+}
+
+export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonData[] }> = ({ data }) => {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-xl bg-slate-50 border border-slate-100 dark:bg-slate-900/50 dark:border-slate-800">
+        <p className="text-slate-400 text-sm">Nenhum dado disponível para a comparação.</p>
+      </div>
+    );
+  }
+
+  // Calculate scales
+  const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+  const width = 600;
+  const height = 300;
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+
+  const maxVal = Math.max(...data.flatMap(d => [d.budgeted, d.realized]), 100);
+  const roundedMax = Math.ceil(maxVal / 100) * 100;
+
+  const getY = (val: number) => margin.top + chartHeight - (val / roundedMax) * chartHeight;
+  const yBaseline = margin.top + chartHeight;
+
+  // Grid lines (y axis ticks)
+  const yTicks = 4;
+  const ticks = Array.from({ length: yTicks + 1 }, (_, i) => (roundedMax * i) / yTicks);
+
+  // Bar dimensions
+  const groupWidth = chartWidth / data.length;
+  const barWidth = Math.max(Math.min(groupWidth * 0.35, 12), 4);
+  const gap = 2;
+
+  return (
+    <div className="w-full">
+      <div className="relative w-full overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[500px] h-auto font-sans overflow-visible">
+          {/* Gradients */}
+          <defs>
+            <linearGradient id="budgetBarGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f59e0b" stopOpacity="1" />
+              <stop offset="100%" stopColor="#d97706" stopOpacity="0.9" />
+            </linearGradient>
+            <linearGradient id="realizedBarGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
+              <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid lines */}
+          {ticks.map((tick, i) => {
+            const y = getY(tick);
+            return (
+              <g key={i} className="opacity-40">
+                <line
+                  x1={margin.left}
+                  y1={y}
+                  x2={width - margin.right}
+                  y2={y}
+                  stroke="#cbd5e1"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={margin.left - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-slate-400 text-[10px] font-mono"
+                >
+                  R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Bars */}
+          {data.map((d, i) => {
+            const groupCenter = margin.left + (i + 0.5) * groupWidth;
+            const xBudget = groupCenter - barWidth - gap / 2;
+            const xRealized = groupCenter + gap / 2;
+
+            const yBudget = getY(d.budgeted);
+            const hBudget = Math.max(yBaseline - yBudget, 2);
+
+            const yRealized = getY(d.realized);
+            const hRealized = Math.max(yBaseline - yRealized, 2);
+
+            const isHovered = hoveredIndex === i;
+
+            return (
+              <g key={i}>
+                {/* Background column hover state */}
+                <rect
+                  x={margin.left + i * groupWidth}
+                  y={margin.top}
+                  width={groupWidth}
+                  height={chartHeight}
+                  fill={isHovered ? '#f1f5f9' : 'transparent'}
+                  className="transition-colors duration-150 dark:fill-slate-800/20"
+                  style={{ opacity: isHovered ? 0.4 : 0 }}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+
+                {/* Budget Bar (Orçado) */}
+                <rect
+                  x={xBudget}
+                  y={yBudget}
+                  width={barWidth}
+                  height={hBudget}
+                  fill="url(#budgetBarGrad)"
+                  rx="2"
+                  ry="2"
+                  className="transition-all duration-300"
+                  style={{
+                    filter: isHovered ? 'brightness(1.05)' : 'none',
+                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                  }}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+
+                {/* Realized Bar (Realizado) */}
+                <rect
+                  x={xRealized}
+                  y={yRealized}
+                  width={barWidth}
+                  height={hRealized}
+                  fill="url(#realizedBarGrad)"
+                  rx="2"
+                  ry="2"
+                  className="transition-all duration-300"
+                  style={{
+                    filter: isHovered ? 'brightness(1.05)' : 'none',
+                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                  }}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+
+                {/* X axis labels */}
+                <text
+                  x={groupCenter}
+                  y={height - margin.bottom + 18}
+                  textAnchor="middle"
+                  className={`text-[10px] font-medium transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 font-bold dark:fill-blue-400' : 'fill-slate-500'
+                  }`}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                >
+                  {d.month}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Tooltip Overlay */}
+      {hoveredIndex !== null && data[hoveredIndex] && (
+        <div className="mt-2 flex items-center justify-around rounded-lg bg-slate-50 p-2 text-xs border border-slate-100 transition-all dark:bg-slate-800 dark:border-slate-700">
+          <div className="font-semibold text-slate-700 dark:text-slate-300">Mês: {data[hoveredIndex].month}</div>
+          <div className="flex items-center gap-1.5 text-amber-600 font-medium dark:text-amber-400">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            Orçado: R$ {data[hoveredIndex].budgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div className="flex items-center gap-1.5 text-red-500 font-medium dark:text-red-400">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            Realizado: R$ {data[hoveredIndex].realized.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          {(() => {
+            const diff = data[hoveredIndex].budgeted - data[hoveredIndex].realized;
+            const underBudget = diff >= 0;
+            return (
+              <div className={`font-semibold ${underBudget ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {underBudget ? 'Economia:' : 'Excedido:'} R$ {Math.abs(diff).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+};
