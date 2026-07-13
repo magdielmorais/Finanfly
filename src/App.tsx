@@ -307,7 +307,7 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
-      case 'Ação déficit':
+      case 'Ação de melhoria':
         if (!userData) return null;
         return (
           <AcaoDeficitPage
@@ -469,7 +469,7 @@ export default function App() {
     { name: 'Resumo mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
     { name: 'Metas', icon: Target, type: 'link' },
-    { name: 'Ação déficit', icon: AlertTriangle, type: 'link' },
+    { name: 'Ação de melhoria', icon: AlertTriangle, type: 'link' },
     { name: 'Lista de compras', icon: ShoppingCart, type: 'link' },
   ];
 

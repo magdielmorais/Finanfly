@@ -2365,7 +2365,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
   );
 };
 
-// ======================== AÇÃO DÉFICIT PAGE ========================
+// ======================== AÇÃO DE MELHORIA PAGE ========================
 export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
@@ -2457,7 +2457,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Ação déficit</h2>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Ação de melhoria</h2>
           <p className="text-xs text-slate-400">Crie ações corretivas para os centros de custos estourados para gerar aprendizados e melhorias.</p>
         </div>
         <button
@@ -2585,7 +2585,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
             {deficitActions.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-xs">
-                  Nenhuma ação corretiva de déficit cadastrada.
+                  Nenhuma ação de melhoria cadastrada.
                 </td>
               </tr>
             ) : (
