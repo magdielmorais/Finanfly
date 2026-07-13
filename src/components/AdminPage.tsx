@@ -729,7 +729,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 placeholder="Buscar por nome ou e-mail..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 pl-8 text-xs text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                className="w-full rounded-lg border border-slate-200/50 bg-slate-50 px-3 py-1.5 pl-8 text-xs text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
               />
               <div className="absolute left-2.5 top-2.5 text-slate-400">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -743,7 +743,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full sm:w-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                className="w-full sm:w-auto rounded-lg border border-slate-200/50 bg-slate-50 px-3 py-1.5 text-xs text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white font-medium"
               >
                 <option value="all">Todos os Status</option>
                 <option value="approved">Aprovados / Ativos ✅</option>

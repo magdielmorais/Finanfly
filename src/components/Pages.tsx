@@ -631,7 +631,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 placeholder="Pesquisar por descrição ou categoria..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                className="w-full rounded-lg border border-slate-200/50 bg-slate-50 py-2 pl-9 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
               />
             </div>
 
@@ -641,7 +641,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <select
                   value={selectedYear}
                   onChange={(e) => handleYearChange(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todos os Anos</option>
                   {yearOptions.map((y) => (
@@ -665,7 +665,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <select
                   value={selectedMonth}
                   onChange={(e) => handleMonthChange(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todos os Meses</option>
                   {monthOptions.map((m) => {
@@ -694,7 +694,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                     const currentYear = currentMonthYearStr.substring(0, 4);
                     setSelectedYear(currentYear);
                   }}
-                  className="rounded-lg border border-slate-200 hover:border-blue-400 hover:text-blue-600 bg-white px-3 py-2 font-semibold text-slate-500 transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:border-blue-500"
+                  className="rounded-lg border border-slate-200/50 hover:border-blue-400 hover:text-blue-600 bg-white px-3 py-2 font-semibold text-slate-500 transition-all dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:border-blue-500"
                   title="Mudar para o Mês Corrente"
                 >
                   Ir para Mês Corrente
@@ -708,7 +708,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todas as Situações</option>
                   {userData.paymentStatuses.map((st) => (
@@ -1589,7 +1589,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 placeholder="Pesquisar por descrição ou centro de despesa..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                className="w-full rounded-lg border border-slate-200/50 bg-slate-50 py-2 pl-9 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
               />
             </div>
 
@@ -1599,7 +1599,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <select
                   value={selectedYear}
                   onChange={(e) => handleYearChange(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todos os Anos</option>
                   {yearOptions.map((y) => (
@@ -1623,7 +1623,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <select
                   value={selectedMonth}
                   onChange={(e) => handleMonthChange(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todos os Meses</option>
                   {monthOptions.map((m) => {
@@ -1652,7 +1652,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                     const currentYear = currentMonthYearStr.substring(0, 4);
                     setSelectedYear(currentYear);
                   }}
-                  className="rounded-lg border border-slate-200 hover:border-blue-400 hover:text-blue-600 bg-white px-3 py-2 font-semibold text-slate-500 transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:border-blue-500"
+                  className="rounded-lg border border-slate-200/50 hover:border-blue-400 hover:text-blue-600 bg-white px-3 py-2 font-semibold text-slate-500 transition-all dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:border-blue-500"
                   title="Mudar para o Mês Corrente"
                 >
                   Ir para Mês Corrente
@@ -1666,7 +1666,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todas as Situações</option>
                   {userData.paymentStatuses.map((st) => (
@@ -1865,13 +1865,13 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
         
         {/* Month and Year Filter */}
         <div className="flex items-center gap-2 text-xs">
-          <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white">
+          <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white">
             {monthsList.map((m, idx) => (
               <option key={m} value={idx}>{m}</option>
             ))}
           </select>
 
-          <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white">
+          <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white">
             {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
@@ -2018,7 +2018,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
           <h2 className="text-xl font-bold text-slate-800 dark:text-white">Resumo Consolidado Anual</h2>
           <p className="text-xs text-slate-400">Analise seu desempenho orçamentário anual, metas planejadas e realistas.</p>
         </div>
-        <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white">
+        <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white">
           {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
             <option key={y} value={y}>{y}</option>
           ))}
@@ -2262,7 +2262,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
             >
               <option value="all">Todos os Status</option>
               <option value="Pendente">Pendente</option>
@@ -2276,7 +2276,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
             <select
               value={filterYear}
               onChange={(e) => setFilterYear(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
             >
               <option value="all">Todos os Anos</option>
               {planYears.map(y => (
@@ -2822,7 +2822,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
             >
               <option value="all">Todos os Meses</option>
               {monthsList.map((m, idx) => (
@@ -2836,7 +2836,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
             <select
               value={filterYear}
               onChange={(e) => setFilterYear(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
             >
               <option value="all">Todos os Anos</option>
               {shoppingYears.map(y => (
@@ -3255,7 +3255,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
           <h2 className="text-xl font-bold text-slate-800 dark:text-white">Planejamento Orçamentário Anual</h2>
           <p className="text-xs text-slate-400">Defina suas metas de ganho e teto máximo de gastos para cada mês do ano.</p>
         </div>
-        <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white">
+        <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white">
           {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
             <option key={y} value={y}>{y}</option>
           ))}

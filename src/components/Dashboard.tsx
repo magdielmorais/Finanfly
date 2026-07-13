@@ -166,7 +166,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
           <select
             value={selectedKpiYear}
             onChange={(e) => setSelectedKpiYear(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
           >
             <option value="all">Todos os Anos</option>
             {availableYears.map(y => (
@@ -263,7 +263,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 <select
                   value={budgetComparisonYear}
                   onChange={(e) => setBudgetComparisonYear(parseInt(e.target.value, 10))}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-[10px] font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
                 >
                   {availableYears.map(y => (
                     <option key={y} value={y}>{y}</option>
