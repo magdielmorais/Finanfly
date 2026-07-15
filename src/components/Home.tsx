@@ -132,7 +132,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
             <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Acompanhamento Semanal</h4>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finanfly. Pequenos ajustes evitam surpresas no fim do mês.
+              Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês.
             </p>
           </div>
         </div>

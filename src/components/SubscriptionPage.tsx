@@ -10,12 +10,6 @@ interface SubscriptionPageProps {
 
 export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpdateUser, message }) => {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-  const [showCheckoutModal, setShowCheckoutModal] = useState<string | null>(null);
-  const [cardHolder, setCardHolder] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  const [checkoutError, setCheckoutError] = useState('');
 
   const [prices, setPrices] = useState({
     mensal_de: '9,90',
@@ -67,48 +61,38 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
         setLoadingPlan(null);
       }
     } else {
-      // Paid plans trigger the checkout modal
-      setShowCheckoutModal(plan);
-      setCardHolder(user.name || '');
-      setCardNumber('');
-      setCardExpiry('');
-      setCardCvv('');
-      setCheckoutError('');
-    }
-  };
+      // Paid plans: create Mercado Pago checkout preference and redirect
+      setLoadingPlan(plan);
+      try {
+        const rawPrice = plan === 'mensal' ? prices.mensal_por : prices.anual_por;
+        const numericPrice = parseFloat(rawPrice.replace(',', '.'));
 
-  const handleProcessPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!showCheckoutModal) return;
+        const res = await fetch('/api/payment/create-preference', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-email': user.email
+          },
+          body: JSON.stringify({
+            planName: plan,
+            price: numericPrice
+          }),
+        });
 
-    if (!cardNumber || !cardHolder || !cardExpiry || !cardCvv) {
-      setCheckoutError('Por favor, preencha todos os dados do cartão.');
-      return;
-    }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro ao gerar checkout.');
 
-    setLoadingPlan(showCheckoutModal);
-    setCheckoutError('');
-
-    try {
-      // Simulate API call to process through MercadoPago sandbox
-      const res = await fetch('/api/user/subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-email': user.email
-        },
-        body: JSON.stringify({ plan: showCheckoutModal }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      onUpdateUser(data.user);
-      setShowCheckoutModal(null);
-      alert(`Assinatura do Plano ${showCheckoutModal === 'mensal' ? 'Mensal' : 'Anual'} ativada com sucesso via MercadoPago!`);
-    } catch (err: any) {
-      setCheckoutError(err.message || 'Falha na transação.');
-    } finally {
-      setLoadingPlan(null);
+        if (data.init_point) {
+          // Redirect directly to Mercado Pago gateway
+          window.location.href = data.init_point;
+        } else {
+          throw new Error('Link de checkout do Mercado Pago não recebido.');
+        }
+      } catch (err: any) {
+        alert(err.message || 'Erro ao conectar com o Mercado Pago.');
+      } finally {
+        setLoadingPlan(null);
+      }
     }
   };
 
@@ -344,120 +328,6 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
         </div>
       </div>
 
-      {/* MercadoPago Simulated Integration Modal */}
-      {showCheckoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-blue-600" />
-                <h3 className="text-sm font-bold text-slate-800 dark:text-white">
-                  Checkout Seguro - MercadoPago
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowCheckoutModal(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="my-4 bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 dark:bg-blue-950/30 dark:border-blue-900 dark:text-blue-300 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-blue-500 shrink-0" />
-              <span>
-                Você está assinando o <strong>Plano {showCheckoutModal === 'mensal' ? 'Mensal' : 'Anual'}</strong> por{' '}
-                <strong>R$ {showCheckoutModal === 'mensal' ? '3,99' : '34,90'}</strong>.
-              </span>
-            </div>
-
-            {checkoutError && (
-              <p className="mb-4 text-xs font-semibold text-red-500 bg-red-50 p-2 rounded border border-red-100 dark:bg-red-950/30 dark:border-red-900/50">
-                ⚠️ {checkoutError}
-              </p>
-            )}
-
-            <form onSubmit={handleProcessPayment} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Nome Impresso no Cartão
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={cardHolder}
-                  onChange={(e) => setCardHolder(e.target.value)}
-                  placeholder="CARLOS E SILVA"
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Número do Cartão
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={19}
-                  value={cardNumber}
-                  onChange={(e) => setCardNumber(e.target.value)}
-                  placeholder="4509 •••• •••• ••••"
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Validade (MM/AA)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={5}
-                    value={cardExpiry}
-                    onChange={(e) => setCardExpiry(e.target.value)}
-                    placeholder="12/30"
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    CVC / CVV
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    maxLength={4}
-                    value={cardCvv}
-                    onChange={(e) => setCardCvv(e.target.value)}
-                    placeholder="•••"
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCheckoutModal(null)}
-                  className="flex-1 rounded-lg border border-slate-200 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={!!loadingPlan}
-                  className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500 transition-colors"
-                >
-                  {loadingPlan ? 'Confirmando...' : 'Pagar R$ ' + (showCheckoutModal === 'mensal' ? '3,99' : '34,90')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

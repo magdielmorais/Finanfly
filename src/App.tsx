@@ -510,7 +510,7 @@ export default function App() {
         <div className="p-6 flex items-center justify-between border-b border-slate-800/60">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-md shadow-blue-500/10">F</div>
-            <span className="text-xl font-bold text-white tracking-tight">Finanfly</span>
+            <span className="text-xl font-bold text-white tracking-tight">Finan Fly</span>
           </div>
           {/* Close button for mobile */}
           <button

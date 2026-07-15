@@ -1077,6 +1077,64 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
+// Remember Password
+app.post("/api/auth/remember-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "O e-mail é obrigatório." });
+  }
+
+  try {
+    const lowerEmail = email.toLowerCase().trim();
+    const user = await getUserByEmail(lowerEmail);
+
+    if (!user) {
+      return res.status(404).json({ error: "Este e-mail não está cadastrado em nossa base." });
+    }
+
+    const userPassword = user.password;
+    console.log(`[EMAIL DISPATCH] Para: ${lowerEmail} | Assunto: Recuperação de Senha | Conteúdo: Sua senha é "${userPassword}"`);
+
+    res.json({ 
+      success: true, 
+      message: `Sua senha recuperada com sucesso!`,
+      password: userPassword
+    });
+  } catch (err) {
+    console.error("Remember password error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Change Password
+app.post("/api/auth/change-password", async (req, res) => {
+  const { email, oldPassword, newPassword } = req.body;
+  if (!email || !oldPassword || !newPassword) {
+    return res.status(400).json({ error: "E-mail, senha antiga e senha nova são obrigatórios." });
+  }
+
+  try {
+    const lowerEmail = email.toLowerCase().trim();
+    const user = await getUserByEmail(lowerEmail);
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    if (user.password !== oldPassword) {
+      return res.status(400).json({ error: "A senha antiga está incorreta." });
+    }
+
+    user.password = newPassword;
+    await saveUser(user);
+
+    res.json({ success: true, message: "Senha alterada com sucesso!" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
 // Get User Profile
 app.get("/api/user/profile", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
@@ -1194,6 +1252,171 @@ app.post("/api/user/subscription", async (req, res) => {
     console.error("Subscription update error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
   }
+});
+
+// Create Mercado Pago Payment Preference
+app.post("/api/payment/create-preference", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  const { planName, price } = req.body;
+  if (!["mensal", "anual"].includes(planName)) {
+    return res.status(400).json({ error: "Plano inválido para checkout." });
+  }
+
+  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+  const appUrl = process.env.APP_URL || `http://localhost:3000`;
+
+  if (accessToken && accessToken.trim() !== "" && accessToken.trim() !== "YOUR_ACCESS_TOKEN") {
+    try {
+      const response = await fetch("https://api.mercadopago.com/v1/preferences", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken.trim()}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          items: [
+            {
+              id: planName,
+              title: `Finan Fly - Assinatura ${planName === "mensal" ? "Mensal" : "Anual"}`,
+              quantity: 1,
+              unit_price: Number(price),
+              currency_id: "BRL",
+              category_id: "services"
+            }
+          ],
+          payer: {
+            email: email
+          },
+          back_urls: {
+            success: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved`,
+            failure: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&status=failed`,
+            pending: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&status=pending`
+          },
+          auto_return: "approved",
+          external_reference: `${email}:${planName}`
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Erro do Mercado Pago ao gerar preferência.");
+      }
+
+      return res.json({ init_point: data.init_point });
+    } catch (err: any) {
+      console.error("Mercado Pago Preference Error, falling back to simulated flow:", err);
+    }
+  }
+
+  // Simulation mode (Fallback when ACCESS_TOKEN is missing or sandbox is preferred)
+  console.log(`[PAYMENT SIMULATION] Criando checkout simulado de Mercado Pago para ${email} (Plano: ${planName})`);
+  const simulationUrl = `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved&simulated=true`;
+  res.json({ init_point: simulationUrl });
+});
+
+// Mercado Pago Payment Callback Handler
+app.get("/api/payment/callback", async (req, res) => {
+  const { email, plan, status, simulated } = req.query;
+
+  if (!email || !status) {
+    return res.send(`
+      <html>
+        <head>
+          <title>Pagamento Finan Fly</title>
+          <style>
+            body { font-family: sans-serif; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: #1e293b; padding: 2rem; border-radius: 1rem; text-align: center; max-width: 400px; border: 1px solid #334155; }
+            h1 { color: #ef4444; margin-top: 0; }
+            button { background: #3b82f6; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: bold; cursor: pointer; margin-top: 1rem; }
+            button:hover { background: #2563eb; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Erro de Pagamento</h1>
+            <p>Parâmetros de confirmação inválidos ou faltando.</p>
+            <button onclick="window.location.href='/'">Voltar ao Sistema</button>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+
+  const targetEmail = (email as string).toLowerCase().trim();
+
+  if (status === "approved" && plan) {
+    try {
+      const user = await getUserByEmail(targetEmail);
+      if (user) {
+        user.subscription = {
+          plan: plan as string,
+          validUntil: plan === "mensal" 
+            ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          selectedAt: new Date().toISOString(),
+          freePlanUsed: user.subscription?.freePlanUsed || false,
+          approved: true,
+        };
+        await saveUser(user);
+      }
+    } catch (err) {
+      console.error("Callback subscription activation error:", err);
+    }
+
+    return res.send(`
+      <html>
+        <head>
+          <title>Pagamento Aprovado - Finan Fly</title>
+          <style>
+            body { font-family: sans-serif; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: #1e293b; padding: 2.5rem; border-radius: 1.5rem; text-align: center; max-width: 450px; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
+            h1 { color: #10b981; margin-top: 0; font-size: 1.75rem; }
+            p { font-size: 0.95rem; color: #94a3b8; line-height: 1.5; }
+            .badge { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); padding: 0.5rem 1rem; border-radius: 9999px; font-weight: bold; display: inline-block; margin-bottom: 1.5rem; font-size: 0.8rem; text-transform: uppercase; }
+            button { background: #2563eb; color: white; border: none; padding: 0.85rem 2rem; border-radius: 0.75rem; font-weight: bold; cursor: pointer; margin-top: 1.5rem; width: 100%; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(37,99,235,0.2); }
+            button:hover { background: #1d4ed8; transform: translateY(-1px); }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="badge">${simulated ? "Simulação Concluída" : "Transação Concluída"}</div>
+            <h1>Pagamento Confirmado!</h1>
+            <p>Sua assinatura do plano <strong>${(plan as string).toUpperCase()}</strong> foi ativada com sucesso e sua conta do <strong>Finan Fly</strong> já está liberada!</p>
+            <p style="font-size:0.8rem; margin-top: 1rem;">Clique abaixo para retornar e explorar o painel.</p>
+            <button onclick="window.location.href='/'">Entrar no Finan Fly</button>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+
+  // Payment failed page
+  return res.send(`
+    <html>
+      <head>
+        <title>Pagamento Cancelado - Finan Fly</title>
+        <style>
+          body { font-family: sans-serif; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+          .card { background: #1e293b; padding: 2.5rem; border-radius: 1.5rem; text-align: center; max-width: 450px; border: 1px solid #334155; }
+          h1 { color: #f43f5e; margin-top: 0; }
+          p { color: #94a3b8; line-height: 1.5; }
+          button { background: #475569; color: white; border: none; padding: 0.85rem 2rem; border-radius: 0.75rem; font-weight: bold; cursor: pointer; margin-top: 1.5rem; width: 100%; }
+          button:hover { background: #334155; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>Pagamento Cancelado</h1>
+          <p>Não foi possível concluir o pagamento ou o processo foi cancelado. Se desejar, você pode tentar escolher outra forma de pagamento.</p>
+          <button onclick="window.location.href='/'">Voltar aos Planos</button>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
 // Get User Data

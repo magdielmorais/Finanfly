@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -14,6 +14,83 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Modals state for "Relembrar senha" and "Mudar senha"
+  const [showRememberModal, setShowRememberModal] = useState(false);
+  const [showChangeModal, setShowChangeModal] = useState(false);
+
+  const [rememberEmail, setRememberEmail] = useState('');
+  const [rememberLoading, setRememberLoading] = useState(false);
+  const [rememberSuccess, setRememberSuccess] = useState('');
+  const [rememberError, setRememberError] = useState('');
+  const [rememberedPassword, setRememberedPassword] = useState('');
+
+  const [changeEmail, setChangeEmail] = useState('');
+  const [changeOldPassword, setChangeOldPassword] = useState('');
+  const [changeNewPassword, setChangeNewPassword] = useState('');
+  const [changeLoading, setChangeLoading] = useState(false);
+  const [changeSuccess, setChangeSuccess] = useState('');
+  const [changeError, setChangeError] = useState('');
+
+  const handleRememberPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRememberError('');
+    setRememberSuccess('');
+    setRememberedPassword('');
+    setRememberLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/remember-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: rememberEmail }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao recuperar senha.');
+      }
+
+      setRememberSuccess(data.message);
+      if (data.password) {
+        setRememberedPassword(data.password);
+      }
+    } catch (err: any) {
+      setRememberError(err.message || 'Ocorreu um erro.');
+    } finally {
+      setRememberLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangeError('');
+    setChangeSuccess('');
+    setChangeLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: changeEmail,
+          oldPassword: changeOldPassword,
+          newPassword: changeNewPassword
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao alterar senha.');
+      }
+
+      setChangeSuccess(data.message || 'Senha alterada com sucesso!');
+    } catch (err: any) {
+      setChangeError(err.message || 'Ocorreu um erro.');
+    } finally {
+      setChangeLoading(false);
+    }
+  };
 
   // Default credentials info box helper
   const [showDemoInfo, setShowDemoInfo] = useState(true);
@@ -95,10 +172,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
             <span className="text-2xl font-black text-white">F</span>
           </div>
           <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-white font-sans">
-            Finanfly
+            Finan Fly
           </h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Controle financeiro inteligente e seguro
+          <p className="mt-1 text-sm font-semibold text-blue-400">
+            Suas finanças voando!
+          </p>
+          <p className="mt-2 text-xs text-slate-400">
+            Controle financeiro inteligente, prático e seguro.
           </p>
           <p className="mt-2.5 text-lg font-bold text-blue-500">
             Comece grátis
@@ -222,61 +302,265 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                 </>
               )}
             </button>
+
+            {!isRegister && (
+              <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRememberModal(true);
+                    setRememberEmail(email);
+                    setRememberSuccess('');
+                    setRememberError('');
+                    setRememberedPassword('');
+                  }}
+                  className="hover:text-blue-400 font-semibold transition-colors focus:outline-none underline underline-offset-4"
+                >
+                  Relembrar senha
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChangeModal(true);
+                    setChangeEmail(email);
+                    setChangeOldPassword('');
+                    setChangeNewPassword('');
+                    setChangeSuccess('');
+                    setChangeError('');
+                  }}
+                  className="hover:text-blue-400 font-semibold transition-colors focus:outline-none underline underline-offset-4"
+                >
+                  Mudar senha
+                </button>
+              </div>
+            )}
           </form>
         </div>
+      </div>
 
-        {/* Demo Credentials Box */}
-        {showDemoInfo && (
-          <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4 text-xs text-slate-400">
-            <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800/60">
-              <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                <Shield className="h-3.5 w-3.5 text-blue-500" />
-                Credenciais de Demonstração
-              </span>
-              <button 
-                onClick={() => setShowDemoInfo(false)}
-                className="text-slate-500 hover:text-slate-300"
+      {/* Remember Password Modal */}
+      {showRememberModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Shield className="h-4 w-4 text-blue-500" />
+                Recuperação de Senha
+              </h3>
+              <button
+                onClick={() => setShowRememberModal(false)}
+                className="text-slate-400 hover:text-white"
               >
-                Ocultar
+                <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-2">
-              <div 
-                onClick={() => fillDemoCredentials('user@finanfly.com', 'user')}
-                className="flex items-center justify-between p-1.5 rounded bg-slate-900/60 hover:bg-slate-900 cursor-pointer border border-slate-800/40 transition-colors group"
-              >
-                <div>
-                  <p className="font-medium text-slate-200">Usuário Ativo (Acesso Liberado)</p>
-                  <p className="font-mono text-[10px] text-slate-400">E-mail: user@finanfly.com | Senha: user</p>
-                </div>
-                <ArrowRight className="h-3 w-3 text-slate-500 group-hover:text-blue-400 shrink-0" />
-              </div>
 
-              <div 
-                onClick={() => fillDemoCredentials('expired@finanfly.com', 'user')}
-                className="flex items-center justify-between p-1.5 rounded bg-slate-900/60 hover:bg-slate-900 cursor-pointer border border-slate-800/40 transition-colors group"
-              >
-                <div>
-                  <p className="font-medium text-slate-200">Usuário Expirado (Bloqueio Automático)</p>
-                  <p className="font-mono text-[10px] text-slate-400">E-mail: expired@finanfly.com | Senha: user</p>
+            {rememberSuccess ? (
+              <div className="space-y-4 py-2 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+                  <CheckCircle className="h-6 w-6" />
                 </div>
-                <ArrowRight className="h-3 w-3 text-slate-500 group-hover:text-blue-400 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-white">Recuperação Processada!</h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Sua senha de acesso foi recuperada com sucesso no sistema.
+                  </p>
+                </div>
+                {rememberedPassword && (
+                  <div className="rounded-lg bg-slate-950 p-3 border border-slate-800 mt-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Sua Senha</span>
+                    <span className="font-mono text-sm font-bold text-blue-400">{rememberedPassword}</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowRememberModal(false)}
+                  className="w-full rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500"
+                >
+                  Voltar ao Login
+                </button>
               </div>
+            ) : (
+              <form onSubmit={handleRememberPassword} className="space-y-4">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Digite seu e-mail de cadastro para recuperar a sua senha correspondente.
+                </p>
 
-              <div 
-                onClick={() => fillDemoCredentials('admin@finanfly.com', 'admin')}
-                className="flex items-center justify-between p-1.5 rounded bg-slate-900/60 hover:bg-slate-900 cursor-pointer border border-slate-800/40 transition-colors group"
-              >
+                {rememberError && (
+                  <div className="rounded-lg border border-red-900 bg-red-950/40 p-3 text-xs text-red-200">
+                    {rememberError}
+                  </div>
+                )}
+
                 <div>
-                  <p className="font-medium text-slate-200">Administrador Geral</p>
-                  <p className="font-mono text-[10px] text-slate-400">E-mail: admin@finanfly.com | Senha: admin</p>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    E-mail Cadastrado
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Mail className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={rememberEmail}
+                      onChange={(e) => setRememberEmail(e.target.value)}
+                      placeholder="seuemail@exemplo.com"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
                 </div>
-                <ArrowRight className="h-3 w-3 text-slate-500 group-hover:text-blue-400 shrink-0" />
-              </div>
-            </div>
+
+                <div className="flex gap-2.5 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowRememberModal(false)}
+                    className="flex-1 rounded-lg border border-slate-800 py-2 text-xs font-bold text-slate-400 hover:bg-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={rememberLoading}
+                    className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {rememberLoading ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : 'Enviar Senha'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showChangeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Lock className="h-4 w-4 text-blue-500" />
+                Alterar Senha de Acesso
+              </h3>
+              <button
+                onClick={() => setShowChangeModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {changeSuccess ? (
+              <div className="space-y-4 py-2 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+                  <CheckCircle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Senha Alterada com Sucesso!</h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Sua nova senha de acesso foi configurada e já está ativa para login.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowChangeModal(false)}
+                  className="w-full rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500"
+                >
+                  Voltar ao Login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Informe o seu e-mail, a senha antiga correspondente e digite a nova senha desejada.
+                </p>
+
+                {changeError && (
+                  <div className="rounded-lg border border-red-900 bg-red-950/40 p-3 text-xs text-red-200">
+                    {changeError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    E-mail Cadastrado
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Mail className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={changeEmail}
+                      onChange={(e) => setChangeEmail(e.target.value)}
+                      placeholder="seuemail@exemplo.com"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    Senha Antiga
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type="password"
+                      required
+                      value={changeOldPassword}
+                      onChange={(e) => setChangeOldPassword(e.target.value)}
+                      placeholder="******"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    Nova Senha de Acesso
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type="password"
+                      required
+                      value={changeNewPassword}
+                      onChange={(e) => setChangeNewPassword(e.target.value)}
+                      placeholder="******"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowChangeModal(false)}
+                    className="flex-1 rounded-lg border border-slate-800 py-2 text-xs font-bold text-slate-400 hover:bg-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={changeLoading}
+                    className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {changeLoading ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : 'Alterar Senha'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
