@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, RefreshCw, KeyRound, Pencil } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -10,6 +10,31 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Active Tab state
+  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores'>('gestao');
+
+  // Values configuration state
+  const [pricesDePor, setPricesDePor] = useState({
+    mensal_de: '9,90',
+    mensal_por: '2,99',
+    anual_de: '118,80',
+    anual_por: '29,99'
+  });
+  const [pricesLoading, setPricesLoading] = useState(false);
+  const [pricesSuccess, setPricesSuccess] = useState('');
+  const [pricesError, setPricesError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/plan-prices')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.mensal_por) {
+          setPricesDePor(data);
+        }
+      })
+      .catch(err => console.error('Erro ao carregar valores no admin:', err));
+  }, []);
 
   // Creation form state
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -24,6 +49,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [reminderEmail, setReminderEmail] = useState('');
   const [foundPassword, setFoundPassword] = useState('');
+
+  // Email password reminder state
+  const [showEmailReminderForm, setShowEmailReminderForm] = useState(false);
+  const [selectedEmailForReminder, setSelectedEmailForReminder] = useState('');
+  const [emailReminderSuccess, setEmailReminderSuccess] = useState('');
+  const [emailReminderError, setEmailReminderError] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  // User delete confirmation state
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [deletingUserLoading, setDeletingUserLoading] = useState(false);
 
   // Editing state
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -83,6 +119,58 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       setSuccessMsg(`Senha localizada com sucesso!`);
     } catch (err: any) {
       setError(err.message || 'Erro de conexão.');
+    }
+  };
+
+  const handleDeleteUser = async (targetEmail: string) => {
+    setDeletingUserLoading(true);
+    try {
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify({ targetEmail })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir o registro.');
+
+      setUsers(prev => prev.filter(u => u.email !== targetEmail));
+      setUserToDelete(null);
+      alert('Usuário e todos os seus dados foram excluídos permanentemente com sucesso!');
+    } catch (err: any) {
+      alert(err.message || 'Erro ao tentar deletar o usuário.');
+    } finally {
+      setDeletingUserLoading(false);
+    }
+  };
+
+  const handleSendPasswordEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmailForReminder) {
+      setEmailReminderError('Por favor, selecione um usuário.');
+      return;
+    }
+    setSendingEmail(true);
+    setEmailReminderError('');
+    setEmailReminderSuccess('');
+    try {
+      const res = await fetch('/api/admin/send-password-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify({ targetEmail: selectedEmailForReminder })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao enviar a senha por e-mail.');
+      setEmailReminderSuccess(data.message || `E-mail enviado com sucesso para ${selectedEmailForReminder}.`);
+    } catch (err: any) {
+      setEmailReminderError(err.message || 'Erro de envio.');
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -302,6 +390,34 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     }
   };
 
+  const handleSavePrices = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPricesLoading(true);
+    setPricesSuccess('');
+    setPricesError('');
+
+    try {
+      const res = await fetch('/api/admin/plan-prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify(pricesDePor)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar valores.');
+      setPricesSuccess('Valores salvos e sincronizados com a página de assinaturas com sucesso!');
+      if (data.prices) {
+        setPricesDePor(data.prices);
+      }
+    } catch (err: any) {
+      setPricesError(err.message || 'Erro ao salvar alterações.');
+    } finally {
+      setPricesLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Title */}
@@ -324,8 +440,35 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </button>
       </div>
 
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800">
+        <button
+          onClick={() => setActiveTab('gestao')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'gestao'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          Gestão de Usuários
+        </button>
+        <button
+          onClick={() => setActiveTab('config-valores')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'config-valores'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Settings className="h-4 w-4" />
+          Configuração de Valores
+        </button>
+      </div>
+
       {/* Admin KPIs Row */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      {activeTab === 'gestao' && (
+        <div className="grid gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Total Usuários</span>
@@ -370,8 +513,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
         </div>
       </div>
+      )}
 
-      <div className="flex flex-col gap-4">
+      {activeTab === 'gestao' && (
+        <div className="flex flex-col gap-4">
         {/* Panel header with "Cadastrar e Liberar Acesso" and "Relembrar Senha" triggers */}
         <div className="flex flex-col gap-3.5 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
           <div>
@@ -385,6 +530,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               onClick={() => {
                 setShowCreateForm(!showCreateForm);
                 setShowReminderForm(false);
+                setShowEmailReminderForm(false);
                 setError('');
                 setSuccessMsg('');
               }}
@@ -397,6 +543,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               onClick={() => {
                 setShowReminderForm(!showReminderForm);
                 setShowCreateForm(false);
+                setShowEmailReminderForm(false);
                 setError('');
                 setSuccessMsg('');
                 setReminderEmail('');
@@ -407,8 +554,81 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <KeyRound className="h-4 w-4 text-amber-500" />
               {showReminderForm ? 'Fechar Relembrar' : 'Relembrar Senha'}
             </button>
+            <button
+              onClick={() => {
+                setShowEmailReminderForm(!showEmailReminderForm);
+                setShowCreateForm(false);
+                setShowReminderForm(false);
+                setEmailReminderError('');
+                setEmailReminderSuccess('');
+                setSelectedEmailForReminder('');
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+            >
+              <Mail className="h-4 w-4 text-violet-500" />
+              {showEmailReminderForm ? 'Fechar Lembrar E-mail' : 'Lembrar senha usuário e-mail'}
+            </button>
           </div>
         </div>
+
+        {/* Collapsible e-mail reminder form */}
+        {showEmailReminderForm && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50/10 p-5 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/10 animate-fade-in space-y-4">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+              <Mail className="h-4 w-4 text-violet-500" />
+              Lembrar senha usuário e-mail
+            </h3>
+
+            {emailReminderError && <p className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">{emailReminderError}</p>}
+            {emailReminderSuccess && <p className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 rounded-lg">{emailReminderSuccess}</p>}
+
+            <form onSubmit={handleSendPasswordEmail} className="space-y-4 text-xs">
+              <div className="grid gap-4 sm:grid-cols-2 items-end">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Escolha o Usuário</label>
+                  <select
+                    value={selectedEmailForReminder}
+                    onChange={(e) => {
+                      setSelectedEmailForReminder(e.target.value);
+                      setEmailReminderError('');
+                      setEmailReminderSuccess('');
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-medium"
+                  >
+                    <option value="">-- Selecione o usuário para enviar a senha por e-mail --</option>
+                    {users.map((u) => (
+                      <option key={u.email} value={u.email}>
+                        {u.name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-violet-600 hover:bg-violet-700 px-5 py-2 font-bold text-white transition-colors shadow-md shadow-violet-500/10"
+                    disabled={sendingEmail || !selectedEmailForReminder}
+                  >
+                    {sendingEmail ? 'Enviando...' : 'Enviar senha por e-mail'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEmailReminderForm(false);
+                      setSelectedEmailForReminder('');
+                      setEmailReminderError('');
+                      setEmailReminderSuccess('');
+                    }}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Collapsible reminder form */}
         {showReminderForm && (
@@ -551,7 +771,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="none">Nenhum</option>
-                    <option value="gratis">Grátis (45d)</option>
+                    <option value="gratis">Grátis (60d)</option>
                     <option value="mensal">Mensal</option>
                     <option value="anual">Anual</option>
                     <option value="livre">Plano Livre 🔓 (Sem cobrança / Vitalício)</option>
@@ -688,7 +908,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="none">Nenhum / Inativo</option>
-                    <option value="gratis">Grátis (45d)</option>
+                    <option value="gratis">Grátis (60d)</option>
                     <option value="mensal">Mensal</option>
                     <option value="anual">Anual ✨</option>
                     <option value="livre">Plano Livre 🔓 (Sem cobrança / Vitalício)</option>
@@ -796,7 +1016,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                         </td>
                         <td className="py-3">
                           <div className="font-semibold text-slate-700 dark:text-slate-300">
-                            {plan === 'gratis' && 'Grátis (45d)'}
+                            {plan === 'gratis' && 'Grátis (60d)'}
                             {plan === 'mensal' && 'Mensal'}
                             {plan === 'anual' && 'Anual ✨'}
                             {plan === 'livre' && 'Livre 🔓'}
@@ -857,6 +1077,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                             >
                               <Pencil className="h-4 w-4" />
                             </button>
+                            {user.email.toLowerCase().trim() !== adminUser.email.toLowerCase().trim() && (
+                              <button
+                                onClick={() => setUserToDelete(user)}
+                                title="Excluir usuário e todos os seus dados"
+                                aria-label="Excluir"
+                                className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -868,9 +1098,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           )}
         </div>
       </div>
+      )}
 
       {/* User audit detailed console */}
-      {selectedUserForAudit && (
+      {activeTab === 'gestao' && selectedUserForAudit && (
         <div className="rounded-xl border border-blue-200 bg-blue-50/20 p-6 dark:border-blue-900/60 dark:bg-blue-950/10">
           <div className="flex items-center justify-between border-b border-blue-100 pb-3 mb-4 dark:border-blue-900/40">
             <h3 className="text-sm font-bold text-blue-900 dark:text-blue-200">
@@ -962,6 +1193,187 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'config-valores' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-emerald-500" />
+              Configuração de Valores dos Planos de Assinatura
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Defina os valores "De" (original/riscado) e "Por" (atual/cobrado) para os planos mensal e anual. Esses valores serão exibidos na tela de contratação.
+            </p>
+          </div>
+
+          {pricesSuccess && (
+            <div className="p-3 text-xs font-semibold text-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-300 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+              {pricesSuccess}
+            </div>
+          )}
+
+          {pricesError && (
+            <div className="p-3 text-xs font-semibold text-rose-800 bg-rose-50 dark:bg-rose-950/20 dark:text-rose-300 rounded-xl border border-rose-100 dark:border-rose-900/30">
+              {pricesError}
+            </div>
+          )}
+
+          <form onSubmit={handleSavePrices} className="space-y-6 text-xs">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Plano Mensal Section */}
+              <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                  Plano Mensal
+                </h4>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Valor Original ("De")
+                    </label>
+                    <div className="relative rounded-lg shadow-sm">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <span className="text-slate-400 font-bold text-[11px]">R$</span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        placeholder="9,90"
+                        value={pricesDePor.mensal_de}
+                        onChange={(e) => setPricesDePor({ ...pricesDePor, mensal_de: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Valor Atual ("Por")
+                    </label>
+                    <div className="relative rounded-lg shadow-sm">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <span className="text-slate-400 font-bold text-[11px]">R$</span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        placeholder="2,99"
+                        value={pricesDePor.mensal_por}
+                        onChange={(e) => setPricesDePor({ ...pricesDePor, mensal_por: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Plano Anual Section */}
+              <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  Plano Anual
+                </h4>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Valor Original ("De")
+                    </label>
+                    <div className="relative rounded-lg shadow-sm">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <span className="text-slate-400 font-bold text-[11px]">R$</span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        placeholder="118,80"
+                        value={pricesDePor.anual_de}
+                        onChange={(e) => setPricesDePor({ ...pricesDePor, anual_de: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Valor Atual ("Por")
+                    </label>
+                    <div className="relative rounded-lg shadow-sm">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <span className="text-slate-400 font-bold text-[11px]">R$</span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        placeholder="29,99"
+                        value={pricesDePor.anual_por}
+                        onChange={(e) => setPricesDePor({ ...pricesDePor, anual_por: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="submit"
+                disabled={pricesLoading}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
+              >
+                {pricesLoading ? 'Salvando...' : 'Salvar Novos Valores'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Custom Confirmation Popup for User Deletion */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-xl">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">Confirmar Exclusão de Registro</h3>
+                <p className="text-xs text-slate-500">Ação irreversível de segurança</p>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2">
+              <p>
+                Você está prestes a excluir definitivamente o usuário{' '}
+                <span className="font-bold text-slate-900 dark:text-white">{userToDelete.name || userToDelete.email}</span>{' '}
+                (<span className="font-mono font-bold">{userToDelete.email}</span>) bem como todos os seus dados cadastrados.
+              </p>
+              <p className="bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 p-3 rounded-lg font-medium">
+                Esta ação apagará permanentemente o perfil, as receitas, as despesas, as metas, as ações de melhoria, as listas de compras e todo o histórico financeiro deste usuário. Não será possível recuperar estas informações posteriormente.
+              </p>
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                onClick={() => handleDeleteUser(userToDelete.email)}
+                disabled={deletingUserLoading}
+                className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 transition-colors shadow-lg shadow-red-600/15 disabled:opacity-50"
+              >
+                {deletingUserLoading ? 'Excluindo...' : 'Sim, Apagar Tudo'}
+              </button>
+              <button
+                onClick={() => setUserToDelete(null)}
+                disabled={deletingUserLoading}
+                className="flex-1 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

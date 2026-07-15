@@ -70,7 +70,7 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
           {ticks.map((tick, i) => {
             const y = getY(tick);
             return (
-              <g key={i} className="opacity-40">
+              <g key={i}>
                 <line
                   x1={margin.left}
                   y1={y}
@@ -79,12 +79,13 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                   stroke="#cbd5e1"
                   strokeWidth="1"
                   strokeDasharray="4 4"
+                  className="opacity-30"
                 />
                 <text
                   x={margin.left - 8}
                   y={y + 4}
                   textAnchor="end"
-                  className="fill-slate-400 text-[10px] font-mono"
+                  className="fill-black dark:fill-white text-[11px] font-bold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>
@@ -361,7 +362,7 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
           {ticks.map((tick, i) => {
             const y = getY(tick);
             return (
-              <g key={i} className="opacity-40">
+              <g key={i}>
                 <line
                   x1={margin.left}
                   y1={y}
@@ -370,12 +371,13 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                   stroke="#cbd5e1"
                   strokeWidth="1"
                   strokeDasharray="4 4"
+                  className="opacity-30"
                 />
                 <text
                   x={margin.left - 8}
                   y={y + 4}
                   textAnchor="end"
-                  className="fill-slate-400 text-[10px] font-mono"
+                  className="fill-black dark:fill-white text-[11px] font-bold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>

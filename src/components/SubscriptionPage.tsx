@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Check, AlertCircle, Sparkles, CreditCard, ShieldCheck } from 'lucide-react';
 
@@ -17,13 +17,31 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
   const [cardCvv, setCardCvv] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
 
+  const [prices, setPrices] = useState({
+    mensal_de: '9,90',
+    mensal_por: '2,99',
+    anual_de: '118,80',
+    anual_por: '29,99'
+  });
+
+  useEffect(() => {
+    fetch('/api/plan-prices')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.mensal_por) {
+          setPrices(data);
+        }
+      })
+      .catch(err => console.error('Erro ao buscar valores dos planos:', err));
+  }, []);
+
   const isFreePlanUsed = user.subscription?.freePlanUsed || false;
   const currentPlan = user.subscription?.plan || 'none';
   const validUntil = user.subscription?.validUntil;
 
   const handleSelectPlan = async (plan: 'gratis' | 'mensal' | 'anual') => {
     if (plan === 'gratis' && isFreePlanUsed) {
-      alert('Você já utilizou o período grátis de 45 dias anteriormente.');
+      alert('Você já utilizou o período grátis de 60 dias anteriormente.');
       return;
     }
 
@@ -42,7 +60,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         onUpdateUser(data.user);
-        alert('Período grátis de 45 dias ativado com sucesso!');
+        alert('Período grátis de 60 dias ativado com sucesso!');
       } catch (err: any) {
         alert(err.message || 'Erro ao ativar período grátis.');
       } finally {
@@ -121,7 +139,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
           <span className="text-xs text-slate-400 font-bold uppercase">Status Atual</span>
           <h3 className="text-lg font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2 mt-0.5">
             {currentPlan === 'none' && 'Nenhum plano selecionado ❌'}
-            {currentPlan === 'gratis' && 'Período Grátis (45 Dias) ⏳'}
+            {currentPlan === 'gratis' && 'Período Grátis (60 Dias) ⏳'}
             {currentPlan === 'mensal' && 'Plano Mensal Ativo 🔵'}
             {currentPlan === 'anual' && 'Plano Anual Premium Ativo ✨'}
           </h3>
@@ -157,11 +175,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
           <div>
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Período de Experiência</div>
             <h3 className="text-xl font-extrabold text-slate-900 mt-2 dark:text-white">Comece Grátis</h3>
-            <p className="text-xs text-slate-400 mt-1">Experimente a plataforma por 45 dias completos sem custos.</p>
+            <p className="text-xs text-slate-400 mt-1">Experimente a plataforma por 60 dias completos sem custos.</p>
             
             <div className="mt-4 flex items-baseline text-slate-900 dark:text-white">
               <span className="text-3xl font-extrabold tracking-tight">R$ 0</span>
-              <span className="ml-1 text-xs text-slate-400">/ 45 dias</span>
+              <span className="ml-1 text-xs text-slate-400">/ 60 dias</span>
             </div>
 
             <ul className="mt-6 space-y-3.5 text-xs text-slate-600 dark:text-slate-400">
@@ -202,7 +220,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
                 ? 'Já Utilizado'
                 : loadingPlan === 'gratis'
                 ? 'Ativando...'
-                : 'Iniciar Teste de 45 Dias'}
+                : 'Iniciar Teste de 60 Dias'}
             </button>
           </div>
         </div>
@@ -217,9 +235,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             <p className="text-xs text-slate-400 mt-1">Cobrança recorrente mensal com desconto especial.</p>
             
             <div className="mt-4">
-              <span className="text-xs text-slate-400 line-through">de R$ 9,90</span>
+              <span className="text-xs text-slate-400 line-through">de R$ {prices.mensal_de}</span>
               <div className="flex items-baseline text-slate-900 dark:text-white mt-0.5">
-                <span className="text-3xl font-extrabold tracking-tight text-blue-600 dark:text-blue-400">R$ 3,99</span>
+                <span className="text-3xl font-extrabold tracking-tight text-blue-600 dark:text-blue-400">R$ {prices.mensal_por}</span>
                 <span className="ml-1 text-xs text-slate-400">/ mês</span>
               </div>
             </div>
@@ -240,6 +258,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-blue-500 shrink-0" />
                 <span>Backups diários automáticos</span>
+              </li>
+              <li className="flex items-center gap-2 font-medium text-blue-600 dark:text-blue-400">
+                <Check className="h-4 w-4 text-blue-500 shrink-0" />
+                <span>+ todos itens do plano comece grátis</span>
               </li>
             </ul>
           </div>
@@ -275,9 +297,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             <p className="text-xs text-slate-400 mt-1">Acesso garantido por 1 ano completo com super desconto.</p>
             
             <div className="mt-4">
-              <span className="text-xs text-slate-400 line-through">de R$ 118,80</span>
+              <span className="text-xs text-slate-400 line-through">de R$ {prices.anual_de}</span>
               <div className="flex items-baseline text-slate-900 dark:text-white mt-0.5">
-                <span className="text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">R$ 34,90</span>
+                <span className="text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">R$ {prices.anual_por}</span>
                 <span className="ml-1 text-xs text-slate-400">/ ano</span>
               </div>
             </div>
@@ -298,6 +320,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-emerald-500 shrink-0" />
                 <span>Aprovação imediata de acesso</span>
+              </li>
+              <li className="flex items-center gap-2 font-medium text-emerald-600 dark:text-emerald-400">
+                <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span>+ todos itens do plano mensal</span>
               </li>
             </ul>
           </div>

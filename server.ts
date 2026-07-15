@@ -14,6 +14,12 @@ const DB_FILE = path.join(process.cwd(), "db.json");
 interface Database {
   users: { [email: string]: any };
   userData: { [email: string]: any };
+  planPrices?: {
+    mensal_de: string;
+    mensal_por: string;
+    anual_de: string;
+    anual_por: string;
+  };
 }
 
 function initDb() {
@@ -463,6 +469,18 @@ async function getUserDataByEmail(email: string): Promise<any> {
           status: r.status
         })) : []
       };
+
+      // Extract trips from localData or the legacy monolithic table backup
+      let trips = localData?.trips || [];
+      try {
+        const legacyRes = await supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
+        if (legacyRes.data?.data?.trips) {
+          trips = legacyRes.data.data.trips;
+        }
+      } catch (e) {
+        console.error("Error retrieving trips from monolithic backup:", e);
+      }
+      responseData.trips = trips;
 
       // Do not force default templates, keep arrays as retrieved (empty for new users)
 
@@ -1141,11 +1159,11 @@ app.post("/api/user/subscription", async (req, res) => {
 
     if (plan === "gratis") {
       if (user.subscription.freePlanUsed) {
-        return res.status(400).json({ error: "Você já utilizou o período grátis de 45 dias anteriormente." });
+        return res.status(400).json({ error: "Você já utilizou o período grátis de 60 dias anteriormente." });
       }
       user.subscription = {
         plan: "gratis",
-        validUntil: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+        validUntil: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
         selectedAt: new Date().toISOString(),
         freePlanUsed: true,
         approved: true,
@@ -1228,6 +1246,49 @@ app.post("/api/user/data", async (req, res) => {
   } catch (err) {
     console.error("User data post error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Get Plan Prices (Public)
+app.get("/api/plan-prices", (req, res) => {
+  const db = getDb();
+  const prices = db.planPrices || {
+    mensal_de: "9,90",
+    mensal_por: "2,99",
+    anual_de: "118,80",
+    anual_por: "29,99"
+  };
+  res.json(prices);
+});
+
+// Update Plan Prices (Admin only)
+app.post("/api/admin/plan-prices", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { mensal_de, mensal_por, anual_de, anual_por } = req.body;
+    
+    const db = getDb();
+    db.planPrices = {
+      mensal_de: String(mensal_de || "9,90"),
+      mensal_por: String(mensal_por || "2,99"),
+      anual_de: String(anual_de || "118,80"),
+      anual_por: String(anual_por || "29,99")
+    };
+    saveDb(db);
+
+    res.json({ message: "Valores atualizados com sucesso!", prices: db.planPrices });
+  } catch (err) {
+    console.error("Error updating plan prices:", err);
+    res.status(500).json({ error: "Erro interno ao atualizar valores." });
   }
 });
 
@@ -1320,7 +1381,7 @@ app.post("/api/admin/create-user", async (req, res) => {
 
     let validUntil = null;
     if (plan === "gratis") {
-      validUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
+      validUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
     } else if (plan === "mensal") {
       validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     } else if (plan === "anual") {
@@ -1412,7 +1473,7 @@ app.post("/api/admin/edit-user", async (req, res) => {
         user.subscription.plan = plan;
         let validUntil = null;
         if (plan === "gratis") {
-          validUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
+          validUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
         } else if (plan === "mensal") {
           validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         } else if (plan === "anual") {
@@ -1476,6 +1537,108 @@ app.get("/api/admin/user-details/:userEmail", async (req, res) => {
     res.json(targetUserData);
   } catch (err) {
     console.error("Admin user-details error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Admin deletes user and all of their data (Admin only)
+app.post("/api/admin/delete-user", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { targetEmail } = req.body;
+    if (!targetEmail) {
+      return res.status(400).json({ error: "E-mail do usuário não informado." });
+    }
+
+    const lowerTargetEmail = targetEmail.toLowerCase().trim();
+
+    if (lowerTargetEmail === email.toLowerCase().trim()) {
+      return res.status(400).json({ error: "Você não pode excluir o seu próprio usuário." });
+    }
+
+    // Delete from local DB
+    const db = getDb();
+    if (db.users[lowerTargetEmail]) {
+      delete db.users[lowerTargetEmail];
+    }
+    if (db.userData[lowerTargetEmail]) {
+      delete db.userData[lowerTargetEmail];
+    }
+    saveDb(db);
+
+    // Delete from Supabase if connected
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await Promise.all([
+          supabase.from('subscriptions').delete().eq('email', lowerTargetEmail),
+          supabase.from('profiles').delete().eq('email', lowerTargetEmail),
+          supabase.from('users').delete().eq('email', lowerTargetEmail),
+          supabase.from('payment_types').delete().eq('email', lowerTargetEmail),
+          supabase.from('payment_statuses').delete().eq('email', lowerTargetEmail),
+          supabase.from('income_categories').delete().eq('email', lowerTargetEmail),
+          supabase.from('expense_categories').delete().eq('email', lowerTargetEmail),
+          supabase.from('incomes').delete().eq('email', lowerTargetEmail),
+          supabase.from('expenses').delete().eq('email', lowerTargetEmail),
+          supabase.from('annual_planning').delete().eq('email', lowerTargetEmail),
+          supabase.from('shopping_list').delete().eq('email', lowerTargetEmail),
+          supabase.from('action_plans').delete().eq('email', lowerTargetEmail),
+          supabase.from('deficit_actions').delete().eq('email', lowerTargetEmail),
+          supabase.from('user_data').delete().eq('email', lowerTargetEmail)
+        ]);
+      } catch (subErr) {
+        console.error("Error deleting from Supabase:", subErr);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Admin delete-user error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Admin triggers email password reminder (Admin only)
+app.post("/api/admin/send-password-email", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { targetEmail } = req.body;
+    if (!targetEmail) {
+      return res.status(400).json({ error: "E-mail do usuário não informado." });
+    }
+
+    const lowerTargetEmail = targetEmail.toLowerCase().trim();
+    const targetUser = await getUserByEmail(lowerTargetEmail);
+    if (!targetUser) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    const userPassword = targetUser.password;
+
+    // Simulate sending email (print to server console for auditing and return success)
+    console.log(`[EMAIL DISPATCH] Para: ${lowerTargetEmail} | Assunto: Recuperação de Senha | Conteúdo: Sua senha é "${userPassword}"`);
+
+    res.json({ success: true, message: `E-mail enviado com sucesso para ${lowerTargetEmail}.` });
+  } catch (err) {
+    console.error("Admin send-password-email error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
   }
 });

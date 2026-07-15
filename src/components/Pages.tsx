@@ -12,6 +12,7 @@ interface PageProps {
 // ======================== RECEITAS PAGE ========================
 export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
@@ -40,7 +41,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   }, []);
 
   const [selectedYear, setSelectedYear] = useState<string>('all');
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthYearStr);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   const yearOptions = useMemo(() => {
@@ -173,6 +174,9 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setPaymentType(inc.paymentType);
     setStatus(inc.status);
     setShowAddForm(true);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
   };
 
   const handleDelete = (id: string) => {
@@ -322,12 +326,43 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
         </button>
       </div>
 
+      {/* Help Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+        >
+          <div className="flex items-center gap-2">
+            <Sliders className="h-4 w-4 text-blue-500" />
+            <span>Como Lançar Receitas</span>
+          </div>
+          <span className="text-slate-400">
+            {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
+          </span>
+        </button>
+        {showHelp && (
+          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2 animate-fade-in">
+            <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas receitas:</p>
+            <ul className="list-decimal pl-4 space-y-1.5">
+              <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Receita</strong> no canto superior direito.</li>
+              <li>Preencha os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Categoria</strong> e <strong className="text-slate-800 dark:text-white">Forma de Recebimento</strong>.</li>
+              <li>Selecione o status da transação (<strong className="text-slate-800 dark:text-white">Pago</strong> para valores recebidos ou <strong className="text-slate-800 dark:text-white">Pendente</strong> para previsões).</li>
+              <li>Clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Registro</strong> para gravar a entrada.</li>
+            </ul>
+            <p className="mt-2 text-[11px] bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 p-2.5 rounded-lg">
+              <strong>Dica Prática:</strong> Personalize suas categorias e meios de recebimento clicando nas opções <strong className="underline">Gerenciar Categorias</strong> e <strong className="underline">Gerenciar Formas</strong> disponíveis no próprio formulário.
+            </p>
+          </div>
+        )}
+      </div>
+
       {showAddForm && (
-        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-3 text-xs">
-          <div className="sm:col-span-3 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-1">
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm">
-              {editingIncomeId ? 'Editar Registro de Receita' : 'Novo Registro de Receita'}
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl grid gap-4 sm:grid-cols-3 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="sm:col-span-3 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-1">
+              <h3 className="font-bold text-slate-800 dark:text-white text-sm">
+                {editingIncomeId ? 'Editar Registro de Receita' : 'Novo Registro de Receita'}
+              </h3>
             {editingIncomeId && (
               <span className="text-[10px] bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded font-bold dark:bg-amber-950/30">
                 Modo de Edição
@@ -615,6 +650,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </button>
           </div>
         </form>
+        </div>
       )}
 
       {/* Filter and Table Card */}
@@ -817,6 +853,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 // ======================== DESPESAS PAGE ========================
 export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
@@ -849,7 +886,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   }, []);
 
   const [selectedYear, setSelectedYear] = useState<string>('all');
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthYearStr);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   const yearOptions = useMemo(() => {
@@ -976,6 +1013,9 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setPaymentType(exp.paymentType);
     setStatus(exp.status);
     setShowAddForm(true);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
   };
 
   const handleDelete = (id: string) => {
@@ -1174,8 +1214,39 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
         </button>
       </div>
 
+      {/* Help Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+        >
+          <div className="flex items-center gap-2">
+            <Sliders className="h-4 w-4 text-rose-500" />
+            <span>Como Lançar Despesas</span>
+          </div>
+          <span className="text-slate-400">
+            {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
+          </span>
+        </button>
+        {showHelp && (
+          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2 animate-fade-in">
+            <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas despesas:</p>
+            <ul className="list-decimal pl-4 space-y-1.5">
+              <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Despesa</strong> no canto superior direito.</li>
+              <li>Defina os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Centro de Custo (Categoria)</strong> e <strong className="text-slate-800 dark:text-white">Forma de Pagamento</strong>.</li>
+              <li>Determine a <strong className="text-slate-800 dark:text-white">Situação do Pagamento</strong> (se o item já está pago, pendente de pagamento ou em atraso).</li>
+              <li>Clique em <strong className="text-rose-600 dark:text-rose-400">Salvar Registro</strong> para gravar a saída.</li>
+            </ul>
+            <p className="mt-2 text-[11px] bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-2.5 rounded-lg">
+              <strong>Conselho Financeiro:</strong> Manter a situação de pagamento sempre em dia ajuda a monitorar os vencimentos futuros no seu fluxo de caixa para evitar multas, juros ou bloqueios.
+            </p>
+          </div>
+        )}
+      </div>
+
       {showAddForm && (
-        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-3 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl grid gap-4 sm:grid-cols-3 text-xs max-h-[90vh] overflow-y-auto">
           <div>
             <label className="block text-[10px] font-bold uppercase text-slate-400">Data da Compra</label>
             <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
@@ -1573,6 +1644,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </button>
           </div>
         </form>
+        </div>
       )}
 
       {/* Filter and Table Card */}
@@ -1903,7 +1975,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
 
       {/* Performance by Cost Center Table */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Desempenho por Centro de Custo</h3>
+        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Desempenho por Centro de Custo Mensal</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -2055,8 +2127,8 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
             <thead>
               <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
                 <th className="pb-3.5 font-semibold">Mês</th>
-                <th className="pb-3.5 font-semibold text-right">Orçamento</th>
-                <th className="pb-3.5 font-semibold text-right">Despesa</th>
+                <th className="pb-3.5 font-semibold text-right">Orçado</th>
+                <th className="pb-3.5 font-semibold text-right">Realizado</th>
                 <th className="pb-3.5 font-semibold text-right">Saldo</th>
               </tr>
             </thead>
@@ -2368,6 +2440,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
 // ======================== AÇÃO DE MELHORIA PAGE ========================
 export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAdd, setShowAdd] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
 
   // Form Fields
@@ -2473,6 +2546,37 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
           <Plus className="h-4 w-4" />
           {editingActionId ? 'Editar Ação' : 'Nova ação'}
         </button>
+      </div>
+
+      {/* Help Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+        >
+          <div className="flex items-center gap-2">
+            <Sliders className="h-4 w-4 text-emerald-500" />
+            <span>Como Lançar Ações de melhoria</span>
+          </div>
+          <span className="text-slate-400">
+            {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
+          </span>
+        </button>
+        {showHelp && (
+          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2 animate-fade-in">
+            <p className="font-medium text-slate-700 dark:text-slate-300">As Ações de Melhoria (5W2H simplificado) servem para corrigir desvios quando despesas superam as previsões:</p>
+            <ul className="list-decimal pl-4 space-y-1.5">
+              <li>Clique em <strong className="text-slate-800 dark:text-white">Nova Ação</strong> no canto superior direito para abrir o formulário.</li>
+              <li>Selecione o <strong className="text-slate-800 dark:text-white">Centro de Custo Ocorrido</strong> e digite o <strong className="text-slate-800 dark:text-white">Motivo do Desvio</strong> (por que o gasto ultrapassou o planejado).</li>
+              <li>Descreva a <strong className="text-slate-800 dark:text-white">Ação Corretiva</strong> (o que será executado para conter ou corrigir isso).</li>
+              <li>Defina o <strong className="text-slate-800 dark:text-white">Responsável</strong> pela ação, a <strong className="text-slate-800 dark:text-white">Data Limite de Conclusão</strong> e a <strong className="text-slate-800 dark:text-white">Situação da Ação</strong>.</li>
+              <li>Clique em <strong className="text-emerald-600 dark:text-emerald-400">Salvar Ação</strong> para concluir.</li>
+            </ul>
+            <p className="mt-2 text-[11px] bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 p-2.5 rounded-lg">
+              <strong>Finalidade Pedagógica:</strong> Este painel ajuda a registrar o plano de ação necessário para reverter déficits orçamentários pontuais e garantir que desvios não se repitam no próximo ciclo.
+            </p>
+          </div>
+        )}
       </div>
 
       {showAdd && (
@@ -2924,6 +3028,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
 // ======================== PLANEJAMENTO ANUAL ========================
 export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [showHelp, setShowHelp] = useState(false);
   const [activeMonthForDetails, setActiveMonthForDetails] = useState<number | null>(null);
   const [localCategoryBudgets, setLocalCategoryBudgets] = useState<{ [category: string]: string }>({});
   const [detailSuccess, setDetailSuccess] = useState(false);
@@ -3262,6 +3367,33 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         </select>
       </div>
 
+      {/* Help Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+        >
+          <div className="flex items-center gap-2">
+            <Sliders className="h-4 w-4 text-blue-500" />
+            <span>Como Configurar o Planejamento Anual</span>
+          </div>
+          <span className="text-slate-400">
+            {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
+          </span>
+        </button>
+        {showHelp && (
+          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2 animate-fade-in">
+            <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para estruturar seu orçamento anual:</p>
+            <ul className="list-decimal pl-4 space-y-1.5">
+              <li>No topo da página, selecione o <strong className="text-slate-800 dark:text-white">ano de exercício</strong> desejado.</li>
+              <li>Na seção de limites mensais, estipule sua <strong className="text-slate-800 dark:text-white">Receita Orçada</strong> e seu limite máximo de <strong className="text-slate-800 dark:text-white">Despesa Orçada</strong> para cada mês do ano.</li>
+              <li>Para detalhar despesas específicas de forma granular por categoria, utilize o botão <strong className="text-slate-800 dark:text-white">Orçar por Item</strong> destacado abaixo. Ele permite que você associe limites de gastos individuais para cada uma das suas categorias cadastradas.</li>
+              <li>Sempre clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Planejamento</strong> após realizar ajustes gerais ou detalhados.</li>
+            </ul>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Definição de Limites por Mês</h3>
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
@@ -3324,9 +3456,9 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                     </span>
                     <button
                       onClick={() => openDetailedBudget(idx)}
-                      className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 shrink-0"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-[10px] font-extrabold text-white shadow shadow-blue-500/20 transition-all shrink-0 animate-pulse hover:animate-none hover:scale-105"
                     >
-                      <Sliders className="h-3 w-3" />
+                      <Sliders className="h-2.5 w-2.5" />
                       Orçar por Item
                     </button>
                   </div>

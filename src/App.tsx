@@ -18,6 +18,7 @@ import {
   DadosPessoaisPage
 } from './components/Pages';
 import { SuportePage } from './components/SuportePage';
+import { ViagemPage } from './components/ViagemPage';
 
 import {
   Home as HomeIcon,
@@ -41,7 +42,8 @@ import {
   Sun,
   Moon,
   AlertTriangle,
-  HelpCircle
+  HelpCircle,
+  Plane
 } from 'lucide-react';
 
 export default function App() {
@@ -309,6 +311,14 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
+      case 'Viagem':
+        if (!userData) return null;
+        return (
+          <ViagemPage
+            userData={userData}
+            onUpdateUserData={handleUpdateUserData}
+          />
+        );
       case 'Ação de melhoria':
         if (!userData) return null;
         return (
@@ -473,6 +483,7 @@ export default function App() {
     { name: 'Resumo mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
     { name: 'Metas', icon: Target, type: 'link' },
+    { name: 'Viagem', icon: Plane, type: 'link' },
     { name: 'Ação de melhoria', icon: AlertTriangle, type: 'link' },
     { name: 'Lista de compras', icon: ShoppingCart, type: 'link' },
     { name: 'Suporte', icon: HelpCircle, type: 'link' },

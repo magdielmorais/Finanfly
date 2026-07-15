@@ -4,7 +4,7 @@ export interface UserSubscription {
   plan: 'none' | 'gratis' | 'mensal' | 'anual' | 'livre';
   validUntil: string | null; // ISO Date String
   selectedAt: string | null; // ISO Date String
-  freePlanUsed: boolean; // Cannot select 45-day free plan again
+  freePlanUsed: boolean; // Cannot select 60-day free plan again
   approved: boolean; // Approved manually by admin
 }
 
@@ -82,6 +82,19 @@ export interface DeficitAction {
   status: 'Pendente' | 'Em Andamento' | 'Concluído';
 }
 
+export interface TripExpense {
+  id: string;
+  description: string;
+  value: number;
+  date?: string; // date of expense
+}
+
+export interface Trip {
+  id: string;
+  name: string;
+  expenses: TripExpense[];
+}
+
 export interface UserData {
   incomes: Income[];
   expenses: Expense[];
@@ -93,5 +106,6 @@ export interface UserData {
   incomeCategories: string[];
   expenseCategories: string[];
   deficitActions?: DeficitAction[];
+  trips?: Trip[];
 }
 
