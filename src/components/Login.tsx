@@ -17,20 +17,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
 
   // Modals state for "Relembrar senha" and "Mudar senha"
   const [showRememberModal, setShowRememberModal] = useState(false);
-  const [showChangeModal, setShowChangeModal] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const [rememberEmail, setRememberEmail] = useState('');
   const [rememberLoading, setRememberLoading] = useState(false);
   const [rememberSuccess, setRememberSuccess] = useState('');
   const [rememberError, setRememberError] = useState('');
   const [rememberedPassword, setRememberedPassword] = useState('');
-
-  const [changeEmail, setChangeEmail] = useState('');
-  const [changeOldPassword, setChangeOldPassword] = useState('');
-  const [changeNewPassword, setChangeNewPassword] = useState('');
-  const [changeLoading, setChangeLoading] = useState(false);
-  const [changeSuccess, setChangeSuccess] = useState('');
-  const [changeError, setChangeError] = useState('');
 
   const handleRememberPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,36 +52,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
       setRememberError(err.message || 'Ocorreu um erro.');
     } finally {
       setRememberLoading(false);
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setChangeError('');
-    setChangeSuccess('');
-    setChangeLoading(true);
-
-    try {
-      const response = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: changeEmail,
-          oldPassword: changeOldPassword,
-          newPassword: changeNewPassword
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao alterar senha.');
-      }
-
-      setChangeSuccess(data.message || 'Senha alterada com sucesso!');
-    } catch (err: any) {
-      setChangeError(err.message || 'Ocorreu um erro.');
-    } finally {
-      setChangeLoading(false);
     }
   };
 
