@@ -344,10 +344,14 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
           {/* Gradients */}
           <defs>
             <linearGradient id="budgetBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f59e0b" stopOpacity="1" />
-              <stop offset="100%" stopColor="#d97706" stopOpacity="0.9" />
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
+              <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.9" />
             </linearGradient>
-            <linearGradient id="realizedBarGrad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="realizedBarGreenGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
+              <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
+            </linearGradient>
+            <linearGradient id="realizedBarRedGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
               <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
             </linearGradient>
@@ -432,7 +436,7 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                   y={yRealized}
                   width={barWidth}
                   height={hRealized}
-                  fill="url(#realizedBarGrad)"
+                  fill={d.realized <= d.budgeted ? "url(#realizedBarGreenGrad)" : "url(#realizedBarRedGrad)"}
                   rx="2"
                   ry="2"
                   className="transition-all duration-300"
@@ -467,14 +471,19 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
       {hoveredIndex !== null && data[hoveredIndex] && (
         <div className="mt-2 flex items-center justify-around rounded-lg bg-slate-50 p-2 text-xs border border-slate-100 transition-all dark:bg-slate-800 dark:border-slate-700">
           <div className="font-semibold text-slate-700 dark:text-slate-300">Mês: {data[hoveredIndex].month}</div>
-          <div className="flex items-center gap-1.5 text-amber-600 font-medium dark:text-amber-400">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
+          <div className="flex items-center gap-1.5 text-blue-600 font-medium dark:text-blue-400">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />
             Orçado: R$ {data[hoveredIndex].budgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
-          <div className="flex items-center gap-1.5 text-red-500 font-medium dark:text-red-400">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Realizado: R$ {data[hoveredIndex].realized.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </div>
+          {(() => {
+            const isOk = data[hoveredIndex].realized <= data[hoveredIndex].budgeted;
+            return (
+              <div className={`flex items-center gap-1.5 font-medium ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+                <span className={`h-2 w-2 rounded-full ${isOk ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                Realizado: R$ {data[hoveredIndex].realized.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+            );
+          })()}
           {(() => {
             const diff = data[hoveredIndex].budgeted - data[hoveredIndex].realized;
             const underBudget = diff >= 0;

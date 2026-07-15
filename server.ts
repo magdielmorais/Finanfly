@@ -464,19 +464,7 @@ async function getUserDataByEmail(email: string): Promise<any> {
         })) : []
       };
 
-      // Set elegant default templates if arrays are fresh/empty
-      if (responseData.paymentTypes.length === 0) {
-        responseData.paymentTypes = ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"];
-      }
-      if (responseData.paymentStatuses.length === 0) {
-        responseData.paymentStatuses = ["Pago", "Pendente", "Atrasado"];
-      }
-      if (responseData.incomeCategories.length === 0) {
-        responseData.incomeCategories = ["Salário", "Investimentos", "Freelance", "Outros"];
-      }
-      if (responseData.expenseCategories.length === 0) {
-        responseData.expenseCategories = ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"];
-      }
+      // Do not force default templates, keep arrays as retrieved (empty for new users)
 
       return responseData;
     } catch (err) {
@@ -754,23 +742,23 @@ app.get("/api/supabase-status", (req, res) => {
     schema: `
 -- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
 
--- ----------------- DIAGNÓSTICO E LIMPEZA (OPCIONAL) -----------------
--- Se você receber erros como 'column "email" does not exist' ou conflitos de colunas,
--- descomente as linhas abaixo para limpar as tabelas antigas antes de criá-las novamente:
--- DROP TABLE IF EXISTS deficit_actions CASCADE;
--- DROP TABLE IF EXISTS action_plans CASCADE;
--- DROP TABLE IF EXISTS shopping_list CASCADE;
--- DROP TABLE IF EXISTS annual_planning CASCADE;
--- DROP TABLE IF EXISTS expenses CASCADE;
--- DROP TABLE IF EXISTS incomes CASCADE;
--- DROP TABLE IF EXISTS expense_categories CASCADE;
--- DROP TABLE IF EXISTS income_categories CASCADE;
--- DROP TABLE IF EXISTS payment_statuses CASCADE;
--- DROP TABLE IF EXISTS payment_types CASCADE;
--- DROP TABLE IF EXISTS subscriptions CASCADE;
--- DROP TABLE IF EXISTS profiles CASCADE;
--- DROP TABLE IF EXISTS user_data CASCADE;
--- DROP TABLE IF EXISTS users CASCADE;
+-- ----------------- DIAGNÓSTICO E LIMPEZA -----------------
+-- Este script irá limpar (DROP) as tabelas antigas se existirem para recriá-las do zero com a estrutura correta.
+-- ATENÇÃO: Isso removerá os dados existentes nestas tabelas no seu banco Supabase.
+DROP TABLE IF EXISTS deficit_actions CASCADE;
+DROP TABLE IF EXISTS action_plans CASCADE;
+DROP TABLE IF EXISTS shopping_list CASCADE;
+DROP TABLE IF EXISTS annual_planning CASCADE;
+DROP TABLE IF EXISTS expenses CASCADE;
+DROP TABLE IF EXISTS incomes CASCADE;
+DROP TABLE IF EXISTS expense_categories CASCADE;
+DROP TABLE IF EXISTS income_categories CASCADE;
+DROP TABLE IF EXISTS payment_statuses CASCADE;
+DROP TABLE IF EXISTS payment_types CASCADE;
+DROP TABLE IF EXISTS subscriptions CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS user_data CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
 
 -- 1. Tabela de Usuários (Login e credenciais básicas)
 CREATE TABLE IF NOT EXISTS users (
@@ -1041,10 +1029,10 @@ app.post("/api/auth/register", async (req, res) => {
     await saveUser(newUser);
 
     const defaultData = {
-      paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
-      paymentStatuses: ["Pago", "Pendente", "Atrasado"],
-      incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
-      expenseCategories: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"],
+      paymentTypes: [],
+      paymentStatuses: [],
+      incomeCategories: [],
+      expenseCategories: [],
       incomes: [],
       expenses: [],
       actionPlans: [],
@@ -1199,19 +1187,19 @@ app.get("/api/user/data", async (req, res) => {
 
   try {
     const userData = await getUserDataByEmail(email);
-    if (!userData) {
-      return res.json({
-        paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
-        paymentStatuses: ["Pago", "Pendente", "Atrasado"],
-        incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
-        expenseCategories: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"],
-        incomes: [],
-        expenses: [],
-        actionPlans: [],
-        shoppingList: [],
-        annualPlanning: []
-      });
-    }
+      if (!userData) {
+        return res.json({
+          paymentTypes: [],
+          paymentStatuses: [],
+          incomeCategories: [],
+          expenseCategories: [],
+          incomes: [],
+          expenses: [],
+          actionPlans: [],
+          shoppingList: [],
+          annualPlanning: []
+        });
+      }
 
     res.json(userData);
   } catch (err) {
@@ -1361,10 +1349,10 @@ app.post("/api/admin/create-user", async (req, res) => {
     await saveUser(newUser);
 
     const defaultData = {
-      paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
-      paymentStatuses: ["Pago", "Pendente", "Atrasado"],
-      incomeCategories: ["Salário", "Investimentos", "Freelance", "Outros"],
-      expenseCategories: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Outros"],
+      paymentTypes: [],
+      paymentStatuses: [],
+      incomeCategories: [],
+      expenseCategories: [],
       incomes: [],
       expenses: [],
       actionPlans: [],
