@@ -3,9 +3,16 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { fileURLToPath } from "url";
+
+// Define _dirname de forma segura para ambientes ES Module (ESM) e CommonJS (CJS)
+const _dirname = typeof __dirname !== "undefined"
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url));
 
 // Carrega variáveis de ambiente de múltiplos locais possíveis (incluindo .env, 1.env, pasta nodejs, etc.)
 const envPaths = [
+  // Relativos ao diretório de trabalho atual (cwd)
   path.join(process.cwd(), ".env"),
   path.join(process.cwd(), "1.env"),
   path.join(process.cwd(), "nodejs", ".env"),
@@ -14,13 +21,49 @@ const envPaths = [
   path.join(process.cwd(), "..", "1.env"),
   path.join(process.cwd(), "..", "nodejs", ".env"),
   path.join(process.cwd(), "..", "nodejs", "1.env"),
+
+  // Relativos ao diretório do script atual (_dirname)
+  path.join(_dirname, ".env"),
+  path.join(_dirname, "1.env"),
+  path.join(_dirname, "nodejs", ".env"),
+  path.join(_dirname, "nodejs", "1.env"),
+  path.join(_dirname, "..", ".env"),
+  path.join(_dirname, "..", "1.env"),
+  path.join(_dirname, "..", "nodejs", ".env"),
+  path.join(_dirname, "..", "nodejs", "1.env"),
+  path.join(_dirname, "..", "..", ".env"),
+  path.join(_dirname, "..", "..", "1.env"),
+  path.join(_dirname, "..", "..", "nodejs", ".env"),
+  path.join(_dirname, "..", "..", "nodejs", "1.env"),
 ];
 
-for (const envPath of envPaths) {
-  if (fs.existsSync(envPath)) {
-    console.log(`[Ambiente] Carregando arquivo .env encontrado em: ${envPath}`);
-    dotenv.config({ path: envPath, override: true });
+// Remove duplicados e caminhos vazios
+const uniqueEnvPaths = Array.from(new Set(envPaths));
+let loadedEnv = false;
+
+console.log("[Ambiente] Iniciando carregamento de variáveis de ambiente...");
+console.log(`[Ambiente] process.cwd() atual: ${process.cwd()}`);
+console.log(`[Ambiente] _dirname atual: ${_dirname}`);
+
+for (const envPath of uniqueEnvPaths) {
+  try {
+    if (fs.existsSync(envPath)) {
+      console.log(`[Ambiente] Arquivo de ambiente encontrado em: ${envPath}`);
+      const result = dotenv.config({ path: envPath, override: true });
+      if (result.error) {
+        console.error(`[Ambiente] Erro ao carregar dotenv do caminho ${envPath}:`, result.error);
+      } else {
+        console.log(`[Ambiente] Sucesso ao carregar variáveis de: ${envPath}`);
+        loadedEnv = true;
+      }
+    }
+  } catch (err) {
+    console.error(`[Ambiente] Falha ao verificar existência ou carregar ${envPath}:`, err);
   }
+}
+
+if (!loadedEnv) {
+  console.log("[Ambiente] Nenhum arquivo .env ou 1.env externo foi carregado com sucesso. Verifique se o arquivo existe e o Node tem permissões de leitura.");
 }
 
 const app = express();
