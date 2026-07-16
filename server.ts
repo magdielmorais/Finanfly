@@ -1644,10 +1644,32 @@ app.post("/api/payment/create-preference", async (req, res) => {
   }
 
   const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
-  const appUrl = process.env.APP_URL || `http://localhost:3000`;
+  
+  // Detect real appUrl from request headers to prevent redirect issues if APP_URL env variable is not set or misconfigured
+  const host = req.headers.host || "";
+  const protocol = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
+  const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : "");
+  
+  let appUrl = process.env.APP_URL;
+  if (!appUrl || appUrl.trim() === "") {
+    if (origin) {
+      appUrl = origin;
+    } else if (host) {
+      appUrl = `${protocol}://${host}`;
+    } else {
+      appUrl = `http://localhost:3000`;
+    }
+  }
 
-  if (accessToken && accessToken.trim() !== "" && accessToken.trim() !== "YOUR_ACCESS_TOKEN") {
+  // Remove trailing slash if present for consistent URLs
+  if (appUrl.endsWith("/")) {
+    appUrl = appUrl.substring(0, appUrl.length - 1);
+  }
+
+  if (accessToken && accessToken.trim() !== "" && accessToken.trim() !== "YOUR_ACCESS_TOKEN" && accessToken.trim() !== "INSIRA_SUA_ANON_KEY_DO_SUPABASE_AQUI") {
     try {
+      console.log(`[Mercado Pago] Solicitando preferência de pagamento para ${email}. Plano: ${planName}, Preço: ${price}, Callback URL base: ${appUrl}`);
+      
       const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
         method: "POST",
         headers: {
@@ -1680,12 +1702,20 @@ app.post("/api/payment/create-preference", async (req, res) => {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Erro do Mercado Pago ao gerar preferência.");
+        console.error("[Mercado Pago] Erro retornado pela API do Mercado Pago:", data);
+        const detail = data.message || (data.cause && data.cause[0] && data.cause[0].description) || JSON.stringify(data);
+        return res.status(400).json({ 
+          error: `Erro ao gerar checkout do Mercado Pago: ${detail}. Verifique se as suas chaves do Mercado Pago em .env estão corretas.` 
+        });
       }
 
+      console.log("[Mercado Pago] Preferência gerada com sucesso. Link de redirecionamento:", data.init_point);
       return res.json({ init_point: data.init_point });
     } catch (err: any) {
-      console.error("Mercado Pago Preference Error, falling back to simulated flow:", err);
+      console.error("Mercado Pago Preference Error:", err);
+      return res.status(500).json({ 
+        error: `Erro ao conectar com a API do Mercado Pago: ${err.message || err}` 
+      });
     }
   }
 
