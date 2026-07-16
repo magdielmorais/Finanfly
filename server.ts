@@ -20,6 +20,12 @@ interface Database {
     anual_de: string;
     anual_por: string;
   };
+  freeTrialDays?: number;
+  notices?: {
+    rule50_30_20: { title: string; message: string };
+    weeklyCheck: { title: string; message: string };
+  };
+  trialHistory?: { [key: string]: boolean };
 }
 
 function initDb() {
@@ -211,6 +217,91 @@ function getSupabaseClient() {
   return null;
 }
 
+// Record used trial email and CPF in persistent historical trial table
+async function recordTrialHistory(email: string, cpf?: string): Promise<void> {
+  const lowerEmail = email.toLowerCase().trim();
+  const cleanCpf = cpf ? cpf.trim().replace(/\D/g, '') : '';
+
+  // 1. Local DB fallback
+  const db = getDb();
+  if (!db.trialHistory) {
+    db.trialHistory = {};
+  }
+  db.trialHistory[lowerEmail] = true;
+  if (cleanCpf) {
+    db.trialHistory[cleanCpf] = true;
+  }
+  saveDb(db);
+
+  // 2. Supabase
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase
+        .from('trial_history')
+        .upsert({
+          email: lowerEmail,
+          cpf: cleanCpf || null
+        });
+    } catch (err) {
+      console.error("Erro ao registrar histórico de período grátis no Supabase:", err);
+    }
+  }
+}
+
+// Check if an email or CPF already used a free trial in history
+async function checkIsBlacklisted(email: string, cpf?: string): Promise<{ blacklisted: boolean; reason?: string }> {
+  const lowerEmail = email.toLowerCase().trim();
+  const cleanCpf = cpf ? cpf.trim().replace(/\D/g, '') : '';
+
+  // 1. Check local DB fallback
+  const db = getDb();
+  if (db.trialHistory) {
+    if (db.trialHistory[lowerEmail]) {
+      return { blacklisted: true, reason: `O e-mail ${lowerEmail} já utilizou o período de experiência grátis.` };
+    }
+    if (cleanCpf && db.trialHistory[cleanCpf]) {
+      return { blacklisted: true, reason: `O CPF ${cpf} já utilizou o período de experiência grátis.` };
+    }
+  }
+
+  // 2. Check Supabase
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      // Query by email
+      const { data: byEmail } = await supabase
+        .from('trial_history')
+        .select('*')
+        .eq('email', lowerEmail)
+        .maybeSingle();
+
+      if (byEmail) {
+        return { blacklisted: true, reason: `O e-mail ${lowerEmail} já utilizou o período de experiência grátis.` };
+      }
+
+      // Query by CPF
+      if (cleanCpf) {
+        const { data: byCpf } = await supabase
+          .from('trial_history')
+          .select('*')
+          .eq('cpf', cleanCpf)
+          .maybeSingle();
+
+        if (byCpf) {
+          return { blacklisted: true, reason: `O CPF ${cpf} já utilizou o período de experiência grátis.` };
+        }
+      }
+    } catch (err: any) {
+      if (err && err.code !== '42P01') {
+        console.error("Erro ao consultar trial_history no Supabase:", err);
+      }
+    }
+  }
+
+  return { blacklisted: false };
+}
+
 // Get user by email with auto-migration from local JSON DB to relational Supabase tables
 async function getUserByEmail(email: string): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
@@ -242,6 +333,9 @@ async function getUserByEmail(email: string): Promise<any> {
         const profileData = profileRes.data;
         const subData = subRes.data;
 
+        const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
+        const blacklistCheck = await checkIsBlacklisted(lowerEmail, cpfValue);
+
         return {
           email: userData.email,
           password: userData.password,
@@ -252,17 +346,20 @@ async function getUserByEmail(email: string): Promise<any> {
           city: profileData ? profileData.city : (userData.city || ''),
           state: profileData ? profileData.state : (userData.state || ''),
           phone: profileData ? profileData.phone : (userData.phone || ''),
+          cpf: cpfValue || '',
           subscription: subData ? {
             plan: subData.plan || 'none',
             validUntil: subData.valid_until,
             selectedAt: subData.selected_at,
-            freePlanUsed: !!subData.free_plan_used,
+            freePlanUsed: !!subData.free_plan_used || blacklistCheck.blacklisted,
+            freePlanUsedReason: blacklistCheck.blacklisted ? blacklistCheck.reason : undefined,
             approved: !!subData.approved
           } : {
             plan: 'none',
             validUntil: null,
             selectedAt: null,
-            freePlanUsed: false,
+            freePlanUsed: blacklistCheck.blacklisted,
+            freePlanUsedReason: blacklistCheck.blacklisted ? blacklistCheck.reason : undefined,
             approved: false
           }
         };
@@ -283,6 +380,17 @@ async function getUserByEmail(email: string): Promise<any> {
     }
   }
 
+  if (localUser) {
+    const blacklistCheck = await checkIsBlacklisted(lowerEmail, localUser.cpf);
+    if (blacklistCheck.blacklisted) {
+      if (!localUser.subscription) {
+        localUser.subscription = {};
+      }
+      localUser.subscription.freePlanUsed = true;
+      localUser.subscription.freePlanUsedReason = blacklistCheck.reason;
+    }
+  }
+
   return localUser || null;
 }
 
@@ -294,6 +402,10 @@ async function saveUser(user: any): Promise<boolean> {
   const db = getDb();
   db.users[lowerEmail] = user;
   saveDb(db);
+
+  if (user.subscription && (user.subscription.freePlanUsed || user.subscription.plan === 'gratis')) {
+    recordTrialHistory(lowerEmail, user.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
+  }
 
   const supabase = getSupabaseClient();
   if (supabase) {
@@ -324,6 +436,7 @@ async function saveUser(user: any): Promise<boolean> {
           city: user.city || '',
           state: user.state || '',
           phone: user.phone || '',
+          cpf: user.cpf || '',
           updated_at: new Date().toISOString()
         });
 
@@ -794,7 +907,15 @@ CREATE TABLE IF NOT EXISTS profiles (
   city TEXT,
   state TEXT,
   phone TEXT,
+  cpf TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tabela de Histórico de Período de Experiência (Não apaga quando deleta o usuário)
+CREATE TABLE IF NOT EXISTS trial_history (
+  email TEXT PRIMARY KEY,
+  cpf TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. Tabela de Assinaturas (Status do plano)
@@ -1012,7 +1133,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 // Register
 app.post("/api/auth/register", async (req, res) => {
-  const { email, password, name, address, phone, city, state } = req.body;
+  const { email, password, name, address, phone, city, state, cpf } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: "Nome, E-mail e senha são obrigatórios." });
   }
@@ -1025,6 +1146,8 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(400).json({ error: "Este e-mail já está cadastrado." });
     }
 
+    const checkHistory = await checkIsBlacklisted(lowerEmail, cpf);
+
     const newUser = {
       email: lowerEmail,
       name,
@@ -1032,13 +1155,14 @@ app.post("/api/auth/register", async (req, res) => {
       city: city || "",
       state: state || "",
       phone: phone || "",
+      cpf: cpf || "",
       role: "user",
       password,
       subscription: {
         plan: "none",
         validUntil: null,
         selectedAt: null,
-        freePlanUsed: false,
+        freePlanUsed: checkHistory.blacklisted,
         approved: false,
       },
       createdAt: new Date().toISOString(),
@@ -1135,6 +1259,66 @@ app.post("/api/auth/change-password", async (req, res) => {
   }
 });
 
+// Self Delete Account
+app.post("/api/auth/delete-account", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "E-mail é obrigatório." });
+  }
+
+  try {
+    const lowerEmail = email.toLowerCase().trim();
+    const user = await getUserByEmail(lowerEmail);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    if (user.cpf) {
+      await recordTrialHistory(lowerEmail, user.cpf);
+    }
+
+    // Delete from local DB
+    const db = getDb();
+    if (db.users[lowerEmail]) {
+      delete db.users[lowerEmail];
+    }
+    if (db.userData[lowerEmail]) {
+      delete db.userData[lowerEmail];
+    }
+    saveDb(db);
+
+    // Delete from Supabase if connected
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await Promise.all([
+          supabase.from('subscriptions').delete().eq('email', lowerEmail),
+          supabase.from('profiles').delete().eq('email', lowerEmail),
+          supabase.from('users').delete().eq('email', lowerEmail),
+          supabase.from('payment_types').delete().eq('email', lowerEmail),
+          supabase.from('payment_statuses').delete().eq('email', lowerEmail),
+          supabase.from('income_categories').delete().eq('email', lowerEmail),
+          supabase.from('expense_categories').delete().eq('email', lowerEmail),
+          supabase.from('incomes').delete().eq('email', lowerEmail),
+          supabase.from('expenses').delete().eq('email', lowerEmail),
+          supabase.from('annual_planning').delete().eq('email', lowerEmail),
+          supabase.from('shopping_list').delete().eq('email', lowerEmail),
+          supabase.from('action_plans').delete().eq('email', lowerEmail),
+          supabase.from('deficit_actions').delete().eq('email', lowerEmail),
+          supabase.from('user_data').delete().eq('email', lowerEmail)
+        ]);
+      } catch (subErr) {
+        console.error("Error deleting from Supabase on self-delete:", subErr);
+      }
+    }
+
+    res.json({ success: true, message: "Sua conta foi excluída com sucesso." });
+  } catch (err) {
+    console.error("Self delete account error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
 // Get User Profile
 app.get("/api/user/profile", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
@@ -1164,7 +1348,7 @@ app.post("/api/user/profile", async (req, res) => {
   }
 
   try {
-    const { name, address, phone, city, state } = req.body;
+    const { name, address, phone, city, state, cpf } = req.body;
     const user = await getUserByEmail(email);
 
     if (!user) {
@@ -1176,6 +1360,22 @@ app.post("/api/user/profile", async (req, res) => {
     user.phone = phone !== undefined ? phone : user.phone;
     user.city = city !== undefined ? city : user.city;
     user.state = state !== undefined ? state : user.state;
+    user.cpf = cpf !== undefined ? cpf : user.cpf;
+
+    const checkHistory = await checkIsBlacklisted(email, user.cpf);
+    if (checkHistory.blacklisted) {
+      if (!user.subscription) {
+        user.subscription = {
+          plan: "none",
+          validUntil: null,
+          selectedAt: null,
+          freePlanUsed: true,
+          approved: false,
+        };
+      } else {
+        user.subscription.freePlanUsed = true;
+      }
+    }
 
     await saveUser(user);
 
@@ -1216,12 +1416,14 @@ app.post("/api/user/subscription", async (req, res) => {
     }
 
     if (plan === "gratis") {
+      const dbInstance = getDb();
+      const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
       if (user.subscription.freePlanUsed) {
-        return res.status(400).json({ error: "Você já utilizou o período grátis de 60 dias anteriormente." });
+        return res.status(400).json({ error: `Você já utilizou o período grátis de ${trialDays} dias anteriormente.` });
       }
       user.subscription = {
         plan: "gratis",
-        validUntil: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+        validUntil: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString(),
         selectedAt: new Date().toISOString(),
         freePlanUsed: true,
         approved: true,
@@ -1508,10 +1710,102 @@ app.post("/api/admin/plan-prices", async (req, res) => {
     };
     saveDb(db);
 
-    res.json({ message: "Valores atualizados com sucesso!", prices: db.planPrices });
+    res.json({ message: "Valores updated com sucesso!", prices: db.planPrices });
   } catch (err) {
     console.error("Error updating plan prices:", err);
     res.status(500).json({ error: "Erro interno ao atualizar valores." });
+  }
+});
+
+// Get Free Trial Days (Public)
+app.get("/api/free-trial-days", (req, res) => {
+  const db = getDb();
+  const days = db.freeTrialDays !== undefined ? db.freeTrialDays : 60;
+  res.json({ days });
+});
+
+// Update Free Trial Days (Admin only)
+app.post("/api/admin/free-trial-days", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { days } = req.body;
+    if (days === undefined || isNaN(Number(days)) || Number(days) < 0) {
+      return res.status(400).json({ error: "Quantidade de dias inválida." });
+    }
+
+    const db = getDb();
+    db.freeTrialDays = Number(days);
+    saveDb(db);
+
+    res.json({ message: "Limite de uso gratuito atualizado com sucesso!", days: db.freeTrialDays });
+  } catch (err) {
+    console.error("Error updating free trial days:", err);
+    res.status(500).json({ error: "Erro interno ao atualizar limite gratuito." });
+  }
+});
+
+// Get Home Notices (Public)
+app.get("/api/notices", (req, res) => {
+  const db = getDb();
+  const defaultNotices = {
+    rule50_30_20: {
+      title: "Regra 50-30-20",
+      message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
+    },
+    weeklyCheck: {
+      title: "Acompanhamento Semanal",
+      message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês."
+    }
+  };
+  const notices = db.notices || defaultNotices;
+  res.json(notices);
+});
+
+// Update Home Notices (Admin only)
+app.post("/api/admin/notices", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { rule50_30_20, weeklyCheck } = req.body;
+    if (!rule50_30_20 || !rule50_30_20.title || !rule50_30_20.message ||
+        !weeklyCheck || !weeklyCheck.title || !weeklyCheck.message) {
+      return res.status(400).json({ error: "Títulos e mensagens são obrigatórios." });
+    }
+
+    const db = getDb();
+    db.notices = {
+      rule50_30_20: {
+        title: String(rule50_30_20.title),
+        message: String(rule50_30_20.message)
+      },
+      weeklyCheck: {
+        title: String(weeklyCheck.title),
+        message: String(weeklyCheck.message)
+      }
+    };
+    saveDb(db);
+
+    res.json({ message: "Avisos atualizados com sucesso!", notices: db.notices });
+  } catch (err) {
+    console.error("Error updating notices:", err);
+    res.status(500).json({ error: "Erro interno ao atualizar avisos." });
   }
 });
 
@@ -1604,7 +1898,9 @@ app.post("/api/admin/create-user", async (req, res) => {
 
     let validUntil = null;
     if (plan === "gratis") {
-      validUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+      const dbInstance = getDb();
+      const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
+      validUntil = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
     } else if (plan === "mensal") {
       validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     } else if (plan === "anual") {
@@ -1696,7 +1992,9 @@ app.post("/api/admin/edit-user", async (req, res) => {
         user.subscription.plan = plan;
         let validUntil = null;
         if (plan === "gratis") {
-          validUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+          const dbInstance = getDb();
+          const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
+          validUntil = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
         } else if (plan === "mensal") {
           validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         } else if (plan === "anual") {
@@ -1786,6 +2084,11 @@ app.post("/api/admin/delete-user", async (req, res) => {
 
     if (lowerTargetEmail === email.toLowerCase().trim()) {
       return res.status(400).json({ error: "Você não pode excluir o seu próprio usuário." });
+    }
+
+    const targetUser = await getUserByEmail(lowerTargetEmail);
+    if (targetUser && targetUser.cpf) {
+      await recordTrialHistory(lowerTargetEmail, targetUser.cpf);
     }
 
     // Delete from local DB

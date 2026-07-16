@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info } from 'lucide-react';
 
 interface HomeProps {
@@ -9,6 +9,27 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => {
   const [isComoComecarOpen, setIsComoComecarOpen] = useState(false);
+  const [notices, setNotices] = useState({
+    rule50_30_20: {
+      title: 'Regra 50-30-20',
+      message: 'Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos.'
+    },
+    weeklyCheck: {
+      title: 'Acompanhamento Semanal',
+      message: 'Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês.'
+    }
+  });
+
+  useEffect(() => {
+    fetch('/api/notices')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.rule50_30_20 && data.weeklyCheck) {
+          setNotices(data);
+        }
+      })
+      .catch(err => console.error('Erro ao carregar avisos na Home:', err));
+  }, []);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -123,16 +144,16 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
             )}
           </div>
 
-          <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Regra 50-30-20</h4>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos.
+          <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
+            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">{notices.rule50_30_20.title}</h4>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              {notices.rule50_30_20.message}
             </p>
           </div>
-          <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Acompanhamento Semanal</h4>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês.
+          <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
+            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">{notices.weeklyCheck.title}</h4>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              {notices.weeklyCheck.message}
             </p>
           </div>
         </div>

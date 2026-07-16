@@ -6,6 +6,7 @@ export interface UserSubscription {
   selectedAt: string | null; // ISO Date String
   freePlanUsed: boolean; // Cannot select 60-day free plan again
   approved: boolean; // Approved manually by admin
+  freePlanUsedReason?: string;
 }
 
 export interface UserProfile {
@@ -18,6 +19,7 @@ export interface UserProfile {
   createdAt: string;
   city?: string;
   state?: string;
+  cpf?: string;
 }
 
 export interface Income {

@@ -12,6 +12,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [cpf, setCpf] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -61,15 +62,19 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
     try {
       if (isRegister) {
+        if (password !== confirmPassword) {
+          setError('As senhas digitadas não coincidem!');
+          return;
+        }
+        setLoading(true);
         // Register flow
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name }),
+          body: JSON.stringify({ email, password, name, cpf }),
         });
 
         const data = await response.json();
@@ -188,24 +193,45 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             {isRegister && (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Nome Completo
-                </label>
-                <div className="relative mt-1">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <User className="h-4 w-4 text-slate-500" />
+              <>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Nome Completo
+                  </label>
+                  <div className="relative mt-1">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <User className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Seu Nome Completo"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Seu Nome Completo"
-                    className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                  />
                 </div>
-              </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    CPF
+                  </label>
+                  <div className="relative mt-1">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={cpf}
+                      onChange={(e) => setCpf(e.target.value)}
+                      placeholder="123.456.789-00"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <div>
@@ -246,6 +272,27 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
               </div>
             </div>
 
+            {isRegister && (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Repetir Senha de Acesso
+                </label>
+                <div className="relative mt-1">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Lock className="h-4 w-4 text-slate-500" />
+                  </div>
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="******"
+                    className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -267,7 +314,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
             </button>
 
             {!isRegister && (
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
+              <div className="mt-4 flex items-center justify-center text-xs text-slate-400">
                 <button
                   type="button"
                   onClick={() => {
@@ -280,20 +327,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                   className="hover:text-blue-400 font-semibold transition-colors focus:outline-none underline underline-offset-4"
                 >
                   Relembrar senha
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowChangeModal(true);
-                    setChangeEmail(email);
-                    setChangeOldPassword('');
-                    setChangeNewPassword('');
-                    setChangeSuccess('');
-                    setChangeError('');
-                  }}
-                  className="hover:text-blue-400 font-semibold transition-colors focus:outline-none underline underline-offset-4"
-                >
-                  Mudar senha
                 </button>
               </div>
             )}
@@ -397,133 +430,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         </div>
       )}
 
-      {/* Change Password Modal */}
-      {showChangeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Lock className="h-4 w-4 text-blue-500" />
-                Alterar Senha de Acesso
-              </h3>
-              <button
-                onClick={() => setShowChangeModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {changeSuccess ? (
-              <div className="space-y-4 py-2 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
-                  <CheckCircle className="h-6 w-6" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">Senha Alterada com Sucesso!</h4>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Sua nova senha de acesso foi configurada e já está ativa para login.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowChangeModal(false)}
-                  className="w-full rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500"
-                >
-                  Voltar ao Login
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Informe o seu e-mail, a senha antiga correspondente e digite a nova senha desejada.
-                </p>
-
-                {changeError && (
-                  <div className="rounded-lg border border-red-900 bg-red-950/40 p-3 text-xs text-red-200">
-                    {changeError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                    E-mail Cadastrado
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                      <Mail className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      value={changeEmail}
-                      onChange={(e) => setChangeEmail(e.target.value)}
-                      placeholder="seuemail@exemplo.com"
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                    Senha Antiga
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                      <Lock className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <input
-                      type="password"
-                      required
-                      value={changeOldPassword}
-                      onChange={(e) => setChangeOldPassword(e.target.value)}
-                      placeholder="******"
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                    Nova Senha de Acesso
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                      <Lock className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <input
-                      type="password"
-                      required
-                      value={changeNewPassword}
-                      onChange={(e) => setChangeNewPassword(e.target.value)}
-                      placeholder="******"
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5 pt-2 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setShowChangeModal(false)}
-                    className="flex-1 rounded-lg border border-slate-800 py-2 text-xs font-bold text-slate-400 hover:bg-slate-800"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={changeLoading}
-                    className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
-                  >
-                    {changeLoading ? (
-                      <RefreshCw className="h-3 w-3 animate-spin" />
-                    ) : 'Alterar Senha'}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -157,7 +157,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateUserProfileInState = (name: string, address: string, phone: string, city?: string, state?: string) => {
+  const handleUpdateUserProfileInState = (name: string, address: string, phone: string, city?: string, state?: string, cpf?: string) => {
     if (!currentUser) return;
     const updated = {
       ...currentUser,
@@ -165,7 +165,8 @@ export default function App() {
       address,
       phone,
       city: city !== undefined ? city : currentUser.city,
-      state: state !== undefined ? state : currentUser.state
+      state: state !== undefined ? state : currentUser.state,
+      cpf: cpf !== undefined ? cpf : currentUser.cpf
     };
     setCurrentUser(updated);
     localStorage.setItem('finanfly_user', JSON.stringify(updated));
@@ -440,6 +441,7 @@ export default function App() {
             userProfile={currentUser}
             onUpdateUserData={handleUpdateUserData}
             onUpdateUserProfile={handleUpdateUserProfileInState}
+            onLogout={handleLogout}
           />
         );
       case 'Assinatura':
@@ -533,7 +535,7 @@ export default function App() {
                   setCurrentPage(item.name);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-all ${
                   active
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -568,7 +570,7 @@ export default function App() {
                       setCurrentPage(sub.name);
                       setSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs transition-all ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-all ${
                       active
                         ? 'bg-slate-800 text-blue-400 font-bold'
                         : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'

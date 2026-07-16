@@ -117,6 +117,15 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
         </div>
       )}
 
+      {user.subscription?.freePlanUsedReason && (
+        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950/20 dark:border-red-900 dark:text-red-200 shadow-sm">
+          <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
+          <div>
+            <span className="font-bold">Aviso importante:</span> {user.subscription.freePlanUsedReason} O período de experiência grátis já foi utilizado em algum momento por este CPF ou E-mail.
+          </div>
+        </div>
+      )}
+
       {/* Subscription Status HUD */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -206,6 +215,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
                 ? 'Ativando...'
                 : 'Iniciar Teste de 60 Dias'}
             </button>
+            {user.subscription?.freePlanUsedReason && (
+              <p className="mt-2 text-[10px] text-red-500 font-semibold text-center leading-tight">
+                * CPF ou E-mail já usou o período de experiência grátis.
+              </p>
+            )}
           </div>
         </div>
 

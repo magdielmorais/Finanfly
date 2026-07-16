@@ -244,7 +244,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 <Calendar className="h-4 w-4 text-blue-500" />
                 Comparativo Anual (Últimos 5 Anos)
               </h3>
-              <span className="text-[10px] text-slate-400">2022 - 2026</span>
+              <span className="text-xs md:text-sm font-bold text-slate-900 dark:text-slate-100">2022 - 2026</span>
             </div>
             <AnnualComparisonChart data={annualData} />
           </div>
@@ -259,11 +259,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               
               {/* Year Filter Select */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-400 font-medium">Ano:</span>
+                <span className="text-xs md:text-sm font-bold text-slate-900 dark:text-slate-100">Ano:</span>
                 <select
                   value={budgetComparisonYear}
                   onChange={(e) => setBudgetComparisonYear(parseInt(e.target.value, 10))}
-                  className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-[10px] font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
+                  className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
                 >
                   {availableYears.map(y => (
                     <option key={y} value={y}>{y}</option>
@@ -288,7 +288,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 <button
                   key={type}
                   onClick={() => setFilterType(type)}
-                  className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all ${
+                  className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
                     filterType === type
                       ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
                       : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
@@ -318,7 +318,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 <button
                   key={type}
                   onClick={() => setRecentFilter(type)}
-                  className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all ${
+                  className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
                     recentFilter === type
                       ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
                       : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'

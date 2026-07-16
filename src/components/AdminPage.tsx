@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -12,7 +12,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [error, setError] = useState('');
 
   // Active Tab state
-  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores'>('gestao');
+  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios'>('gestao');
+
+  // Reports filters state
+  const [reportStateFilter, setReportStateFilter] = useState('all');
+  const [reportCityFilter, setReportCityFilter] = useState('all');
 
   // Values configuration state
   const [pricesDePor, setPricesDePor] = useState({
@@ -25,6 +29,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [pricesSuccess, setPricesSuccess] = useState('');
   const [pricesError, setPricesError] = useState('');
 
+  // Free trial days state
+  const [freeTrialDaysInput, setFreeTrialDaysInput] = useState('60');
+  const [freeTrialLoading, setFreeTrialLoading] = useState(false);
+  const [freeTrialSuccess, setFreeTrialSuccess] = useState('');
+  const [freeTrialError, setFreeTrialError] = useState('');
+
+  // Notices state
+  const [rule50_30_20Title, setRule50_30_20Title] = useState('Regra 50-30-20');
+  const [rule50_30_20Message, setRule50_30_20Message] = useState('Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos.');
+  const [weeklyCheckTitle, setWeeklyCheckTitle] = useState('Acompanhamento Semanal');
+  const [weeklyCheckMessage, setWeeklyCheckMessage] = useState('Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês.');
+  const [noticesLoading, setNoticesLoading] = useState(false);
+  const [noticesSuccess, setNoticesSuccess] = useState('');
+  const [noticesError, setNoticesError] = useState('');
+
   useEffect(() => {
     fetch('/api/plan-prices')
       .then(res => res.json())
@@ -34,6 +53,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         }
       })
       .catch(err => console.error('Erro ao carregar valores no admin:', err));
+
+    fetch('/api/free-trial-days')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.days !== undefined) {
+          setFreeTrialDaysInput(String(data.days));
+        }
+      })
+      .catch(err => console.error('Erro ao carregar limite grátis no admin:', err));
+
+    fetch('/api/notices')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.rule50_30_20) {
+          setRule50_30_20Title(data.rule50_30_20.title || '');
+          setRule50_30_20Message(data.rule50_30_20.message || '');
+          setWeeklyCheckTitle(data.weeklyCheck.title || '');
+          setWeeklyCheckMessage(data.weeklyCheck.message || '');
+        }
+      })
+      .catch(err => console.error('Erro ao carregar avisos no admin:', err));
   }, []);
 
   // Creation form state
@@ -80,6 +120,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [selectedUserForAudit, setSelectedUserForAudit] = useState<UserProfile | null>(null);
   const [auditData, setAuditData] = useState<UserData | null>(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
+
+  // Dynamic calculations for Reports
+  const uniqueStates = useMemo(() => {
+    const states = new Set<string>();
+    users.forEach(u => {
+      if (u.state && u.state.trim()) {
+        states.add(u.state.trim().toUpperCase());
+      }
+    });
+    return Array.from(states).sort();
+  }, [users]);
+
+  const uniqueCities = useMemo(() => {
+    const cities = new Set<string>();
+    users.forEach(u => {
+      if (u.city && u.city.trim()) {
+        const matchesState = reportStateFilter === 'all' || (u.state && u.state.trim().toUpperCase() === reportStateFilter);
+        if (matchesState) {
+          cities.add(u.city.trim());
+        }
+      }
+    });
+    return Array.from(cities).sort();
+  }, [users, reportStateFilter]);
+
+  const filteredReportUsers = useMemo(() => {
+    return users.filter(u => {
+      const matchesState = reportStateFilter === 'all' || (u.state && u.state.trim().toUpperCase() === reportStateFilter);
+      const matchesCity = reportCityFilter === 'all' || (u.city && u.city.trim().toLowerCase() === reportCityFilter.toLowerCase());
+      return matchesState && matchesCity;
+    });
+  }, [users, reportStateFilter, reportCityFilter]);
+
+  const handleReportStateChange = (val: string) => {
+    setReportStateFilter(val);
+    setReportCityFilter('all');
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -418,6 +495,59 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     }
   };
 
+  const handleSaveFreeTrialDays = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFreeTrialLoading(true);
+    setFreeTrialSuccess('');
+    setFreeTrialError('');
+
+    try {
+      const res = await fetch('/api/admin/free-trial-days', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify({ days: Number(freeTrialDaysInput) })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar limite de uso gratuito.');
+      setFreeTrialSuccess(data.message || 'Limite de uso gratuito salvo com sucesso!');
+    } catch (err: any) {
+      setFreeTrialError(err.message || 'Ocorreu um erro.');
+    } finally {
+      setFreeTrialLoading(false);
+    }
+  };
+
+  const handleSaveNotices = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNoticesLoading(true);
+    setNoticesSuccess('');
+    setNoticesError('');
+
+    try {
+      const res = await fetch('/api/admin/notices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify({
+          rule50_30_20: { title: rule50_30_20Title, message: rule50_30_20Message },
+          weeklyCheck: { title: weeklyCheckTitle, message: weeklyCheckMessage }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar avisos.');
+      setNoticesSuccess(data.message || 'Avisos atualizados com sucesso!');
+    } catch (err: any) {
+      setNoticesError(err.message || 'Ocorreu um erro.');
+    } finally {
+      setNoticesLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Title */}
@@ -463,6 +593,39 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         >
           <Settings className="h-4 w-4" />
           Configuração de Valores
+        </button>
+        <button
+          onClick={() => setActiveTab('limite-uso-gratuito')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'limite-uso-gratuito'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Clock className="h-4 w-4" />
+          Limite de Uso Gratuito
+        </button>
+        <button
+          onClick={() => setActiveTab('avisos')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'avisos'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Bell className="h-4 w-4" />
+          Avisos
+        </button>
+        <button
+          onClick={() => setActiveTab('relatorios')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'relatorios'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          Relatórios
         </button>
       </div>
 
@@ -1329,6 +1492,269 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {activeTab === 'limite-uso-gratuito' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-500" />
+              Limite de Uso Gratuito
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Defina a quantidade de dias que o usuário terá de período de experiência (trial) ao selecionar o plano gratuito no sistema.
+            </p>
+          </div>
+
+          {freeTrialSuccess && (
+            <div className="p-3 text-xs font-semibold text-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-300 rounded-xl border border-emerald-100 dark:border-emerald-900/30 animate-fade-in">
+              {freeTrialSuccess}
+            </div>
+          )}
+
+          {freeTrialError && (
+            <div className="p-3 text-xs font-semibold text-rose-800 bg-rose-50 dark:bg-rose-950/20 dark:text-rose-300 rounded-xl border border-rose-100 dark:border-rose-900/30 animate-fade-in">
+              {freeTrialError}
+            </div>
+          )}
+
+          <form onSubmit={handleSaveFreeTrialDays} className="space-y-6 text-xs">
+            <div className="max-w-md p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                  Dias de Período de Experiência
+                </label>
+                <div className="relative rounded-lg shadow-sm">
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    placeholder="60"
+                    value={freeTrialDaysInput}
+                    onChange={(e) => setFreeTrialDaysInput(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                  Novos usuários ou alterações manuais para o plano gratuito usarão este período de tempo para definir a data limite de expiração da assinatura.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="submit"
+                disabled={freeTrialLoading}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
+              >
+                {freeTrialLoading ? 'Salvando...' : 'Salvar Configuração'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {activeTab === 'avisos' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+              <Bell className="h-5 w-5 text-amber-500" />
+              Configuração de Avisos (Dicas de Saúde Financeira)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Personalize o título e as mensagens explicativas exibidas na página principal de todos os usuários do sistema.
+            </p>
+          </div>
+
+          {noticesSuccess && (
+            <div className="p-3 text-xs font-semibold text-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-300 rounded-xl border border-emerald-100 dark:border-emerald-900/30 animate-fade-in">
+              {noticesSuccess}
+            </div>
+          )}
+
+          {noticesError && (
+            <div className="p-3 text-xs font-semibold text-rose-800 bg-rose-50 dark:bg-rose-950/20 dark:text-rose-300 rounded-xl border border-rose-100 dark:border-rose-900/30 animate-fade-in">
+              {noticesError}
+            </div>
+          )}
+
+          <form onSubmit={handleSaveNotices} className="space-y-6 text-xs">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Card Regra 50-30-20 */}
+              <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
+                  Card1
+                </h4>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Título do Card
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={rule50_30_20Title}
+                      onChange={(e) => setRule50_30_20Title(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Mensagem explicativa
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={rule50_30_20Message}
+                      onChange={(e) => setRule50_30_20Message(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Acompanhamento Semanal */}
+              <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
+                  Card2
+                </h4>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Título do Card
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={weeklyCheckTitle}
+                      onChange={(e) => setWeeklyCheckTitle(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                      Mensagem explicativa
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={weeklyCheckMessage}
+                      onChange={(e) => setWeeklyCheckMessage(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="submit"
+                disabled={noticesLoading}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
+              >
+                {noticesLoading ? 'Salvando...' : 'Salvar Novos Avisos'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {activeTab === 'relatorios' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-6">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+              Relatório de Distribuição de Usuários
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Visualize a distribuição demográfica dos usuários cadastrados por Estado e Cidade.
+            </p>
+          </div>
+
+          {/* Filters card */}
+          <div className="grid gap-4 sm:grid-cols-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-700 dark:text-slate-300">
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filtrar por Estado</label>
+              <select
+                value={reportStateFilter}
+                onChange={(e) => handleReportStateChange(e.target.value)}
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none dark:text-white font-semibold"
+              >
+                <option value="all">Todos os Estados</option>
+                {uniqueStates.map(st => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filtrar por Cidade</label>
+              <select
+                value={reportCityFilter}
+                onChange={(e) => setReportCityFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none dark:text-white font-semibold"
+              >
+                <option value="all">Todas as Cidades</option>
+                {uniqueCities.map(ct => (
+                  <option key={ct} value={ct}>{ct}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col justify-end bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-3 rounded-lg">
+              <span className="text-[10px] font-bold uppercase text-blue-500">Total de Usuários</span>
+              <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">
+                {filteredReportUsers.length} {filteredReportUsers.length === 1 ? 'usuário' : 'usuários'}
+              </div>
+            </div>
+          </div>
+
+          {/* Table of matching users */}
+          <div className="overflow-x-auto border border-slate-150 dark:border-slate-800 rounded-xl">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-150 dark:border-slate-800">
+                <tr>
+                  <th className="px-4 py-3">Nome</th>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Cidade</th>
+                  <th className="px-4 py-3">Plano</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-150 dark:divide-slate-800">
+                {filteredReportUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                      Nenhum usuário cadastrado corresponde aos filtros selecionados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredReportUsers.map(u => (
+                    <tr key={u.email} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20 text-slate-700 dark:text-slate-300">
+                      <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{u.name}</td>
+                      <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{u.email}</td>
+                      <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">{u.state || '-'}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{u.city || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.plan === 'livre' || u.plan === 'anual' || u.plan === 'mensal'
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30'
+                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {u.plan}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

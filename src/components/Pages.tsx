@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface PageProps {
   userData: UserData;
   userProfile: UserProfile;
   onUpdateUserData: (newData: Partial<UserData>) => void;
-  onUpdateUserProfile: (name: string, address: string, phone: string, city?: string, state?: string) => void;
+  onUpdateUserProfile: (name: string, address: string, phone: string, city?: string, state?: string, cpf?: string) => void;
 }
 
 // ======================== RECEITAS PAGE ========================
@@ -1917,9 +1917,12 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       };
     }).sort((a, b) => a.category.localeCompare(b.category, 'pt-BR'));
 
+    const sumBudget = categoriesTableData.reduce((sum, item) => sum + item.budgetedValue, 0);
+
     return {
       sumIncome,
       sumExpense,
+      sumBudget,
       balance: sumIncome - sumExpense,
       catStats: Object.entries(catStats).map(([category, value]) => ({ category, value })),
       statement,
@@ -1952,15 +1955,21 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       </div>
 
       {/* KPI Row */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Receitas do Mês</span>
-          <div className="text-xl font-bold text-blue-600 mt-1 font-mono">
+          <div className="text-xl font-bold text-slate-700 dark:text-slate-300 mt-1 font-mono">
             + R$ {monthData.sumIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Despesas do Mês</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Orçados do Mês</span>
+          <div className="text-xl font-bold text-indigo-600 mt-1 font-mono">
+            R$ {monthData.sumBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Realizados do Mês</span>
           <div className="text-xl font-bold text-red-500 mt-1 font-mono">
             - R$ {monthData.sumExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
@@ -1971,6 +1980,11 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
             R$ {monthData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
+      </div>
+
+      {/* Explanatory footnote */}
+      <div className="text-[11px] text-slate-500 italic dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
+        *O Resultado Líquido é calculado subtraindo os Realizados do Mês do total de Receitas do Mês. Orçados do Mês representa o planejamento configurado para o período.
       </div>
 
       {/* Performance by Cost Center Table */}
@@ -2062,7 +2076,12 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
       // Find monthly planning budgets if registered
       const yearPlan = userData.annualPlanning.find(p => p.year === selectedYear);
       const budget = yearPlan?.monthlyBudgets.find(b => b.month === idx);
-      const plannedExp = budget?.expenseBudget || 0;
+      
+      const hasDetailedBudgets = budget?.categoryBudgets && budget.categoryBudgets.length > 0;
+      const plannedExp = hasDetailedBudgets
+        ? budget.categoryBudgets.reduce((sum, item) => sum + item.budgetedValue, 0)
+        : (budget?.expenseBudget || 0);
+
       yearPlannedExpenses += plannedExp;
 
       return {
@@ -2078,7 +2097,8 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
     return {
       yearIncomes,
       yearExpenses,
-      balance: yearIncomes - yearExpenses,
+      yearPlannedExpenses,
+      balance: yearPlannedExpenses - yearExpenses,
       monthlySummary
     };
   }, [userData.incomes, userData.expenses, userData.annualPlanning, selectedYear]);
@@ -2098,25 +2118,36 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
       </div>
 
       {/* KPI Row */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Receita Total {selectedYear}</span>
-          <div className="text-xl font-bold text-blue-600 mt-1 font-mono">
+          <div className="text-xl font-bold text-slate-700 dark:text-slate-300 mt-1 font-mono">
             R$ {annualStats.yearIncomes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Despesa Total {selectedYear}</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Orçado Total {selectedYear}</span>
+          <div className="text-xl font-bold text-indigo-600 mt-1 font-mono">
+            R$ {annualStats.yearPlannedExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Realizado Total {selectedYear}</span>
           <div className="text-xl font-bold text-red-500 mt-1 font-mono">
             R$ {annualStats.yearExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Resultado Acumulado</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo Total</span>
           <div className={`text-xl font-bold mt-1 font-mono ${annualStats.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
             R$ {annualStats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
+      </div>
+
+      {/* Explanatory footnote */}
+      <div className="text-[11px] text-slate-500 italic dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
+        *o cálculo se dá pelo orçamento total configurado em Planejamento anual menos o Realizado total lançado em Despesas conforme o ano escolhido. Receitas total é só comparativo para o Orçado, se está acima ou abaixo do que foi previsto.
       </div>
 
       {/* Monthly grid breakdown with comparison to budget */}
@@ -2285,40 +2316,45 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
       </div>
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-2 text-xs">
-          <div className="sm:col-span-2">
-            <label className="block text-[10px] font-bold uppercase text-slate-400">
-              {editingPlanId ? 'Editar Título da Meta' : 'Título da Meta'}
-            </label>
-            <input type="text" required placeholder="Ex: Fundo de Emergência de 6 meses" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição / Plano Detalhado</label>
-            <textarea placeholder="Como você pretende juntar esse dinheiro? Ex: Guardar 10% do salário." value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Valor Alvo (R$)</label>
-            <input type="number" required placeholder="Ex: 15000,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Data Limite</label>
-            <input type="date" required value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-              <option value="Pendente">Pendente</option>
-              <option value="Em Andamento">Em Andamento</option>
-              <option value="Concluído">Concluído</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-            <button type="button" onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
-            <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">
-              {editingPlanId ? 'Salvar Alterações' : 'Cadastrar Meta'}
-            </button>
-          </div>
-        </form>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
+              {editingPlanId ? 'Editar Objetivo / Meta' : 'Cadastrar Novo Objetivo'}
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Título da Meta</label>
+                <input type="text" required placeholder="Ex: Fundo de Emergência de 6 meses" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição / Plano Detalhado</label>
+                <textarea placeholder="Como você pretende juntar esse dinheiro? Ex: Guardar 10% do salário." value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Valor Alvo (R$)</label>
+                <input type="number" required placeholder="Ex: 15000,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Data Limite</label>
+                <input type="date" required value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
+                <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                  <option value="Pendente">Pendente</option>
+                  <option value="Em Andamento">Em Andamento</option>
+                  <option value="Concluído">Concluído</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button type="button" onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
+              <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">
+                {editingPlanId ? 'Salvar Alterações' : 'Cadastrar Meta'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Filters Bar */}
@@ -2878,39 +2914,46 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
       </div>
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-5 text-xs">
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Item / Nome</label>
-            <input type="text" required placeholder="Ex: Arroz Integral 5kg" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Quantidade</label>
-            <input type="number" required min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Preço Estimado Unitário (R$)</label>
-            <input type="number" step="0.01" placeholder="Ex: 19,90" value={price} onChange={(e) => setPrice(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Setor / Categoria</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-              <option value="Alimentação">Alimentação</option>
-              <option value="Higiene">Higiene</option>
-              <option value="Limpeza">Limpeza</option>
-              <option value="Lazer">Lazer</option>
-              <option value="Casa">Casa</option>
-              <option value="Outros">Outros</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Data de Planejamento</label>
-            <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div className="sm:col-span-5 flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowAdd(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
-            <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">Adicionar na Lista</button>
-          </div>
-        </form>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
+              Adicionar Novo Item à Lista de Compras
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Item / Nome</label>
+                <input type="text" required placeholder="Ex: Arroz Integral 5kg" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Quantidade</label>
+                <input type="number" required min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Preço Estimado Unitário (R$)</label>
+                <input type="number" step="0.01" placeholder="Ex: 19,90" value={price} onChange={(e) => setPrice(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Setor / Categoria</label>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                  <option value="Alimentação">Alimentação</option>
+                  <option value="Higiene">Higiene</option>
+                  <option value="Limpeza">Limpeza</option>
+                  <option value="Lazer">Lazer</option>
+                  <option value="Casa">Casa</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Data de Planejamento</label>
+                <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button type="button" onClick={() => setShowAdd(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
+              <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">Adicionar na Lista</button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Filters Bar */}
@@ -3632,14 +3675,95 @@ export const ListManagerPage: React.FC<{
 };
 
 // ======================== DADOS PESSOAIS PAGE ========================
-export const DadosPessoaisPage: React.FC<PageProps> = ({ userProfile, onUpdateUserProfile }) => {
+export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> = ({ userProfile, onUpdateUserProfile, onLogout }) => {
   const [name, setName] = useState(userProfile.name);
   const [address, setAddress] = useState(userProfile.address || '');
   const [city, setCity] = useState(userProfile.city || '');
   const [state, setState] = useState(userProfile.state || '');
   const [phone, setPhone] = useState(userProfile.phone || '');
+  const [cpf, setCpf] = useState(userProfile.cpf || '');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Accordion open/closed states
+  const [isPasswordAccordionOpen, setIsPasswordAccordionOpen] = useState(false);
+  const [isDeleteAccordionOpen, setIsDeleteAccordionOpen] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  // Mudar senha states
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: userProfile.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir a conta.');
+
+      setShowDeleteConfirmModal(false);
+      if (onLogout) {
+        onLogout();
+      } else {
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'Erro ao excluir a conta.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordLoading(true);
+    setPasswordSuccess('');
+    setPasswordError('');
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('A nova senha e a confirmação não conferem.');
+      setPasswordLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userProfile.email,
+          oldPassword,
+          newPassword
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao alterar a senha.');
+
+      setPasswordSuccess('Senha alterada com sucesso!');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: any) {
+      setPasswordError(err.message || 'Erro ao alterar a senha.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3653,12 +3777,12 @@ export const DadosPessoaisPage: React.FC<PageProps> = ({ userProfile, onUpdateUs
           'Content-Type': 'application/json',
           'x-user-email': userProfile.email
         },
-        body: JSON.stringify({ name, address, phone, city, state }),
+        body: JSON.stringify({ name, address, phone, city, state, cpf }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      onUpdateUserProfile(name, address, phone, city, state);
+      onUpdateUserProfile(name, address, phone, city, state, data.user.cpf);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -3731,6 +3855,22 @@ export const DadosPessoaisPage: React.FC<PageProps> = ({ userProfile, onUpdateUs
         </div>
 
         <div>
+          <label className="block text-[10px] font-bold uppercase text-slate-400">CPF</label>
+          <div className="relative mt-1">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+              <Lock className="h-4 w-4 text-slate-400" />
+            </span>
+            <input
+              type="text"
+              placeholder="Ex: 123.456.789-00"
+              value={cpf}
+              onChange={(e) => setCpf(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+            />
+          </div>
+        </div>
+
+        <div>
           <label className="block text-[10px] font-bold uppercase text-slate-400">Endereço Completo</label>
           <div className="relative mt-1">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -3777,6 +3917,190 @@ export const DadosPessoaisPage: React.FC<PageProps> = ({ userProfile, onUpdateUs
           {loading ? 'Salvando...' : 'Atualizar Meus Dados'}
         </button>
       </form>
+
+      {/* Mudar Senha Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <div 
+          onClick={() => setIsPasswordAccordionOpen(!isPasswordAccordionOpen)}
+          className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+        >
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+              <Lock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              Alterar Senha de Acesso
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Para sua segurança, escolha uma senha forte e não a compartilhe com terceiros.</p>
+          </div>
+          <div>
+            {isPasswordAccordionOpen ? (
+              <ChevronUp className="h-4 w-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            )}
+          </div>
+        </div>
+
+        {isPasswordAccordionOpen && (
+          <div className="p-5 border-t border-slate-100 dark:border-slate-800/60 space-y-4 animate-slide-down">
+            {passwordSuccess && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 font-semibold text-center text-xs animate-fade-in">
+                ✓ {passwordSuccess}
+              </div>
+            )}
+
+            {passwordError && (
+              <div className="rounded-lg bg-rose-50 border border-rose-100 text-rose-800 p-3 font-semibold text-center text-xs animate-fade-in">
+                ✗ {passwordError}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Senha Atual</label>
+                <div className="relative mt-1">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <KeyRound className="h-4 w-4 text-slate-400" />
+                  </span>
+                  <input
+                    type="password"
+                    required
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nova Senha</label>
+                  <div className="relative mt-1">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-4 w-4 text-slate-400" />
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Confirmar Nova Senha</label>
+                  <div className="relative mt-1">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Check className="h-4 w-4 text-slate-400" />
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="w-full rounded-lg bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {passwordLoading ? 'Alterando...' : 'Confirmar Nova Senha'}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* Excluir Conta Accordion Card */}
+      <div className="rounded-xl border border-red-200 bg-white shadow-sm dark:border-red-950/40 dark:bg-slate-900 overflow-hidden">
+        <div 
+          onClick={() => setIsDeleteAccordionOpen(!isDeleteAccordionOpen)}
+          className="p-5 flex items-center justify-between cursor-pointer hover:bg-red-50/20 dark:hover:bg-red-950/10 transition-colors"
+        >
+          <div>
+            <h3 className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+              Excluir Conta
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Remover completamente seu acesso e limpar seus dados.</p>
+          </div>
+          <div>
+            {isDeleteAccordionOpen ? (
+              <ChevronUp className="h-4 w-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            )}
+          </div>
+        </div>
+
+        {isDeleteAccordionOpen && (
+          <div className="p-5 border-t border-red-100 dark:border-red-950/20 space-y-4 animate-slide-down text-center">
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-lg mx-auto">
+              Ao excluir sua conta, todos os seus dados pessoais, receitas, despesas, planejamentos, metas e configurações serão apagados permanentemente e **não será possível recuperá-los** de forma alguma.
+            </p>
+
+            {deleteError && (
+              <div className="rounded-lg bg-rose-50 border border-rose-100 text-rose-800 p-3 font-semibold text-center text-xs max-w-md mx-auto">
+                ✗ {deleteError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirmModal(true)}
+              className="px-6 py-2.5 rounded-lg bg-red-600 text-xs font-bold text-white hover:bg-red-500 transition-colors inline-flex items-center gap-1.5 shadow-md shadow-red-500/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              Excluir Minha Conta
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-md w-full space-y-6">
+            <div className="text-center space-y-3">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                <AlertTriangle className="h-6 w-6 animate-pulse" />
+              </div>
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Confirmar Exclusão de Conta</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Atenção: Este comando excluirá por completo a conta toda, sem ter como retornar com os dados e nem restituição de valores pagos. Deseja prosseguir com a exclusão?
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirmModal(false)}
+                disabled={deleteLoading}
+                className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-lg text-xs hover:bg-slate-50 dark:hover:bg-slate-850 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs shadow-lg shadow-red-500/10 flex items-center justify-center gap-1.5 transition-all"
+              >
+                {deleteLoading ? 'Excluindo...' : 'Sim, Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Supabase Status Dashboard */}
       <SupabaseStatusDashboard />

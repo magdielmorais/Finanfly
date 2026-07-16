@@ -85,7 +85,7 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                   x={margin.left - 8}
                   y={y + 4}
                   textAnchor="end"
-                  className="fill-black dark:fill-white text-[11px] font-bold font-mono"
+                  className="fill-black dark:fill-white text-[13px] font-extrabold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>
@@ -163,8 +163,8 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                   x={groupCenter}
                   y={height - margin.bottom + 18}
                   textAnchor="middle"
-                  className={`text-[11px] font-medium transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 font-bold dark:fill-blue-400' : 'fill-slate-500'
+                  className={`text-[14px] font-black transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 dark:fill-blue-450' : 'fill-black dark:fill-white'
                   }`}
                   onMouseEnter={() => setHoveredIndex(i)}
                   onMouseLeave={() => setHoveredIndex(null)}
@@ -377,7 +377,7 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                   x={margin.left - 8}
                   y={y + 4}
                   textAnchor="end"
-                  className="fill-black dark:fill-white text-[11px] font-bold font-mono"
+                  className="fill-black dark:fill-white text-[13px] font-extrabold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>
@@ -455,8 +455,8 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                   x={groupCenter}
                   y={height - margin.bottom + 18}
                   textAnchor="middle"
-                  className={`text-[10px] font-medium transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 font-bold dark:fill-blue-400' : 'fill-slate-500'
+                  className={`text-[13px] font-black transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-black dark:fill-white'
                   }`}
                   onMouseEnter={() => setHoveredIndex(i)}
                   onMouseLeave={() => setHoveredIndex(null)}
