@@ -2,6 +2,26 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
+import dotenv from "dotenv";
+
+// Carrega variáveis de ambiente de múltiplos locais possíveis (incluindo .env, 1.env, pasta nodejs, etc.)
+const envPaths = [
+  path.join(process.cwd(), ".env"),
+  path.join(process.cwd(), "1.env"),
+  path.join(process.cwd(), "nodejs", ".env"),
+  path.join(process.cwd(), "nodejs", "1.env"),
+  path.join(process.cwd(), "..", ".env"),
+  path.join(process.cwd(), "..", "1.env"),
+  path.join(process.cwd(), "..", "nodejs", ".env"),
+  path.join(process.cwd(), "..", "nodejs", "1.env"),
+];
+
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    console.log(`[Ambiente] Carregando arquivo .env encontrado em: ${envPath}`);
+    dotenv.config({ path: envPath, override: true });
+  }
+}
 
 const app = express();
 const PORT = 3000;
@@ -195,8 +215,8 @@ let supabaseClient: any = null;
 
 function getSupabaseClient() {
   if (supabaseClient) return supabaseClient;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
+  const url = process.env.SUPABASE_URL || process.env.supabase_url;
+  const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key;
   if (url && key && url.trim() !== "" && key.trim() !== "") {
     try {
       let cleanUrl = url.trim();
@@ -209,6 +229,7 @@ function getSupabaseClient() {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
       }
       supabaseClient = createClient(cleanUrl, key.trim());
+      console.log("[Supabase] Conexão inicializada com sucesso para:", cleanUrl);
       return supabaseClient;
     } catch (err) {
       console.error("Erro ao inicializar cliente do Supabase:", err);
@@ -869,7 +890,7 @@ app.get("/api/supabase-status", (req, res) => {
   const active = !!getSupabaseClient();
   res.json({
     active,
-    url: process.env.SUPABASE_URL || "",
+    url: process.env.SUPABASE_URL || process.env.supabase_url || "",
     schema: `
 -- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
 
