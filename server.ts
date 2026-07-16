@@ -10,6 +10,99 @@ const _dirname = typeof __dirname !== "undefined"
   ? __dirname
   : path.dirname(fileURLToPath(import.meta.url));
 
+// Sincronização automática de arquivos .env / 1.env entre raiz e pasta nodejs
+function synchronizeEnvFiles() {
+  const rootEnv = path.join(process.cwd(), ".env");
+  const root1Env = path.join(process.cwd(), "1.env");
+  const nodejsDir = path.join(process.cwd(), "nodejs");
+  const nodejsEnv = path.join(nodejsDir, ".env");
+  const nodejs1Env = path.join(nodejsDir, "1.env");
+
+  let bestContent = "";
+  let sourcePath = "";
+
+  // 1. Tenta achar o melhor conteúdo de .env ou 1.env existente no disco
+  const searchPaths = [rootEnv, root1Env, nodejsEnv, nodejs1Env];
+  for (const p of searchPaths) {
+    try {
+      if (fs.existsSync(p)) {
+        const content = fs.readFileSync(p, "utf-8").trim();
+        if (content && content.length > 5 && (content.includes("SUPABASE") || content.includes("supabase"))) {
+          bestContent = content;
+          sourcePath = p;
+          break;
+        }
+      }
+    } catch (e) {
+      console.error(`Erro ao ler arquivo para sincronização: ${p}`, e);
+    }
+  }
+
+  // 2. Se nenhum arquivo .env foi encontrado no disco, mas temos as variáveis no process.env, geramos um conteúdo inicial nativo
+  if (!bestContent) {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.supabase_url || "";
+    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || "";
+    const geminiKey = process.env.GEMINI_API_KEY || "";
+    const appUrl = process.env.APP_URL || "";
+    const mpAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
+    const mpPublicKey = process.env.MERCADO_PAGO_PUBLIC_KEY || "";
+
+    if (supabaseUrl || supabaseKey) {
+      bestContent = `# Chaves de Configuração do Supabase e APIs do Sistema
+SUPABASE_URL="${supabaseUrl}"
+SUPABASE_ANON_KEY="${supabaseKey}"
+GEMINI_API_KEY="${geminiKey}"
+APP_URL="${appUrl}"
+MERCADO_PAGO_ACCESS_TOKEN="${mpAccessToken}"
+MERCADO_PAGO_PUBLIC_KEY="${mpPublicKey}"
+`;
+      sourcePath = "process.env (Variáveis de Ambiente do AI Studio)";
+    }
+  }
+
+  // 3. Se temos um conteúdo válido, garantimos que todos os destinos tenham exatamente esse arquivo atualizado
+  if (bestContent) {
+    console.log(`[Ambiente] Sincronizando conteúdo de variáveis de ambiente a partir de: ${sourcePath}`);
+    
+    // Garante que o diretório 'nodejs' existe
+    if (!fs.existsSync(nodejsDir)) {
+      try {
+        fs.mkdirSync(nodejsDir, { recursive: true });
+        console.log(`[Ambiente] Diretório criado: ${nodejsDir}`);
+      } catch (e) {
+        console.error(`[Ambiente] Erro ao criar diretório nodejs:`, e);
+      }
+    }
+
+    const targets = [rootEnv, root1Env, nodejsEnv, nodejs1Env];
+    for (const target of targets) {
+      try {
+        let shouldWrite = true;
+        if (fs.existsSync(target)) {
+          const current = fs.readFileSync(target, "utf-8").trim();
+          if (current === bestContent.trim()) {
+            shouldWrite = false; // já está atualizado e idêntico
+          }
+        }
+        
+        if (shouldWrite) {
+          fs.writeFileSync(target, bestContent, "utf-8");
+          console.log(`[Ambiente] Arquivo sincronizado/atualizado com sucesso em: ${target}`);
+        }
+      } catch (err) {
+        console.error(`[Ambiente] Erro ao sincronizar para o caminho ${target}:`, err);
+      }
+    }
+  }
+}
+
+// Executa a sincronização dos arquivos .env antes do carregamento formal das variáveis
+try {
+  synchronizeEnvFiles();
+} catch (syncErr) {
+  console.error("[Ambiente] Falha durante a sincronização dos arquivos de ambiente:", syncErr);
+}
+
 // Carrega variáveis de ambiente de múltiplos locais possíveis (incluindo .env, 1.env, pasta nodejs, etc.)
 const envPaths = [
   // Relativos ao diretório de trabalho atual (cwd)
@@ -260,22 +353,40 @@ function getSupabaseClient() {
   if (supabaseClient) return supabaseClient;
   const url = process.env.SUPABASE_URL || process.env.supabase_url;
   const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key;
-  if (url && key && url.trim() !== "" && key.trim() !== "") {
-    try {
-      let cleanUrl = url.trim();
-      if (cleanUrl.endsWith("/rest/v1/")) {
-        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 9);
-      } else if (cleanUrl.endsWith("/rest/v1")) {
-        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 8);
+  
+  if (url && key) {
+    const trimmedUrl = url.trim();
+    const trimmedKey = key.trim();
+    
+    if (
+      trimmedUrl !== "" && 
+      trimmedKey !== "" && 
+      !trimmedUrl.includes("INSIRA") && 
+      !trimmedUrl.includes("YOUR_") && 
+      !trimmedUrl.includes("PLACEHOLDER") &&
+      !trimmedUrl.includes("AQUI") &&
+      (trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://"))
+    ) {
+      try {
+        let cleanUrl = trimmedUrl;
+        if (cleanUrl.endsWith("/rest/v1/")) {
+          cleanUrl = cleanUrl.substring(0, cleanUrl.length - 9);
+        } else if (cleanUrl.endsWith("/rest/v1")) {
+          cleanUrl = cleanUrl.substring(0, cleanUrl.length - 8);
+        }
+        if (cleanUrl.endsWith("/")) {
+          cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+        }
+        supabaseClient = createClient(cleanUrl, trimmedKey);
+        console.log("[Supabase] Conexão inicializada com sucesso para:", cleanUrl);
+        return supabaseClient;
+      } catch (err) {
+        console.error("Erro ao inicializar cliente do Supabase:", err);
       }
-      if (cleanUrl.endsWith("/")) {
-        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+    } else {
+      if (trimmedUrl !== "" && trimmedUrl !== "INSIRA_SUA_URL_DO_SUPABASE_AQUI" && !trimmedUrl.includes("INSIRA")) {
+        console.warn("[Supabase] URL ou Key inválida ou contendo placeholder ignorado:", trimmedUrl);
       }
-      supabaseClient = createClient(cleanUrl, key.trim());
-      console.log("[Supabase] Conexão inicializada com sucesso para:", cleanUrl);
-      return supabaseClient;
-    } catch (err) {
-      console.error("Erro ao inicializar cliente do Supabase:", err);
     }
   }
   return null;
