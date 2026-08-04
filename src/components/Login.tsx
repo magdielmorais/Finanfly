@@ -147,7 +147,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           <p className="mt-1 text-sm font-semibold text-blue-400">
             Suas finanças voando!
           </p>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-white font-medium">
             Controle financeiro inteligente, prático e seguro.
           </p>
           <p className="mt-2.5 text-lg font-bold text-blue-500">
