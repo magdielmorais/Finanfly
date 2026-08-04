@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut } from 'lucide-react';
 
 interface PageProps {
   userData: UserData;
@@ -1955,13 +1955,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       </div>
 
       {/* KPI Row */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Receitas do Mês</span>
-          <div className="text-xl font-bold text-slate-700 dark:text-slate-300 mt-1 font-mono">
-            + R$ {monthData.sumIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </div>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Orçados do Mês</span>
           <div className="text-xl font-bold text-indigo-600 mt-1 font-mono">
@@ -1975,7 +1969,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Resultado Líquido</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo do Mês</span>
           <div className={`text-xl font-bold mt-1 font-mono ${monthData.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
             R$ {monthData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
@@ -1984,17 +1978,17 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
 
       {/* Explanatory footnote */}
       <div className="text-[11px] text-slate-500 italic dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
-        *O Resultado Líquido é calculado subtraindo os Realizados do Mês do total de Receitas do Mês. Orçados do Mês representa o planejamento configurado para o período.
+        *O Saldo do Mês é calculado subtraindo os Realizados do Mês do total de Receitas do Mês. Orçados do Mês representa o planejamento configurado para o período.
       </div>
 
-      {/* Performance by Cost Center Table */}
+      {/* Performance by Category Table */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Desempenho por Centro de Custo Mensal</h3>
+        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Desempenho por Categoria Mensal</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
-                <th className="pb-3.5 font-semibold">Centro de Custo</th>
+                <th className="pb-3.5 font-semibold">Categoria</th>
                 <th className="pb-3.5 font-semibold text-right">Orçado Mês</th>
                 <th className="pb-3.5 font-semibold text-right">Realizado Mês</th>
                 <th className="pb-3.5 font-semibold text-right">Saldo</th>
@@ -2017,7 +2011,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
               ))}
               {monthData.categoriesTableData.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-4 text-center text-slate-400">Nenhum Centro de Custo cadastrado.</td>
+                  <td colSpan={4} className="py-4 text-center text-slate-400">Nenhuma Categoria cadastrada.</td>
                 </tr>
               )}
             </tbody>
@@ -2118,13 +2112,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
       </div>
 
       {/* KPI Row */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Receita Total {selectedYear}</span>
-          <div className="text-xl font-bold text-slate-700 dark:text-slate-300 mt-1 font-mono">
-            R$ {annualStats.yearIncomes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </div>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Orçado Total {selectedYear}</span>
           <div className="text-xl font-bold text-indigo-600 mt-1 font-mono">
@@ -3794,9 +3782,21 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
 
   return (
     <div className="space-y-6 animate-fade-in max-w-xl mx-auto">
-      <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Dados Cadastrais e Pessoais</h2>
-        <p className="text-xs text-slate-400">Gerencie suas informações de contato e faturamento para relatórios personalizados.</p>
+      <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Dados Cadastrais e Pessoais</h2>
+          <p className="text-xs text-slate-400">Gerencie suas informações de contato e faturamento para relatórios personalizados.</p>
+        </div>
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center gap-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-900/50 px-3.5 py-2 text-xs font-bold transition-colors border border-red-200/60 dark:border-red-900/50 shadow-sm"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair da Conta
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4 text-xs">
@@ -4103,13 +4103,13 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
       )}
 
       {/* Supabase Status Dashboard */}
-      <SupabaseStatusDashboard />
+      <SupabaseStatusDashboard isAdmin={userProfile.role === 'admin'} />
     </div>
   );
 };
 
 // Sub-component for Supabase Status & Schema Helper
-const SupabaseStatusDashboard: React.FC = () => {
+const SupabaseStatusDashboard: React.FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
   const [status, setStatus] = useState<{ active: boolean; url: string; schema: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -4138,13 +4138,31 @@ const SupabaseStatusDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-center text-xs text-slate-400">
-        Carregando status do banco de dados Supabase...
+        Carregando status do banco de dados...
       </div>
     );
   }
 
   const isConnected = !!status?.active;
 
+  // View for non-admin common users: only title and status
+  if (!isAdmin) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className={`h-2.5 w-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            <h3 className="font-bold text-slate-800 dark:text-white">Status da Conexão do Banco de Dados</h3>
+          </div>
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${isConnected ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'}`}>
+            {isConnected ? 'Conectado' : 'Modo Backup Local'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // View for administrator: full connection info and database schema script
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4 text-xs">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">

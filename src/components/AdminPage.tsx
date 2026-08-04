@@ -571,10 +571,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800">
+      <div className="flex overflow-x-auto max-w-full border-b border-slate-200 dark:border-slate-800 scrollbar-none">
         <button
           onClick={() => setActiveTab('gestao')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'gestao'
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -585,7 +585,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </button>
         <button
           onClick={() => setActiveTab('config-valores')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'config-valores'
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -596,7 +596,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </button>
         <button
           onClick={() => setActiveTab('limite-uso-gratuito')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'limite-uso-gratuito'
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -607,7 +607,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </button>
         <button
           onClick={() => setActiveTab('avisos')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'avisos'
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -618,7 +618,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </button>
         <button
           onClick={() => setActiveTab('relatorios')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'relatorios'
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -688,7 +688,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">Gerencie os acessos, permissões e planos dos usuários da plataforma.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full">
             <button
               onClick={() => {
                 setShowCreateForm(!showCreateForm);
@@ -697,7 +697,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 setError('');
                 setSuccessMsg('');
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-500 transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-500 transition-colors w-full sm:w-auto"
             >
               <UserPlus className="h-4 w-4" />
               {showCreateForm ? 'Fechar Cadastro' : 'Cadastrar e Liberar Acesso'}
@@ -712,7 +712,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 setReminderEmail('');
                 setFoundPassword('');
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors w-full sm:w-auto"
             >
               <KeyRound className="h-4 w-4 text-amber-500" />
               {showReminderForm ? 'Fechar Relembrar' : 'Relembrar Senha'}
@@ -726,7 +726,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 setEmailReminderSuccess('');
                 setSelectedEmailForReminder('');
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors w-full sm:w-auto"
             >
               <Mail className="h-4 w-4 text-violet-500" />
               {showEmailReminderForm ? 'Fechar Lembrar E-mail' : 'Lembrar senha usuário e-mail'}

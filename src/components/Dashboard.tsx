@@ -9,7 +9,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) => {
-  const [filterType, setFilterType] = useState<'Todas' | 'Receitas' | 'Despesas'>('Todas');
+  const [filterType, setFilterType] = useState<'Receitas' | 'Despesas'>('Receitas');
 
   // New state variables for filters
   const [selectedKpiYear, setSelectedKpiYear] = useState<string>('all');
@@ -62,11 +62,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
     };
   }, [userData, selectedKpiYear]);
 
-  // 2. Aggregate Incomes & Expenses for the last 5 Years (2022 to 2026)
+  // Calculate Total Budgeted based on annual planning and selected filter
+  const totalBudgeted = useMemo(() => {
+    const plans = selectedKpiYear === 'all'
+      ? userData.annualPlanning
+      : userData.annualPlanning.filter(p => p.year === parseInt(selectedKpiYear, 10));
+
+    let total = 0;
+    plans.forEach(plan => {
+      plan.monthlyBudgets.forEach(mb => {
+        if (mb.categoryBudgets && mb.categoryBudgets.length > 0) {
+          total += mb.categoryBudgets.reduce((sum, cb) => sum + (cb.budgetedValue || 0), 0);
+        } else {
+          total += (mb.expenseBudget || 0);
+        }
+      });
+    });
+    return total;
+  }, [userData.annualPlanning, selectedKpiYear]);
+
+  // 2. Aggregate Incomes, Expenses, and Budgeted for the last 5 Years (2022 to 2026)
   const annualData = useMemo(() => {
     const years = [2022, 2023, 2024, 2025, 2026];
     return years.map(year => {
-      // Find matching items
       const yearIncomes = userData.incomes
         .filter(item => new Date(item.date).getFullYear() === year)
         .reduce((sum, item) => sum + item.value, 0);
@@ -75,15 +93,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         .filter(item => new Date(item.date).getFullYear() === year)
         .reduce((sum, item) => sum + item.value, 0);
 
+      const yearPlan = userData.annualPlanning.find(p => p.year === year);
+      let yearBudgeted = 0;
+      if (yearPlan) {
+        yearPlan.monthlyBudgets.forEach(mb => {
+          if (mb.categoryBudgets && mb.categoryBudgets.length > 0) {
+            yearBudgeted += mb.categoryBudgets.reduce((s, cb) => s + (cb.budgetedValue || 0), 0);
+          } else {
+            yearBudgeted += (mb.expenseBudget || 0);
+          }
+        });
+      }
+
       return {
         year,
         income: yearIncomes,
+        budgeted: yearBudgeted,
         expense: yearExpenses
       };
     });
   }, [userData]);
 
-  // Monthly comparison data for budgeted vs realized expenses
+  // Monthly comparison data for budgeted vs realized expenses vs balance
   const monthlyExpenseComparisonData = useMemo(() => {
     const months = [
       'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -108,11 +139,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
           return false;
         })
         .reduce((sum, item) => sum + item.value, 0);
+
+      const balance = budgeted - realized;
         
       return {
         month: monthName,
         budgeted,
-        realized
+        realized,
+        balance
       };
     });
   }, [userData.annualPlanning, userData.expenses, budgetComparisonYear]);
@@ -148,7 +182,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
       combined = [...combined, ...userData.expenses.map(exp => ({ ...exp, type: 'despesa' as const }))];
     }
     return combined
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => {
+        const timeA = a.date ? new Date(a.date).getTime() : 0;
+        const timeB = b.date ? new Date(b.date).getTime() : 0;
+        return timeB - timeA;
+      })
       .slice(0, 5);
   }, [userData.incomes, userData.expenses, recentFilter]);
 
@@ -176,7 +214,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         </div>
       </div>
 
-      {/* Upper Cards grid (KPI counters) */}
+      {/* Movement Cards Group */}
       <div className="grid gap-4 sm:grid-cols-3">
         {/* Income Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -214,11 +252,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
           </div>
         </div>
 
-        {/* Net Balance Card */}
+        {/* Saldo Receitas x Despesas Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Saldo Consolidado</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Saldo Receitas x Despesas</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
               <Wallet className="h-4 w-4" />
             </div>
           </div>
@@ -227,7 +265,79 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               R$ {totals.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
             <p className="mt-1 text-[10px] text-slate-400">
-              {selectedKpiYear === 'all' ? 'Patrimônio líquido estimado' : `Patrimônio estimado em ${selectedKpiYear}`}
+              Total de Receitas (-) Total de Despesas
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Highlighted Divider Bar */}
+      <div className="relative my-6 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t-2 border-slate-200 dark:border-slate-800" />
+        </div>
+        <div className="relative bg-slate-50 px-4 py-1 rounded-full border border-slate-200 dark:border-slate-800 dark:bg-slate-950 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Orçamento vs Execução Financeira
+        </div>
+      </div>
+
+      {/* Budget & Consolidated Cards Group */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {/* Total Orçado Card */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Orçado</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-2.5">
+            <h3 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+              R$ {totalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="mt-1 text-[10px] text-slate-400">
+              Soma do planejamento anual configurado
+            </p>
+          </div>
+        </div>
+
+        {/* Total Realizado Card */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Realizado</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+              <ArrowDownRight className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-2.5">
+            <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
+              R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="mt-1 text-[10px] text-slate-400">
+              Igual ao total de despesas realizadas
+            </p>
+          </div>
+        </div>
+
+        {/* Saldo Consolidado Card */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Saldo Consolidado</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+              <Wallet className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-2.5">
+            {(() => {
+              const consolidatedBalance = totalBudgeted - totals.expenses;
+              return (
+                <h3 className={`text-2xl font-bold font-mono ${consolidatedBalance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  R$ {consolidatedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </h3>
+              );
+            })()}
+            <p className="mt-1 text-[10px] text-slate-400">
+              Total Orçado (-) Total Realizado
             </p>
           </div>
         </div>
@@ -242,14 +352,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-blue-500" />
-                Comparativo Anual (Últimos 5 Anos)
+                Gráfico Comparativo Anual (Últimos 5 Anos)
               </h3>
               <span className="text-xs md:text-sm font-bold text-slate-900 dark:text-slate-100">2022 - 2026</span>
             </div>
             <AnnualComparisonChart data={annualData} />
           </div>
 
-          {/* New Budget vs Realized Expense Comparison Chart Card */}
+          {/* Budget vs Realized Expense Comparison Chart Card */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -282,9 +392,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               <Filter className="h-4 w-4 text-blue-500" />
               Maiores Lançamentos (Top 10)
             </h3>
-            {/* Filter buttons */}
+            {/* Filter buttons - only Receitas and Despesas */}
             <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg dark:bg-slate-800">
-              {(['Todas', 'Receitas', 'Despesas'] as const).map(type => (
+              {(['Receitas', 'Despesas'] as const).map(type => (
                 <button
                   key={type}
                   onClick={() => setFilterType(type)}

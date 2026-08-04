@@ -49,10 +49,10 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           </p>
           <div className="pt-2 flex flex-wrap gap-3">
             <button
-              onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Dashboard')}
+              onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Painel')}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all"
             >
-              Ir para o {isAdmin ? 'Painel Admin' : 'Dashboard'}
+              Ir para o {isAdmin ? 'Painel Admin' : 'Painel'}
               <ArrowRight className="h-4 w-4" />
             </button>
             <button

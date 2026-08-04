@@ -19,6 +19,7 @@ import {
 } from './components/Pages';
 import { SuportePage } from './components/SuportePage';
 import { ViagemPage } from './components/ViagemPage';
+import { OfflineModal } from './components/OfflineModal';
 
 import {
   Home as HomeIcon,
@@ -49,13 +50,56 @@ import {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [currentPage, setCurrentPage] = useState<string>('Home');
+  const [currentPage, setCurrentPage] = useState<string>('Início');
   const [subscriptionWarning, setSubscriptionWarning] = useState<string>('');
 
   // Sidebar toggle for responsive mobile views
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Settings menu submenus expanded status
-  const [settingsExpanded, setSettingsExpanded] = useState(true);
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
+
+  // Auto collapse settings submenu whenever navigating to any page
+  useEffect(() => {
+    setSettingsExpanded(false);
+  }, [currentPage]);
+
+  // Auto-detect language and enforce Português (Brasil) - pt-BR
+  useEffect(() => {
+    const detectedLang = navigator.language || (navigator.languages && navigator.languages[0]) || 'pt-BR';
+    console.log(`[Idioma] Idioma detectado do navegador: ${detectedLang}. Selecionado Português (Brasil) - pt-BR automaticamente.`);
+    document.documentElement.lang = 'pt-BR';
+    localStorage.setItem('finanfly_language', 'pt-BR');
+  }, []);
+
+  // Auto-detect mobile devices and screen resizes
+  useEffect(() => {
+    const handleMobileDetection = () => {
+      const isMobileView = window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobileView) {
+        // Automatically ensure menu starts closed or closes on screen switch to mobile
+        setSidebarOpen(false);
+      }
+    };
+
+    handleMobileDetection();
+    window.addEventListener('resize', handleMobileDetection);
+    window.addEventListener('orientationchange', handleMobileDetection);
+    return () => {
+      window.removeEventListener('resize', handleMobileDetection);
+      window.removeEventListener('orientationchange', handleMobileDetection);
+    };
+  }, []);
+
+  // Close floating menu when pressing ESC key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarOpen]);
 
   // Theme layout: clear vs dark state
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -180,7 +224,7 @@ export default function App() {
     if (user.role === 'admin') {
       setCurrentPage('Administrador');
     } else {
-      setCurrentPage('Home');
+      setCurrentPage('Início');
     }
   };
 
@@ -196,7 +240,7 @@ export default function App() {
     setUserData(null);
     localStorage.removeItem('finanfly_user');
     localStorage.removeItem('finanfy_user');
-    setCurrentPage('Home');
+    setCurrentPage('Início');
     setSubscriptionWarning('');
   };
 
@@ -222,7 +266,7 @@ export default function App() {
 
     // Gate all non-subscription pages for normal users
     const hasAccess = isSubscriptionActive();
-    const isPublicPageForAuthed = ['Assinatura', 'Home', 'Administrador', 'Dados pessoais'].includes(currentPage);
+    const isPublicPageForAuthed = ['Assinatura', 'Início', 'Home', 'Administrador', 'Dados pessoais'].includes(currentPage);
 
     if (!hasAccess && !isPublicPageForAuthed) {
       return (
@@ -240,6 +284,7 @@ export default function App() {
 
     // Routing
     switch (currentPage) {
+      case 'Início':
       case 'Home':
         return (
           <Home
@@ -251,6 +296,7 @@ export default function App() {
             }}
           />
         );
+      case 'Painel':
       case 'Dashboard':
         if (!userData) return <p className="text-xs text-slate-400">Carregando painel...</p>;
         return (
@@ -419,7 +465,7 @@ export default function App() {
         if (!userData) return null;
         return (
           <ListManagerPage
-            title="Categorias de Despesas (Centro de Despesa)"
+            title="Categoria de Despesas"
             description="Agrupe seus custos mensais para entender onde você gasta mais (Moradia, Alimentação, Saúde, Transporte, etc)."
             items={userData.expenseCategories}
             placeholder="Ex: Serviços de Streaming"
@@ -469,21 +515,24 @@ export default function App() {
   // If user is not logged in, render Login screen
   if (!currentUser) {
     return (
-      <Login
-        onLoginSuccess={handleLoginSuccess}
-        onRedirectToSubscription={handleRedirectToSubscription}
-      />
+      <>
+        <OfflineModal />
+        <Login
+          onLoginSuccess={handleLoginSuccess}
+          onRedirectToSubscription={handleRedirectToSubscription}
+        />
+      </>
     );
   }
 
   // Sidebar navigation menu options structured as expected
   const menuItems = [
-    { name: 'Home', icon: HomeIcon, type: 'link' },
-    { name: 'Dashboard', icon: BarChart3, type: 'link' },
-    { name: 'Receitas', icon: TrendingUp, type: 'link' },
-    { name: 'Despesas', icon: TrendingDown, type: 'link' },
+    { name: 'Início', icon: HomeIcon, type: 'link' },
+    { name: 'Painel', icon: BarChart3, type: 'link' },
     { name: 'Resumo mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
+    { name: 'Receitas', icon: TrendingUp, type: 'link' },
+    { name: 'Despesas', icon: TrendingDown, type: 'link' },
     { name: 'Metas', icon: Target, type: 'link' },
     { name: 'Viagem', icon: Plane, type: 'link' },
     { name: 'Ação de melhoria', icon: AlertTriangle, type: 'link' },
@@ -503,7 +552,17 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden dark:bg-slate-950 dark:text-slate-100">
+      <OfflineModal />
       
+      {/* Backdrop overlay for mobile menu - closes menu when clicking outside */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-sm md:hidden transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Fechar menu"
+        />
+      )}
+
       {/* SIDEBAR NAVIGATION - Responsive Drawer */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -527,23 +586,29 @@ export default function App() {
         <nav className="flex-1 px-4 py-3 space-y-1 overflow-y-auto custom-scrollbar">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
-            const active = currentPage === item.name;
+            const active = currentPage === item.name || (item.name === 'Início' && currentPage === 'Home') || (item.name === 'Painel' && currentPage === 'Dashboard');
             return (
-              <button
-                key={item.name}
-                onClick={() => {
-                  setCurrentPage(item.name);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-all ${
-                  active
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <IconComponent className={`h-4 w-4 shrink-0 ${active ? 'text-white' : 'opacity-80'}`} />
-                <span>{item.name}</span>
-              </button>
+              <div key={item.name}>
+                <button
+                  onClick={() => {
+                    setCurrentPage(item.name);
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-all ${
+                    active
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <IconComponent className={`h-4 w-4 shrink-0 ${active ? 'text-white' : 'opacity-80'}`} />
+                  <span>{item.name}</span>
+                </button>
+
+                {/* Subtle divider line right below Despesas */}
+                {item.name === 'Despesas' && (
+                  <div className="my-2 border-b border-slate-800/80 mx-1" />
+                )}
+              </div>
             );
           })}
 
@@ -551,10 +616,10 @@ export default function App() {
           <div className="pt-4 pb-2">
             <button
               onClick={() => setSettingsExpanded(!settingsExpanded)}
-              className="w-full flex items-center justify-between px-3 text-[10px] uppercase tracking-wider text-slate-500 font-bold hover:text-slate-300"
+              className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors"
             >
-              <span>Configurações</span>
-              <Settings className="h-3 w-3" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Configurações</span>
+              <Settings className="h-3.5 w-3.5 text-slate-400" />
             </button>
           </div>
 
@@ -570,13 +635,13 @@ export default function App() {
                       setCurrentPage(sub.name);
                       setSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-all ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-semibold transition-all ${
                       active
                         ? 'bg-slate-800 text-blue-400 font-bold'
-                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                        : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
                     }`}
                   >
-                    <Icon className="h-3.5 w-3.5 opacity-60" />
+                    <Icon className="h-4 w-4 shrink-0 opacity-80" />
                     <span className="truncate">{sub.name}</span>
                   </button>
                 );

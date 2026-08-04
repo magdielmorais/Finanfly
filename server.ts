@@ -10,88 +10,142 @@ const _dirname = typeof __dirname !== "undefined"
   ? __dirname
   : path.dirname(fileURLToPath(import.meta.url));
 
-// Sincronização automática de arquivos .env / 1.env entre raiz e pasta nodejs
+// Sincronização automática de arquivos .env / 1.env / .env.example entre raiz e pasta nodejs
 function synchronizeEnvFiles() {
-  const rootEnv = path.join(process.cwd(), ".env");
-  const root1Env = path.join(process.cwd(), "1.env");
-  const nodejsDir = path.join(process.cwd(), "nodejs");
-  const nodejsEnv = path.join(nodejsDir, ".env");
-  const nodejs1Env = path.join(nodejsDir, "1.env");
+  const rootDir = process.cwd();
+  const nodejsDir = path.join(rootDir, "nodejs");
 
-  let bestContent = "";
-  let sourcePath = "";
+  const envFiles = [
+    path.join(rootDir, ".env"),
+    path.join(rootDir, "1.env"),
+    path.join(nodejsDir, ".env"),
+    path.join(nodejsDir, "1.env"),
+  ];
 
-  // 1. Tenta achar o melhor conteúdo de .env ou 1.env existente no disco
-  const searchPaths = [rootEnv, root1Env, nodejsEnv, nodejs1Env];
-  for (const p of searchPaths) {
+  const envExampleFiles = [
+    path.join(rootDir, ".env.example"),
+    path.join(nodejsDir, ".env.example"),
+  ];
+
+  // Função auxiliar para analisar pares chave=valor de um conteúdo de arquivo .env
+  const parseEnvContent = (content: string) => {
+    const map: Record<string, string> = {};
+    const lines = content.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx > 0) {
+        const key = trimmed.substring(0, eqIdx).trim();
+        let val = trimmed.substring(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.substring(1, val.length - 1);
+        }
+        map[key] = val;
+      }
+    }
+    return map;
+  };
+
+  const existingValues: Record<string, string> = {};
+
+  // Lê valores existentes dos arquivos .env no disco
+  for (const filePath of envFiles) {
     try {
-      if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, "utf-8").trim();
-        if (content && content.length > 5 && (content.includes("SUPABASE") || content.includes("supabase"))) {
-          bestContent = content;
-          sourcePath = p;
-          break;
+      if (fs.existsSync(filePath)) {
+        const parsed = parseEnvContent(fs.readFileSync(filePath, "utf-8"));
+        for (const [k, v] of Object.entries(parsed)) {
+          if (v && !v.includes("INSIRA_SUA_URL") && !v.includes("INSIRA_SUA_ANON") && !existingValues[k]) {
+            existingValues[k] = v;
+          }
         }
       }
     } catch (e) {
-      console.error(`Erro ao ler arquivo para sincronização: ${p}`, e);
+      // ignora erros de leitura de arquivo individual
     }
   }
 
-  // 2. Se nenhum arquivo .env foi encontrado no disco, mas temos as variáveis no process.env, geramos um conteúdo inicial nativo
-  if (!bestContent) {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.supabase_url || "";
-    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || "";
-    const geminiKey = process.env.GEMINI_API_KEY || "";
-    const appUrl = process.env.APP_URL || "";
-    const mpAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
-    const mpPublicKey = process.env.MERCADO_PAGO_PUBLIC_KEY || "";
+  // Chaves solicitadas para puxar das configurações e secrets
+  const envKeys = [
+    "SUPABASE_URL",
+    "SUPABASE_ANON_KEY",
+    "GEMINI_API_KEY",
+    "APP_URL",
+    "MERCADO_PAGO_ACCESS_TOKEN",
+    "MERCADO_PAGO_PUBLIC_KEY",
+  ];
 
-    if (supabaseUrl || supabaseKey) {
-      bestContent = `# Chaves de Configuração do Supabase e APIs do Sistema
-SUPABASE_URL="${supabaseUrl}"
-SUPABASE_ANON_KEY="${supabaseKey}"
-GEMINI_API_KEY="${geminiKey}"
-APP_URL="${appUrl}"
-MERCADO_PAGO_ACCESS_TOKEN="${mpAccessToken}"
-MERCADO_PAGO_PUBLIC_KEY="${mpPublicKey}"
+  const finalEnv: Record<string, string> = {};
+
+  for (const key of envKeys) {
+    let val = process.env[key] || process.env[key.toLowerCase()] || "";
+    if (key === "SUPABASE_ANON_KEY" && !val) {
+      val = process.env.SUPABASE_KEY || process.env.supabase_key || "";
+    }
+
+    if (val && val.trim() !== "") {
+      finalEnv[key] = val.trim();
+    } else if (existingValues[key] && existingValues[key].trim() !== "") {
+      finalEnv[key] = existingValues[key].trim();
+    } else {
+      finalEnv[key] = "";
+    }
+  }
+
+  const envContent = `# Chaves de Configuração do Supabase, Mercado Pago e APIs do Sistema
+SUPABASE_URL="${finalEnv.SUPABASE_URL}"
+SUPABASE_ANON_KEY="${finalEnv.SUPABASE_ANON_KEY}"
+GEMINI_API_KEY="${finalEnv.GEMINI_API_KEY}"
+APP_URL="${finalEnv.APP_URL}"
+MERCADO_PAGO_ACCESS_TOKEN="${finalEnv.MERCADO_PAGO_ACCESS_TOKEN}"
+MERCADO_PAGO_PUBLIC_KEY="${finalEnv.MERCADO_PAGO_PUBLIC_KEY}"
 `;
-      sourcePath = "process.env (Variáveis de Ambiente do AI Studio)";
+
+  // Garante que o diretório 'nodejs' existe
+  if (!fs.existsSync(nodejsDir)) {
+    try {
+      fs.mkdirSync(nodejsDir, { recursive: true });
+      console.log(`[Ambiente] Diretório criado: ${nodejsDir}`);
+    } catch (e) {
+      console.error(`[Ambiente] Erro ao criar diretório nodejs:`, e);
     }
   }
 
-  // 3. Se temos um conteúdo válido, garantimos que todos os destinos tenham exatamente esse arquivo atualizado
-  if (bestContent) {
-    console.log(`[Ambiente] Sincronizando conteúdo de variáveis de ambiente a partir de: ${sourcePath}`);
-    
-    // Garante que o diretório 'nodejs' existe
-    if (!fs.existsSync(nodejsDir)) {
-      try {
-        fs.mkdirSync(nodejsDir, { recursive: true });
-        console.log(`[Ambiente] Diretório criado: ${nodejsDir}`);
-      } catch (e) {
-        console.error(`[Ambiente] Erro ao criar diretório nodejs:`, e);
+  // Escreve os arquivos .env
+  for (const target of envFiles) {
+    try {
+      let shouldWrite = true;
+      if (fs.existsSync(target)) {
+        const current = fs.readFileSync(target, "utf-8").trim();
+        if (current === envContent.trim()) {
+          shouldWrite = false;
+        }
       }
+      if (shouldWrite) {
+        fs.writeFileSync(target, envContent, "utf-8");
+        console.log(`[Ambiente] Arquivo .env sincronizado em: ${target}`);
+      }
+    } catch (err) {
+      console.error(`[Ambiente] Erro ao sincronizar para ${target}:`, err);
     }
+  }
 
-    const targets = [rootEnv, root1Env, nodejsEnv, nodejs1Env];
-    for (const target of targets) {
-      try {
-        let shouldWrite = true;
-        if (fs.existsSync(target)) {
-          const current = fs.readFileSync(target, "utf-8").trim();
-          if (current === bestContent.trim()) {
-            shouldWrite = false; // já está atualizado e idêntico
-          }
+  // Escreve os arquivos .env.example
+  for (const target of envExampleFiles) {
+    try {
+      let shouldWrite = true;
+      if (fs.existsSync(target)) {
+        const current = fs.readFileSync(target, "utf-8").trim();
+        if (current === envContent.trim()) {
+          shouldWrite = false;
         }
-        
-        if (shouldWrite) {
-          fs.writeFileSync(target, bestContent, "utf-8");
-          console.log(`[Ambiente] Arquivo sincronizado/atualizado com sucesso em: ${target}`);
-        }
-      } catch (err) {
-        console.error(`[Ambiente] Erro ao sincronizar para o caminho ${target}:`, err);
       }
+      if (shouldWrite) {
+        fs.writeFileSync(target, envContent, "utf-8");
+        console.log(`[Ambiente] Arquivo .env.example sincronizado em: ${target}`);
+      }
+    } catch (err) {
+      console.error(`[Ambiente] Erro ao sincronizar para ${target}:`, err);
     }
   }
 }
