@@ -30,9 +30,9 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
   }
 
   // Calculate scales
-  const margin = { top: 20, right: 20, bottom: 40, left: 70 };
-  const width = 600;
-  const height = 300;
+  const margin = { top: 25, right: 25, bottom: 45, left: 85 };
+  const width = 650;
+  const height = 320;
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
 
@@ -48,13 +48,17 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
 
   // Bar dimensions for 3 bars per group
   const groupWidth = chartWidth / data.length;
-  const barWidth = Math.min(groupWidth * 0.25, 16);
-  const gap = 2;
+  const barWidth = Math.min(groupWidth * 0.25, 20);
+  const gap = 3;
 
   return (
     <div className="w-full">
-      <div className="relative w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[340px] sm:min-w-[500px] h-auto font-sans overflow-visible">
+      <div className="relative w-full overflow-x-auto pb-2">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ minWidth: '650px' }}
+          className="w-full h-auto font-sans overflow-visible"
+        >
           {/* Gradients */}
           <defs>
             <linearGradient id="incomeBarGrad" x1="0" y1="0" x2="0" y2="1">
@@ -87,10 +91,10 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                   className="opacity-30"
                 />
                 <text
-                  x={margin.left - 8}
-                  y={y + 4}
+                  x={margin.left - 10}
+                  y={y + 5}
                   textAnchor="end"
-                  className="fill-black dark:fill-white text-[14px] font-extrabold font-mono"
+                  className="fill-slate-800 dark:fill-slate-100 text-[15px] font-extrabold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>
@@ -192,10 +196,10 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                 {/* X axis labels */}
                 <text
                   x={groupCenter}
-                  y={height - margin.bottom + 20}
+                  y={height - margin.bottom + 22}
                   textAnchor="middle"
-                  className={`text-[15px] font-black transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-black dark:fill-white'
+                  className={`text-[17px] font-black transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-900 dark:fill-white'
                   }`}
                   onMouseEnter={() => setHoveredIndex(i)}
                   onMouseLeave={() => setHoveredIndex(null)}
@@ -369,9 +373,9 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
   }
 
   // Calculate scales
-  const margin = { top: 20, right: 20, bottom: 40, left: 60 };
-  const width = 600;
-  const height = 300;
+  const margin = { top: 25, right: 25, bottom: 45, left: 85 };
+  const width = 750;
+  const height = 320;
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
 
@@ -387,13 +391,17 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
 
   // Bar dimensions for 3 bars per group
   const groupWidth = chartWidth / data.length;
-  const barWidth = Math.max(Math.min(groupWidth * 0.24, 10), 3);
-  const gap = 1.5;
+  const barWidth = Math.max(Math.min(groupWidth * 0.26, 14), 5);
+  const gap = 2;
 
   return (
     <div className="w-full">
-      <div className="relative w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[340px] sm:min-w-[500px] h-auto font-sans overflow-visible">
+      <div className="relative w-full overflow-x-auto pb-2">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ minWidth: '750px' }}
+          className="w-full h-auto font-sans overflow-visible"
+        >
           {/* Gradients */}
           <defs>
             <linearGradient id="budgetBarGrad" x1="0" y1="0" x2="0" y2="1">
@@ -430,10 +438,10 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                   className="opacity-30"
                 />
                 <text
-                  x={margin.left - 8}
-                  y={y + 4}
+                  x={margin.left - 10}
+                  y={y + 5}
                   textAnchor="end"
-                  className="fill-black dark:fill-white text-[12px] font-extrabold font-mono"
+                  className="fill-slate-800 dark:fill-slate-100 text-[15px] font-extrabold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>
@@ -535,10 +543,10 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                 {/* X axis labels */}
                 <text
                   x={groupCenter}
-                  y={height - margin.bottom + 18}
+                  y={height - margin.bottom + 22}
                   textAnchor="middle"
-                  className={`text-[12px] font-black transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-black dark:fill-white'
+                  className={`text-[15px] font-black transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-900 dark:fill-white'
                   }`}
                   onMouseEnter={() => setHoveredIndex(i)}
                   onMouseLeave={() => setHoveredIndex(null)}
