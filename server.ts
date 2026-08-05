@@ -80,16 +80,22 @@ function readAllDiskEnvValues(): Record<string, string> {
   const candidates = [
     path.join(rootDir, ".env"),
     path.join(rootDir, "1.env"),
+    path.join(rootDir, ".env.example"),
     path.join(nodejsDir, ".env"),
     path.join(nodejsDir, "1.env"),
+    path.join(nodejsDir, ".env.example"),
     path.join(_dirname, ".env"),
     path.join(_dirname, "1.env"),
+    path.join(_dirname, ".env.example"),
     path.join(_dirname, "nodejs", ".env"),
     path.join(_dirname, "nodejs", "1.env"),
+    path.join(_dirname, "nodejs", ".env.example"),
     path.join(_dirname, "..", ".env"),
     path.join(_dirname, "..", "1.env"),
+    path.join(_dirname, "..", ".env.example"),
     path.join(_dirname, "..", "nodejs", ".env"),
     path.join(_dirname, "..", "nodejs", "1.env"),
+    path.join(_dirname, "..", "nodejs", ".env.example"),
   ];
 
   const uniqueCandidates = Array.from(new Set(candidates));
@@ -201,19 +207,28 @@ MERCADO_PAGO_PUBLIC_KEY="${finalEnv.MERCADO_PAGO_PUBLIC_KEY}"
     }
   }
 
-  // Escreve os arquivos .env.example
+  const envExampleContent = `# Chaves de Configuração do Supabase, Mercado Pago e APIs do Sistema
+SUPABASE_URL="https://xjwfzdyqjionolxsrevh.supabase.co/rest/v1/"
+SUPABASE_ANON_KEY="your_supabase_anon_key_here"
+GEMINI_API_KEY="your_gemini_api_key_here"
+APP_URL="https://ais-dev-bdq3svx3dm33qtw54btpck-187438088710.us-west2.run.app"
+MERCADO_PAGO_ACCESS_TOKEN="your_mercado_pago_access_token_here"
+MERCADO_PAGO_PUBLIC_KEY="your_mercado_pago_public_key_here"
+`;
+
+  // Escreve os arquivos .env.example com placeholders seguros (sem segredos vazados)
   for (const target of envExampleFiles) {
     try {
       let shouldWrite = true;
       if (fs.existsSync(target)) {
         const current = fs.readFileSync(target, "utf-8").trim();
-        if (current === envContent.trim()) {
+        if (current === envExampleContent.trim()) {
           shouldWrite = false;
         }
       }
       if (shouldWrite) {
-        fs.writeFileSync(target, envContent, "utf-8");
-        console.log(`[Ambiente] Arquivo .env.example sincronizado em: ${target}`);
+        fs.writeFileSync(target, envExampleContent, "utf-8");
+        console.log(`[Ambiente] Arquivo .env.example (template seguro) sincronizado em: ${target}`);
       }
     } catch (err) {
       console.error(`[Ambiente] Erro ao sincronizar para ${target}:`, err);

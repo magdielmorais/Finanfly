@@ -6,5 +6,10 @@ coverage/
 *.log
 .env
 .env*
+*.env
+1.env
+nodejs/.env
+nodejs/*.env
 !.env.example
+!nodejs/.env.example
 
