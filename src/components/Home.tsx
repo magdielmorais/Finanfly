@@ -38,7 +38,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
         <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
         <div className="relative max-w-2xl space-y-4">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-400">
-            👋 Bem-vindo de volta, {userName}!
+            👋 Bem-vindo {userName}!
           </span>
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
             Sua saúde financeira, <br />

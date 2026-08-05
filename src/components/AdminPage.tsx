@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -81,6 +81,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [newRole, setNewRole] = useState<'user' | 'admin'>('user');
   const [newPlan, setNewPlan] = useState<'none' | 'gratis' | 'mensal' | 'anual' | 'livre'>('none');
   const [successMsg, setSuccessMsg] = useState('');
@@ -107,6 +108,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [editRole, setEditRole] = useState<'user' | 'admin'>('user');
   const [editPlan, setEditPlan] = useState<'none' | 'gratis' | 'mensal' | 'anual' | 'livre'>('none');
   const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [editAddress, setEditAddress] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editCity, setEditCity] = useState('');
@@ -905,13 +907,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400">Senha Provisória</label>
-                  <input
-                    type="password"
-                    placeholder="Padrão: user123"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  />
+                  <div className="relative mt-1">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="Padrão: user123"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      title={showNewPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -992,13 +1004,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400">Alterar Senha</label>
-                  <input
-                    type="password"
-                    placeholder="Deixe em branco para manter a senha atual"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  />
+                  <div className="relative mt-1">
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      placeholder="Deixe em branco para manter a senha atual"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      title={showEditPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    >
+                      {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 

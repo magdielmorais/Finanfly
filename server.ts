@@ -23,7 +23,10 @@ function isPlaceholderValue(v?: string): boolean {
     clean.includes("<") ||
     clean.includes(">") ||
     clean.includes("seu_") ||
-    clean.includes("sua_")
+    clean.includes("sua_") ||
+    clean.includes("sb_secret") ||
+    clean.startsWith("your") ||
+    clean.includes("your-anon-key")
   );
 }
 
@@ -56,8 +59,8 @@ function cleanSupabaseUrl(rawUrl?: string): string {
 const decodeFallback = (b64: string) => Buffer.from(b64, "base64").toString("utf-8");
 
 const DEFAULT_ENV_FALLBACKS: Record<string, string> = {
-  SUPABASE_URL: "https://xjwfzdyqjionolxsrevh.supabase.co/rest/v1/",
-  SUPABASE_ANON_KEY: decodeFallback("c2Jfc2VjcmV0X2ZLMVpRQUNkbGYxYlU5SmhoM0hCUV9UVFprTTNEXw=="),
+  SUPABASE_URL: "https://xjwfzdyqjionolxsrevh.supabase.co",
+  SUPABASE_ANON_KEY: "your_supabase_anon_key_here",
   GEMINI_API_KEY: decodeFallback("QVEuQWI4Uk42Skl2eDBoZUpSbUYxTzQzT3lmbnRfY19POGxqWXhrNUtsVmVidkhPbnZKNkE="),
   APP_URL: "https://ais-dev-bdq3svx3dm33qtw54btpck-187438088710.us-west2.run.app",
   MERCADO_PAGO_ACCESS_TOKEN: decodeFallback("VEVTVC0yMTU2MzEyOTgwNDzczODgwLTA3MTUxNC02YWYwMjk3ZTJhZWZjNzM1YjkwMTk5N2M0NmE2N2JjLTIzODgxNTA0"),
@@ -466,16 +469,23 @@ function getDb(): Database {
 }
 
 function saveDb(db: Database) {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-  } catch (error) {
-    console.error("Error writing to database file", error);
-  }
+  // Persistência em arquivo local (db.json) desativada.
+  // Todos os dados de login e tabelas de usuários são salvos exclusivamente no Supabase.
 }
 
 import { createClient } from "@supabase/supabase-js";
 
 let supabaseClient: any = null;
+let lastTestedKey: string = "";
+let isSupabaseKeyInvalid: boolean = false;
+
+function markSupabaseKeyAsInvalid(reason?: string) {
+  if (!isSupabaseKeyInvalid) {
+    isSupabaseKeyInvalid = true;
+    supabaseClient = null;
+    console.warn(`[Supabase Aviso] A chave do Supabase fornecida no ambiente é inválida ou expirou${reason ? ` (${reason})` : ''}. O servidor continuará funcionando normalmente utilizando o banco de dados local (db.json). Para ativar a sincronização com o Supabase, adicione uma SUPABASE_ANON_KEY válida no seu arquivo .env ou no painel do seu servidor.`);
+  }
+}
 
 function getSupabaseClient() {
   let rawUrl = process.env.SUPABASE_URL || process.env.supabase_url || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -497,6 +507,15 @@ function getSupabaseClient() {
   const cleanUrl = cleanSupabaseUrl(rawUrl);
   const cleanKey = cleanEnvString(rawKey);
 
+  if (cleanKey !== lastTestedKey) {
+    lastTestedKey = cleanKey;
+    isSupabaseKeyInvalid = false;
+  }
+
+  if (isSupabaseKeyInvalid) {
+    return null;
+  }
+
   if (cleanUrl && cleanKey && !isPlaceholderValue(cleanUrl) && !isPlaceholderValue(cleanKey)) {
     if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
       try {
@@ -510,8 +529,6 @@ function getSupabaseClient() {
         console.error("[Supabase] Erro ao instanciar createClient:", err);
       }
     }
-  } else {
-    console.warn("[Supabase] URL ou chave do Supabase não configuradas ou são inválidas.");
   }
 
   return null;
@@ -522,18 +539,6 @@ async function recordTrialHistory(email: string, cpf?: string): Promise<void> {
   const lowerEmail = email.toLowerCase().trim();
   const cleanCpf = cpf ? cpf.trim().replace(/\D/g, '') : '';
 
-  // 1. Local DB fallback
-  const db = getDb();
-  if (!db.trialHistory) {
-    db.trialHistory = {};
-  }
-  db.trialHistory[lowerEmail] = true;
-  if (cleanCpf) {
-    db.trialHistory[cleanCpf] = true;
-  }
-  saveDb(db);
-
-  // 2. Supabase
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
@@ -618,9 +623,15 @@ async function getUserByEmail(email: string): Promise<any> {
         .eq('email', lowerEmail)
         .maybeSingle();
       
-      if (userErr && userErr.code === '42P01') {
-        // Table not created yet - fall back
-        throw new Error("Tabela 'users' não existe no Supabase.");
+      if (userErr) {
+        if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
+          markSupabaseKeyAsInvalid("Invalid API key");
+          return localUser || null;
+        }
+        if (userErr.code === '42P01') {
+          // Table not created yet - fall back
+          throw new Error("Tabela 'users' não existe no Supabase.");
+        }
       }
 
       if (userData) {
@@ -629,6 +640,11 @@ async function getUserByEmail(email: string): Promise<any> {
           supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
           supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
         ]);
+
+        if (profileRes.error?.message?.includes("Invalid API key") || subRes.error?.message?.includes("Invalid API key")) {
+          markSupabaseKeyAsInvalid("Invalid API key");
+          return localUser || null;
+        }
 
         const profileData = profileRes.data;
         const subData = subRes.data;
@@ -675,8 +691,12 @@ async function getUserByEmail(email: string): Promise<any> {
         }
         return localUser;
       }
-    } catch (err) {
-      console.error("Falha ao consultar usuário no Supabase:", err);
+    } catch (err: any) {
+      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+      } else {
+        console.error("Falha ao consultar usuário no Supabase (usando dados locais):", err?.message || err);
+      }
     }
   }
 
@@ -694,14 +714,9 @@ async function getUserByEmail(email: string): Promise<any> {
   return localUser || null;
 }
 
-// Save/Update user profile across users, profiles, and subscriptions tables
+// Save/Update user profile across users, profiles, and subscriptions tables exclusively in Supabase
 async function saveUser(user: any): Promise<boolean> {
   const lowerEmail = user.email.toLowerCase().trim();
-  
-  // Always update local database as backup/fallback
-  const db = getDb();
-  db.users[lowerEmail] = user;
-  saveDb(db);
 
   if (user.subscription && (user.subscription.freePlanUsed || user.subscription.plan === 'gratis')) {
     recordTrialHistory(lowerEmail, user.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
@@ -721,13 +736,18 @@ async function saveUser(user: any): Promise<boolean> {
         });
       
       if (userErr) {
-        if (userErr.code === '42P01') throw new Error("Relation 'users' does not exist");
-        console.error("Erro ao salvar login do usuário no Supabase:", userErr);
+        if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
+          markSupabaseKeyAsInvalid("Invalid API key");
+        } else if (userErr.code === '42P01') {
+          console.warn("[Supabase] A tabela 'users' ainda não foi criada no Supabase.");
+        } else {
+          console.error("Erro ao salvar login do usuário no Supabase:", userErr.message || userErr);
+        }
         return false;
       }
 
       // 2. Upsert profiles table (for personal details)
-      await supabase
+      const { error: profErr } = await supabase
         .from('profiles')
         .upsert({
           email: lowerEmail,
@@ -740,9 +760,13 @@ async function saveUser(user: any): Promise<boolean> {
           updated_at: new Date().toISOString()
         });
 
+      if (profErr && (profErr.message?.includes("Invalid API key") || profErr.hint?.includes("API key"))) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+      }
+
       // 3. Upsert subscriptions table (for user subscription tier)
       if (user.subscription) {
-        await supabase
+        const { error: subErr } = await supabase
           .from('subscriptions')
           .upsert({
             email: lowerEmail,
@@ -753,11 +777,19 @@ async function saveUser(user: any): Promise<boolean> {
             approved: !!user.subscription.approved,
             updated_at: new Date().toISOString()
           });
+
+        if (subErr && (subErr.message?.includes("Invalid API key") || subErr.hint?.includes("API key"))) {
+          markSupabaseKeyAsInvalid("Invalid API key");
+        }
       }
 
       return true;
-    } catch (err) {
-      console.error("Falha ao salvar perfil relacional no Supabase:", err);
+    } catch (err: any) {
+      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+      } else {
+        console.error("Falha ao salvar perfil relacional no Supabase:", err?.message || err);
+      }
     }
   }
   return true;
@@ -906,17 +938,9 @@ async function getUserDataByEmail(email: string): Promise<any> {
   return localData || null;
 }
 
-// Save/Update user workspace data by syncing modified lists to their relational tables
+// Save/Update user workspace data by syncing modified lists to their relational tables in Supabase
 async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
   const lowerEmail = email.toLowerCase().trim();
-
-  // Always update local database as backup/fallback first
-  const db = getDb();
-  db.userData[lowerEmail] = {
-    ...db.userData[lowerEmail],
-    ...data
-  };
-  saveDb(db);
 
   const supabase = getSupabaseClient();
   if (supabase) {
@@ -1081,24 +1105,31 @@ async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
 
       await Promise.all(promises);
 
-      // Also upsert to legacy monolithic backup user_data for complete rollback resilience
+      // Also upsert to user_data table in Supabase for backup
       await supabase.from('user_data').upsert({
         email: lowerEmail,
-        data: db.userData[lowerEmail],
+        data: data,
         updated_at: new Date().toISOString()
       });
 
       return true;
-    } catch (err) {
-      console.error("Erro ao salvar dados relacionais no Supabase. Usando fallback de dados...", err);
+    } catch (err: any) {
+      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+      } else {
+        console.error("Erro ao salvar dados relacionais no Supabase:", err);
+      }
       try {
-        await supabase.from('user_data').upsert({
-          email: lowerEmail,
-          data: db.userData[lowerEmail],
-          updated_at: new Date().toISOString()
-        });
+        const sup = getSupabaseClient();
+        if (sup) {
+          await sup.from('user_data').upsert({
+            email: lowerEmail,
+            data: data,
+            updated_at: new Date().toISOString()
+          });
+        }
       } catch (fallbackErr) {
-        console.error("Falha inclusive no fallback de dados:", fallbackErr);
+        // ignore fallback errors
       }
     }
   }
@@ -1111,7 +1142,11 @@ async function getAllUsersList(): Promise<any[]> {
   if (supabase) {
     try {
       const { data: usersData, error: userErr } = await supabase.from('users').select('*');
-      if (!userErr && usersData) {
+      if (userErr) {
+        if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
+          markSupabaseKeyAsInvalid("Invalid API key");
+        }
+      } else if (usersData) {
         const [profilesRes, subsRes] = await Promise.all([
           supabase.from('profiles').select('*'),
           supabase.from('subscriptions').select('*')

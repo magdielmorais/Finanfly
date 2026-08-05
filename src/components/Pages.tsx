@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff } from 'lucide-react';
 
 interface PageProps {
   userData: UserData;
@@ -3684,6 +3684,9 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -3962,13 +3965,21 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                     <KeyRound className="h-4 w-4 text-slate-400" />
                   </span>
                   <input
-                    type="password"
+                    type={showOldPassword ? 'text' : 'password'}
                     required
                     value={oldPassword}
                     onChange={(e) => setOldPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-10 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowOldPassword(!showOldPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                    title={showOldPassword ? 'Ocultar senha' : 'Exibir senha'}
+                  >
+                    {showOldPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -3980,13 +3991,21 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                       <Lock className="h-4 w-4 text-slate-400" />
                     </span>
                     <input
-                      type="password"
+                      type={showNewPassword ? 'text' : 'password'}
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-10 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      title={showNewPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
 
@@ -3997,13 +4016,21 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                       <Check className="h-4 w-4 text-slate-400" />
                     </span>
                     <input
-                      type="password"
+                      type={showConfirmNewPassword ? 'text' : 'password'}
                       required
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-10 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      title={showConfirmNewPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    >
+                      {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
               </div>

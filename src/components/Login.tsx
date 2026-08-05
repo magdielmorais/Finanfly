@@ -326,7 +326,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
               ) : (
                 <>
                   <LogIn className="h-4 w-4" />
-                  Entrar no Painel
+                  Entrar
                 </>
               )}
             </button>
