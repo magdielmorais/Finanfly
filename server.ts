@@ -24,7 +24,6 @@ function isPlaceholderValue(v?: string): boolean {
     clean.includes(">") ||
     clean.includes("seu_") ||
     clean.includes("sua_") ||
-    clean.includes("sb_secret") ||
     clean.startsWith("your") ||
     clean.includes("your-anon-key")
   );
