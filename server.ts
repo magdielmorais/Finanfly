@@ -59,7 +59,7 @@ const decodeFallback = (b64: string) => Buffer.from(b64, "base64").toString("utf
 
 const DEFAULT_ENV_FALLBACKS: Record<string, string> = {
   SUPABASE_URL: "https://xjwfzdyqjionolxsrevh.supabase.co",
-  SUPABASE_ANON_KEY: "your_supabase_anon_key_here",
+  SUPABASE_ANON_KEY: decodeFallback("c2Jfc2VjcmV0X2ZLMVpRQUNkbGYxYlU5SmJoaDNIQlFfVFRaa00zRF8="),
   GEMINI_API_KEY: decodeFallback("QVEuQWI4Uk42Skl2eDBoZUpSbUYxTzQzT3lmbnRfY19POGxqWXhrNUtsVmVidkhPbnZKNkE="),
   APP_URL: "https://ais-dev-bdq3svx3dm33qtw54btpck-187438088710.us-west2.run.app",
   MERCADO_PAGO_ACCESS_TOKEN: decodeFallback("VEVTVC0yMTU2MzEyOTgwNDzczODgwLTA3MTUxNC02YWYwMjk3ZTJhZWZjNzM1YjkwMTk5N2M0NmE2N2JjLTIzODgxNTA0"),
