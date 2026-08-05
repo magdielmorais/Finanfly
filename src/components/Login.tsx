@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff, Database, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -17,6 +17,44 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   const [cpf, setCpf] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Supabase Connection Verification State
+  const [supabaseStatus, setSupabaseStatus] = useState<{
+    loading: boolean;
+    active: boolean | null;
+    url: string;
+    message: string;
+  }>({
+    loading: true,
+    active: null,
+    url: '',
+    message: '',
+  });
+
+  const checkSupabaseStatus = async () => {
+    setSupabaseStatus(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch('/api/supabase-status');
+      const data = await res.json();
+      setSupabaseStatus({
+        loading: false,
+        active: !!data.active,
+        url: data.url || '',
+        message: data.message || (data.active ? 'Conectado ao Supabase com sucesso!' : 'Desconectado do Supabase'),
+      });
+    } catch (err) {
+      setSupabaseStatus({
+        loading: false,
+        active: false,
+        url: '',
+        message: 'Erro ao verificar conexão com o Supabase.',
+      });
+    }
+  };
+
+  useEffect(() => {
+    checkSupabaseStatus();
+  }, []);
 
   // Modals state for "Relembrar senha" and "Mudar senha"
   const [showRememberModal, setShowRememberModal] = useState(false);
@@ -349,6 +387,63 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
               </div>
             )}
           </form>
+        </div>
+
+        {/* Supabase Connection Verification Badge / Box */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-xl backdrop-blur-sm transition-all">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+                supabaseStatus.loading
+                  ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                  : supabaseStatus.active
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  : 'bg-red-500/10 border-red-500/20 text-red-400'
+              }`}>
+                <Database className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-white tracking-wide">
+                    Conexão Supabase
+                  </span>
+                  {supabaseStatus.loading ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400 border border-blue-500/20">
+                      <RefreshCw className="h-3 w-3 animate-spin" /> Verificando...
+                    </span>
+                  ) : supabaseStatus.active ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                      <CheckCircle2 className="h-3 w-3" /> Conectado
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-500/20">
+                      <XCircle className="h-3 w-3" /> Desconectado
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400 leading-snug">
+                  {supabaseStatus.loading
+                    ? 'Testando comunicação direta com o banco de dados...'
+                    : supabaseStatus.message}
+                </p>
+                {supabaseStatus.url && (
+                  <p className="mt-1 font-mono text-[10px] text-slate-500 truncate">
+                    URL: {supabaseStatus.url}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={checkSupabaseStatus}
+              disabled={supabaseStatus.loading}
+              className="flex h-8 px-2.5 items-center justify-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 text-[11px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-50 shrink-0"
+              title="Clique para re-testar a conexão com o Supabase"
+            >
+              <RefreshCw className={`h-3 w-3 ${supabaseStatus.loading ? 'animate-spin text-blue-400' : ''}`} />
+              <span>Testar</span>
+            </button>
+          </div>
         </div>
       </div>
 

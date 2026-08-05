@@ -1089,13 +1089,38 @@ async function getAllUsersList(): Promise<any[]> {
 // ---------------- API ENDPOINTS ----------------
 
 // Supabase Connection Status and Schema Info
-app.get("/api/supabase-status", (req, res) => {
+app.get("/api/supabase-status", async (req, res) => {
   const client = getSupabaseClient();
-  const active = !!client;
+  let active = false;
+  let message = "";
   const url = process.env.SUPABASE_URL || cleanSupabaseUrl(readAllDiskEnvValues().SUPABASE_URL) || "";
+
+  if (client) {
+    try {
+      const { error } = await client.from('users').select('count', { count: 'exact', head: true });
+      if (!error || error.code === 'PGRST116' || error.code === '42P01') {
+        active = true;
+        message = "Conexão com o Supabase estabelecida com sucesso!";
+      } else if (error.message?.includes("Invalid API key") || error.hint?.includes("API key")) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+        active = false;
+        message = "Chave de API do Supabase inválida.";
+      } else {
+        active = true;
+        message = "Conectado ao Supabase (serviço ativo).";
+      }
+    } catch (err: any) {
+      active = false;
+      message = err?.message || "Erro ao comunicar com o Supabase.";
+    }
+  } else {
+    message = "Supabase não configurado ou chave inválida.";
+  }
+
   res.json({
     active,
     url,
+    message,
     schema: `
 -- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
 
