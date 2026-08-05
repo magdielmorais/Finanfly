@@ -10,6 +10,109 @@ const _dirname = typeof __dirname !== "undefined"
   ? __dirname
   : path.dirname(fileURLToPath(import.meta.url));
 
+// Helper: verifica se uma string é um valor placeholder inválido
+function isPlaceholderValue(v?: string): boolean {
+  if (!v) return true;
+  const clean = v.trim().replace(/^["']|["']$/g, "").toLowerCase();
+  if (!clean) return true;
+  return (
+    clean.includes("insira") ||
+    clean.includes("your_") ||
+    clean.includes("placeholder") ||
+    clean.includes("aqui") ||
+    clean.includes("<") ||
+    clean.includes(">") ||
+    clean.includes("seu_") ||
+    clean.includes("sua_")
+  );
+}
+
+// Helper: limpa aspas e espaços de valores de ambiente
+function cleanEnvString(v?: string): string {
+  if (!v) return "";
+  let clean = v.trim();
+  if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+    clean = clean.substring(1, clean.length - 1).trim();
+  }
+  return clean;
+}
+
+// Helper: sanitiza a URL do Supabase removendo barras e sufixos /rest/v1
+function cleanSupabaseUrl(rawUrl?: string): string {
+  let url = cleanEnvString(rawUrl);
+  if (!url) return "";
+  if (url.endsWith("/rest/v1/")) {
+    url = url.substring(0, url.length - 9);
+  } else if (url.endsWith("/rest/v1")) {
+    url = url.substring(0, url.length - 8);
+  }
+  if (url.endsWith("/")) {
+    url = url.substring(0, url.length - 1);
+  }
+  return url;
+}
+
+// Analisa pares chave=valor de um conteúdo de arquivo .env
+const parseEnvContent = (content: string) => {
+  const map: Record<string, string> = {};
+  const lines = content.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx > 0) {
+      const key = trimmed.substring(0, eqIdx).trim();
+      let val = trimmed.substring(eqIdx + 1).trim();
+      val = cleanEnvString(val);
+      if (!isPlaceholderValue(val)) {
+        map[key] = val;
+      }
+    }
+  }
+  return map;
+};
+
+// Busca todos os arquivos .env do disco para encontrar chaves válidas
+function readAllDiskEnvValues(): Record<string, string> {
+  const rootDir = process.cwd();
+  const nodejsDir = path.join(rootDir, "nodejs");
+
+  const candidates = [
+    path.join(rootDir, ".env"),
+    path.join(rootDir, "1.env"),
+    path.join(nodejsDir, ".env"),
+    path.join(nodejsDir, "1.env"),
+    path.join(_dirname, ".env"),
+    path.join(_dirname, "1.env"),
+    path.join(_dirname, "nodejs", ".env"),
+    path.join(_dirname, "nodejs", "1.env"),
+    path.join(_dirname, "..", ".env"),
+    path.join(_dirname, "..", "1.env"),
+    path.join(_dirname, "..", "nodejs", ".env"),
+    path.join(_dirname, "..", "nodejs", "1.env"),
+  ];
+
+  const uniqueCandidates = Array.from(new Set(candidates));
+  const found: Record<string, string> = {};
+
+  for (const filePath of uniqueCandidates) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const parsed = parseEnvContent(fs.readFileSync(filePath, "utf-8"));
+        for (const [k, v] of Object.entries(parsed)) {
+          if (v && !isPlaceholderValue(v) && !found[k]) {
+            found[k] = v;
+          }
+        }
+      }
+    } catch (e) {
+      // ignore individual file read errors
+    }
+  }
+
+  return found;
+}
+
 // Sincronização automática de arquivos .env / 1.env / .env.example entre raiz e pasta nodejs
 function synchronizeEnvFiles() {
   const rootDir = process.cwd();
@@ -27,45 +130,8 @@ function synchronizeEnvFiles() {
     path.join(nodejsDir, ".env.example"),
   ];
 
-  // Função auxiliar para analisar pares chave=valor de um conteúdo de arquivo .env
-  const parseEnvContent = (content: string) => {
-    const map: Record<string, string> = {};
-    const lines = content.split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx > 0) {
-        const key = trimmed.substring(0, eqIdx).trim();
-        let val = trimmed.substring(eqIdx + 1).trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-          val = val.substring(1, val.length - 1);
-        }
-        map[key] = val;
-      }
-    }
-    return map;
-  };
+  const existingValues = readAllDiskEnvValues();
 
-  const existingValues: Record<string, string> = {};
-
-  // Lê valores existentes dos arquivos .env no disco
-  for (const filePath of envFiles) {
-    try {
-      if (fs.existsSync(filePath)) {
-        const parsed = parseEnvContent(fs.readFileSync(filePath, "utf-8"));
-        for (const [k, v] of Object.entries(parsed)) {
-          if (v && !v.includes("INSIRA_SUA_URL") && !v.includes("INSIRA_SUA_ANON") && !existingValues[k]) {
-            existingValues[k] = v;
-          }
-        }
-      }
-    } catch (e) {
-      // ignora erros de leitura de arquivo individual
-    }
-  }
-
-  // Chaves solicitadas para puxar das configurações e secrets
   const envKeys = [
     "SUPABASE_URL",
     "SUPABASE_ANON_KEY",
@@ -78,17 +144,22 @@ function synchronizeEnvFiles() {
   const finalEnv: Record<string, string> = {};
 
   for (const key of envKeys) {
-    let val = process.env[key] || process.env[key.toLowerCase()] || "";
-    if (key === "SUPABASE_ANON_KEY" && !val) {
-      val = process.env.SUPABASE_KEY || process.env.supabase_key || "";
+    let val = cleanEnvString(process.env[key] || process.env[key.toLowerCase()]);
+    if (key === "SUPABASE_ANON_KEY" && (isPlaceholderValue(val) || !val)) {
+      val = cleanEnvString(process.env.SUPABASE_KEY || process.env.supabase_key);
     }
 
-    if (val && val.trim() !== "") {
-      finalEnv[key] = val.trim();
-    } else if (existingValues[key] && existingValues[key].trim() !== "") {
-      finalEnv[key] = existingValues[key].trim();
+    if (!isPlaceholderValue(val) && val !== "") {
+      finalEnv[key] = val;
+    } else if (existingValues[key] && !isPlaceholderValue(existingValues[key])) {
+      finalEnv[key] = existingValues[key];
     } else {
       finalEnv[key] = "";
+    }
+
+    // Injeta de volta em process.env para que toda a aplicação enxergue
+    if (finalEnv[key] && !isPlaceholderValue(finalEnv[key]) && isPlaceholderValue(process.env[key])) {
+      process.env[key] = finalEnv[key];
     }
   }
 
@@ -157,60 +228,34 @@ try {
   console.error("[Ambiente] Falha durante a sincronização dos arquivos de ambiente:", syncErr);
 }
 
-// Carrega variáveis de ambiente de múltiplos locais possíveis (incluindo .env, 1.env, pasta nodejs, etc.)
+// Carrega variáveis de ambiente de múltiplos locais possíveis
 const envPaths = [
-  // Relativos ao diretório de trabalho atual (cwd)
   path.join(process.cwd(), ".env"),
   path.join(process.cwd(), "1.env"),
   path.join(process.cwd(), "nodejs", ".env"),
   path.join(process.cwd(), "nodejs", "1.env"),
-  path.join(process.cwd(), "..", ".env"),
-  path.join(process.cwd(), "..", "1.env"),
-  path.join(process.cwd(), "..", "nodejs", ".env"),
-  path.join(process.cwd(), "..", "nodejs", "1.env"),
-
-  // Relativos ao diretório do script atual (_dirname)
   path.join(_dirname, ".env"),
   path.join(_dirname, "1.env"),
   path.join(_dirname, "nodejs", ".env"),
   path.join(_dirname, "nodejs", "1.env"),
-  path.join(_dirname, "..", ".env"),
-  path.join(_dirname, "..", "1.env"),
-  path.join(_dirname, "..", "nodejs", ".env"),
-  path.join(_dirname, "..", "nodejs", "1.env"),
-  path.join(_dirname, "..", "..", ".env"),
-  path.join(_dirname, "..", "..", "1.env"),
-  path.join(_dirname, "..", "..", "nodejs", ".env"),
-  path.join(_dirname, "..", "..", "nodejs", "1.env"),
 ];
 
-// Remove duplicados e caminhos vazios
 const uniqueEnvPaths = Array.from(new Set(envPaths));
-let loadedEnv = false;
-
-console.log("[Ambiente] Iniciando carregamento de variáveis de ambiente...");
-console.log(`[Ambiente] process.cwd() atual: ${process.cwd()}`);
-console.log(`[Ambiente] _dirname atual: ${_dirname}`);
 
 for (const envPath of uniqueEnvPaths) {
   try {
     if (fs.existsSync(envPath)) {
-      console.log(`[Ambiente] Arquivo de ambiente encontrado em: ${envPath}`);
-      const result = dotenv.config({ path: envPath, override: true });
-      if (result.error) {
-        console.error(`[Ambiente] Erro ao carregar dotenv do caminho ${envPath}:`, result.error);
-      } else {
-        console.log(`[Ambiente] Sucesso ao carregar variáveis de: ${envPath}`);
-        loadedEnv = true;
+      const parsed = parseEnvContent(fs.readFileSync(envPath, "utf-8"));
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v && !isPlaceholderValue(v) && isPlaceholderValue(process.env[k])) {
+          process.env[k] = v;
+        }
       }
+      console.log(`[Ambiente] Variáveis de ambiente sincronizadas a partir de: ${envPath}`);
     }
-  } catch (err) {
-    console.error(`[Ambiente] Falha ao verificar existência ou carregar ${envPath}:`, err);
+  } catch (e) {
+    // ignora erros de leitura de arquivo individual
   }
-}
-
-if (!loadedEnv) {
-  console.log("[Ambiente] Nenhum arquivo .env ou 1.env externo foi carregado com sucesso. Verifique se o arquivo existe e o Node tem permissões de leitura.");
 }
 
 const app = express();
@@ -405,44 +450,35 @@ let supabaseClient: any = null;
 
 function getSupabaseClient() {
   if (supabaseClient) return supabaseClient;
-  const url = process.env.SUPABASE_URL || process.env.supabase_url;
-  const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key;
-  
-  if (url && key) {
-    const trimmedUrl = url.trim();
-    const trimmedKey = key.trim();
-    
-    if (
-      trimmedUrl !== "" && 
-      trimmedKey !== "" && 
-      !trimmedUrl.includes("INSIRA") && 
-      !trimmedUrl.includes("YOUR_") && 
-      !trimmedUrl.includes("PLACEHOLDER") &&
-      !trimmedUrl.includes("AQUI") &&
-      (trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://"))
-    ) {
+
+  let rawUrl = process.env.SUPABASE_URL || process.env.supabase_url || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  let rawKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (isPlaceholderValue(rawUrl) || isPlaceholderValue(rawKey)) {
+    const diskValues = readAllDiskEnvValues();
+    if (isPlaceholderValue(rawUrl)) rawUrl = diskValues.SUPABASE_URL;
+    if (isPlaceholderValue(rawKey)) rawKey = diskValues.SUPABASE_ANON_KEY;
+  }
+
+  const cleanUrl = cleanSupabaseUrl(rawUrl);
+  const cleanKey = cleanEnvString(rawKey);
+
+  if (cleanUrl && cleanKey && !isPlaceholderValue(cleanUrl) && !isPlaceholderValue(cleanKey)) {
+    if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
       try {
-        let cleanUrl = trimmedUrl;
-        if (cleanUrl.endsWith("/rest/v1/")) {
-          cleanUrl = cleanUrl.substring(0, cleanUrl.length - 9);
-        } else if (cleanUrl.endsWith("/rest/v1")) {
-          cleanUrl = cleanUrl.substring(0, cleanUrl.length - 8);
-        }
-        if (cleanUrl.endsWith("/")) {
-          cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
-        }
-        supabaseClient = createClient(cleanUrl, trimmedKey);
+        supabaseClient = createClient(cleanUrl, cleanKey);
+        process.env.SUPABASE_URL = cleanUrl;
+        process.env.SUPABASE_ANON_KEY = cleanKey;
         console.log("[Supabase] Conexão inicializada com sucesso para:", cleanUrl);
         return supabaseClient;
       } catch (err) {
-        console.error("Erro ao inicializar cliente do Supabase:", err);
-      }
-    } else {
-      if (trimmedUrl !== "" && trimmedUrl !== "INSIRA_SUA_URL_DO_SUPABASE_AQUI" && !trimmedUrl.includes("INSIRA")) {
-        console.warn("[Supabase] URL ou Key inválida ou contendo placeholder ignorado:", trimmedUrl);
+        console.error("[Supabase] Erro ao instanciar createClient:", err);
       }
     }
+  } else {
+    console.warn("[Supabase] URL ou chave do Supabase não configuradas ou são inválidas.");
   }
+
   return null;
 }
 
@@ -1095,10 +1131,12 @@ async function getAllUsersList(): Promise<any[]> {
 
 // Supabase Connection Status and Schema Info
 app.get("/api/supabase-status", (req, res) => {
-  const active = !!getSupabaseClient();
+  const client = getSupabaseClient();
+  const active = !!client;
+  const url = process.env.SUPABASE_URL || cleanSupabaseUrl(readAllDiskEnvValues().SUPABASE_URL) || "";
   res.json({
     active,
-    url: process.env.SUPABASE_URL || process.env.supabase_url || "",
+    url,
     schema: `
 -- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
 
