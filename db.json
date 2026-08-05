@@ -1,0 +1,21 @@
+{
+  "users": {},
+  "userData": {},
+  "planPrices": {
+    "mensal_de": "29,90",
+    "mensal_por": "19,90",
+    "anual_de": "299,00",
+    "anual_por": "149,00"
+  },
+  "freeTrialDays": 60,
+  "notices": {
+    "rule50_30_20": {
+      "title": "Regra 50/30/20",
+      "message": "A regra de ouro das finanças recomenda destinar 50% dos seus rendimentos para necessidades básicas, 30% para desejos pessoais e 20% para prioridades financeiras ou investimentos."
+    },
+    "weeklyCheck": {
+      "title": "Check-in Semanal",
+      "message": "Reserve 10 minutos no início ou fim de cada semana para registrar todas as suas receitas e despesas. Manter seus lançamentos atualizados evita surpresas no final do mês!"
+    }
+  }
+}

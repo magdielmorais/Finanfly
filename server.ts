@@ -316,143 +316,33 @@ interface Database {
 }
 
 function initDb() {
-  if (!fs.existsSync(DB_FILE)) {
-    const defaultDb: Database = {
-      users: {
-        "admin@finanfly.com": {
-          email: "admin@finanfly.com",
-          name: "Administrador Geral",
-          address: "Sede Finanfly, 100",
-          city: "São Paulo",
-          state: "SP",
-          phone: "11999999999",
-          role: "admin",
-          password: "admin",
-          subscription: {
-            plan: "anual",
-            validUntil: "2030-12-31T23:59:59.000Z",
-            selectedAt: new Date().toISOString(),
-            freePlanUsed: true,
-            approved: true,
-          },
-          createdAt: new Date().toISOString(),
-        },
-        "user@finanfly.com": {
-          email: "user@finanfly.com",
-          name: "João da Silva",
-          address: "Rua das Flores, 123",
-          city: "São Paulo",
-          state: "SP",
-          phone: "11988888888",
-          role: "user",
-          password: "user",
-          subscription: {
-            plan: "mensal",
-            validUntil: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days from now
-            selectedAt: new Date().toISOString(),
-            freePlanUsed: false,
-            approved: true,
-          },
-          createdAt: new Date().toISOString(),
-        },
-        "expired@finanfly.com": {
-          email: "expired@finanfly.com",
-          name: "Maria Souza",
-          address: "Av. Paulista, 456",
-          city: "São Paulo",
-          state: "SP",
-          phone: "11977777777",
-          role: "user",
-          password: "user",
-          subscription: {
-            plan: "gratis",
-            validUntil: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // Expired 2 days ago
-            selectedAt: new Date(Date.now() - 47 * 24 * 60 * 60 * 1000).toISOString(),
-            freePlanUsed: true,
-            approved: true,
-          },
-          createdAt: new Date(Date.now() - 47 * 24 * 60 * 60 * 1000).toISOString(),
-        }
+  const defaultDb: Database = {
+    users: {},
+    userData: {},
+    planPrices: {
+      mensal_de: "29,90",
+      mensal_por: "19,90",
+      anual_de: "299,00",
+      anual_por: "149,00"
+    },
+    freeTrialDays: 60,
+    notices: {
+      rule50_30_20: {
+        title: "Regra 50/30/20",
+        message: "A regra de ouro das finanças recomenda destinar 50% dos seus rendimentos para necessidades básicas, 30% para desejos pessoais e 20% para prioridades financeiras ou investimentos."
       },
-      userData: {
-        "user@finanfly.com": {
-          paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto", "Cartão de Débito"],
-          paymentStatuses: ["Pago", "Pendente", "Atrasado"],
-          incomeCategories: ["Salário", "Freelance", "Investimentos", "Bônus", "Outros"],
-          expenseCategories: ["Moradia", "Alimentação", "Transporte", "Lazer", "Saúde", "Educação", "Outros"],
-          incomes: [
-            { id: "inc-1", date: "2026-06-05", description: "Salário Mensal", value: 5500.00, category: "Salário", status: "Pago", paymentType: "Pix" },
-            { id: "inc-2", date: "2026-06-15", description: "Projeto Freelance", value: 1200.00, category: "Freelance", status: "Pago", paymentType: "Pix" },
-            { id: "inc-3", date: "2026-06-25", description: "Rendimentos FIIs", value: 350.00, category: "Investimentos", status: "Pago", paymentType: "Pix" },
-            { id: "inc-4", date: "2025-06-05", description: "Salário Antigo 2025", value: 5000.00, category: "Salário", status: "Pago", paymentType: "Pix" },
-            { id: "inc-5", date: "2024-06-05", description: "Salário Antigo 2024", value: 4500.00, category: "Salário", status: "Pago", paymentType: "Pix" },
-            { id: "inc-6", date: "2023-06-05", description: "Salário Antigo 2023", value: 4200.00, category: "Salário", status: "Pago", paymentType: "Pix" },
-            { id: "inc-7", date: "2022-06-05", description: "Salário Antigo 2022", value: 3800.00, category: "Salário", status: "Pago", paymentType: "Pix" }
-          ],
-          expenses: [
-            { id: "exp-1", date: "2026-06-02", description: "Aluguel Apartamento", value: 1800.00, category: "Moradia", status: "Pago", paymentType: "Boleto" },
-            { id: "exp-2", date: "2026-06-04", description: "Supermercado Semanal", value: 450.00, category: "Alimentação", status: "Pago", paymentType: "Cartão de Crédito" },
-            { id: "exp-3", date: "2026-06-10", description: "Combustível Carro", value: 200.00, category: "Transporte", status: "Pago", paymentType: "Pix" },
-            { id: "exp-4", date: "2026-06-12", description: "Jantar Especial", value: 250.00, category: "Lazer", status: "Pago", paymentType: "Cartão de Crédito" },
-            { id: "exp-5", date: "2026-06-18", description: "Consulta Médica", value: 150.00, category: "Saúde", status: "Pago", paymentType: "Pix" },
-            { id: "exp-6", date: "2026-06-20", description: "Plano de Internet", value: 120.00, category: "Moradia", status: "Pendente", paymentType: "Boleto" },
-            { id: "exp-7", date: "2026-06-22", description: "Curso Online TypeScript", value: 299.00, category: "Educação", status: "Pago", paymentType: "Cartão de Crédito" },
-            { id: "exp-8", date: "2025-06-10", description: "Despesa Histórica 2025", value: 2500.00, category: "Moradia", status: "Pago", paymentType: "Boleto" },
-            { id: "exp-9", date: "2024-06-10", description: "Despesa Histórica 2024", value: 2100.00, category: "Moradia", status: "Pago", paymentType: "Boleto" },
-            { id: "exp-10", date: "2023-06-10", description: "Despesa Histórica 2023", value: 1900.00, category: "Moradia", status: "Pago", paymentType: "Boleto" },
-            { id: "exp-11", date: "2022-06-10", description: "Despesa Histórica 2022", value: 1800.00, category: "Moradia", status: "Pago", paymentType: "Boleto" }
-          ],
-          actionPlans: [
-            { id: "plan-1", title: "Reserva de Emergência", description: "Acumular 6 meses de despesas essenciais", targetDate: "2026-12-31", value: 15000.00, status: "Em Andamento" },
-            { id: "plan-2", title: "Quitar Cartão de Crédito", description: "Pagar todo o saldo rotativo para evitar juros", targetDate: "2026-07-10", value: 1200.00, status: "Pendente" },
-            { id: "plan-3", title: "Investimento Anual", description: "Atingir R$ 5.000 em investimentos de renda fixa", targetDate: "2026-12-15", value: 5000.00, status: "Em Andamento" }
-          ],
-          shoppingList: [
-            { id: "shop-1", name: "Arroz 5kg", quantity: 2, price: 25.90, category: "Alimentação", checked: false },
-            { id: "shop-2", name: "Feijão Preto 1kg", quantity: 3, price: 8.50, category: "Alimentação", checked: true },
-            { id: "shop-3", name: "Detergente Líquido", quantity: 5, price: 2.20, category: "Outros", checked: false },
-            { id: "shop-4", name: "Lâmpadas LED", quantity: 4, price: 12.00, category: "Moradia", checked: false }
-          ],
-          annualPlanning: [
-            {
-              year: 2026,
-              monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-                month: i,
-                incomeBudget: 6000.00,
-                expenseBudget: 4000.00
-              }))
-            }
-          ]
-        },
-        "expired@finanfly.com": {
-          paymentTypes: ["Pix", "Cartão de Crédito", "Dinheiro", "Boleto"],
-          paymentStatuses: ["Pago", "Pendente", "Atrasado"],
-          incomeCategories: ["Salário", "Outros"],
-          expenseCategories: ["Moradia", "Alimentação", "Outros"],
-          incomes: [],
-          expenses: [],
-          actionPlans: [],
-          shoppingList: [],
-          annualPlanning: []
-        }
+      weeklyCheck: {
+        title: "Check-in Semanal",
+        message: "Reserve 10 minutos no início ou fim de cada semana para registrar todas as suas receitas e despesas. Manter seus lançamentos atualizados evita surpresas no final do mês!"
       }
-    };
-    fs.writeFileSync(DB_FILE, JSON.stringify(defaultDb, null, 2));
-  } else {
-    // If the DB exists, migrate old references from finanfy to finanfly
-    try {
-      const content = fs.readFileSync(DB_FILE, "utf-8");
-      if (content.includes("finanfy.com") || content.includes("Finanfy")) {
-        console.log("Migrating database keys and domains to Finanfly...");
-        const migrated = content
-          .replace(/@finanfy\.com/g, "@finanfly.com")
-          .replace(/finanfy\.com/g, "finanfly.com")
-          .replace(/Finanfy/g, "Finanfly");
-        fs.writeFileSync(DB_FILE, migrated);
-      }
-    } catch (err) {
-      console.error("Failed to run database migration:", err);
     }
+  };
+
+  // Overwrite local db.json with empty users and userData
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(defaultDb, null, 2));
+  } catch (err) {
+    console.error("Failed to initialize database file:", err);
   }
 }
 
