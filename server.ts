@@ -478,18 +478,20 @@ import { createClient } from "@supabase/supabase-js";
 let supabaseClient: any = null;
 
 function getSupabaseClient() {
-  if (supabaseClient) return supabaseClient;
-
   let rawUrl = process.env.SUPABASE_URL || process.env.supabase_url || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   let rawKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   const diskValues = readAllDiskEnvValues();
 
   if (isPlaceholderValue(rawUrl) || !rawUrl) {
-    rawUrl = diskValues.SUPABASE_URL || DEFAULT_ENV_FALLBACKS.SUPABASE_URL;
+    rawUrl = diskValues.SUPABASE_URL && !isPlaceholderValue(diskValues.SUPABASE_URL)
+      ? diskValues.SUPABASE_URL
+      : DEFAULT_ENV_FALLBACKS.SUPABASE_URL;
   }
   if (isPlaceholderValue(rawKey) || !rawKey) {
-    rawKey = diskValues.SUPABASE_ANON_KEY || DEFAULT_ENV_FALLBACKS.SUPABASE_ANON_KEY;
+    rawKey = diskValues.SUPABASE_ANON_KEY && !isPlaceholderValue(diskValues.SUPABASE_ANON_KEY)
+      ? diskValues.SUPABASE_ANON_KEY
+      : DEFAULT_ENV_FALLBACKS.SUPABASE_ANON_KEY;
   }
 
   const cleanUrl = cleanSupabaseUrl(rawUrl);
@@ -498,10 +500,11 @@ function getSupabaseClient() {
   if (cleanUrl && cleanKey && !isPlaceholderValue(cleanUrl) && !isPlaceholderValue(cleanKey)) {
     if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
       try {
-        supabaseClient = createClient(cleanUrl, cleanKey);
+        if (!supabaseClient || supabaseClient.supabaseKey !== cleanKey || supabaseClient.supabaseUrl !== cleanUrl) {
+          supabaseClient = createClient(cleanUrl, cleanKey);
+        }
         process.env.SUPABASE_URL = cleanUrl;
         process.env.SUPABASE_ANON_KEY = cleanKey;
-        console.log("[Supabase] Conexão inicializada com sucesso para:", cleanUrl);
         return supabaseClient;
       } catch (err) {
         console.error("[Supabase] Erro ao instanciar createClient:", err);
