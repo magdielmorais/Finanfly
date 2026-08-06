@@ -3386,12 +3386,21 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800 gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Planejamento Orçamentário Anual</h2>
-          <p className="text-xs text-slate-400">Defina suas metas de ganho e teto máximo de gastos para cada mês do ano.</p>
-        </div>
-        <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white">
+      <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Plano Anual</h2>
+        <p className="text-xs text-slate-400 mt-1">Defina suas metas de ganho e teto máximo de gastos para cada mês do ano.</p>
+      </div>
+
+      {/* Centered Year Filter Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 py-3.5 px-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm text-center">
+        <label className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100">
+          Escolha o ano:
+        </label>
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-2 text-sm font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-inner"
+        >
           {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
             <option key={y} value={y}>{y}</option>
           ))}
@@ -3402,23 +3411,23 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
         <button
           onClick={() => setShowHelp(!showHelp)}
-          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs sm:text-sm text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
         >
           <div className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-blue-500" />
-            <span>Como Configurar o Planejamento Anual</span>
+            <span>Como Configurar o Plano Anual</span>
           </div>
           <span className="text-slate-400">
             {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
           </span>
         </button>
         {showHelp && (
-          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2 animate-fade-in">
-            <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para estruturar seu orçamento anual:</p>
+          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-2 animate-fade-in">
+            <p className="font-medium text-slate-700 dark:text-slate-200">Siga estes passos simples para estruturar seu orçamento anual:</p>
             <ul className="list-decimal pl-4 space-y-1.5">
-              <li>No topo da página, selecione o <strong className="text-slate-800 dark:text-white">ano de exercício</strong> desejado.</li>
-              <li>Na seção de limites mensais, estipule sua <strong className="text-slate-800 dark:text-white">Receita Orçada</strong> e seu limite máximo de <strong className="text-slate-800 dark:text-white">Despesa Orçada</strong> para cada mês do ano.</li>
-              <li>Para detalhar despesas específicas de forma granular por categoria, utilize o botão <strong className="text-slate-800 dark:text-white">Orçar por Item</strong> destacado abaixo. Ele permite que você associe limites de gastos individuais para cada uma das suas categorias cadastradas.</li>
+              <li>No filtro central, selecione o <strong className="text-slate-800 dark:text-white">ano de exercício</strong> desejado.</li>
+              <li>Na seção de limites mensais, estipule sua <strong className="text-slate-800 dark:text-white">Receita estimativa (R$)</strong> e seu limite máximo de <strong className="text-slate-800 dark:text-white">Despesa Orçada</strong> para cada mês do ano.</li>
+              <li>Para detalhar despesas específicas de forma granular por categoria, utilize o botão <strong className="text-slate-800 dark:text-white">Orçar por Categoria</strong> destacado abaixo. Ele permite que você associe limites de gastos individuais para cada uma das suas categorias cadastradas.</li>
               <li>Sempre clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Planejamento</strong> após realizar ajustes gerais ou detalhados.</li>
             </ul>
           </div>
@@ -3426,7 +3435,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Definição de Limites por Mês</h3>
+        <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Definição de Limites por Mês</h3>
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {monthsList.map((m, idx) => {
             const currentBudget = currentPlanning.monthlyBudgets.find(b => b.month === idx) || { incomeBudget: 0, expenseBudget: 0, categoryBudgets: [] };
@@ -3449,57 +3458,57 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
               : 0;
 
             return (
-              <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800/80 dark:bg-slate-900/40 text-xs space-y-3 flex flex-col justify-between">
+              <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800/80 dark:bg-slate-900/40 text-xs sm:text-sm space-y-3 flex flex-col justify-between">
                 <div>
-                  <div className="font-bold text-slate-700 dark:text-slate-300 uppercase border-b border-slate-200/60 pb-1.5 mb-2 dark:border-slate-800/60">{m}</div>
+                  <div className="font-bold text-slate-800 dark:text-slate-200 uppercase border-b border-slate-200/60 pb-1.5 mb-2.5 dark:border-slate-800/60">{m}</div>
                   
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400 font-bold uppercase">Receita (R$)</label>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Receita estimativa (R$)</label>
                       <input
                         type="text"
                         value={`R$ ${monthRealIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         disabled={true}
-                        className="w-full rounded border px-2.5 py-1.5 font-mono text-slate-500 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
+                        className="w-full rounded-lg border px-3 py-2 font-mono text-sm text-slate-600 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
                         title="Preenchido automaticamente com o total de receitas reais do mês"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400 font-bold uppercase">Orçado mensal (R$)</label>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Orçado mensal (R$)</label>
                       <input
                         type="text"
                         value={`R$ ${detailedSum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         disabled={true}
-                        className="w-full rounded border px-2.5 py-1.5 font-mono text-slate-500 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
+                        className="w-full rounded-lg border px-3 py-2 font-mono text-sm text-slate-600 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
                         title="Calculado a partir do orçamento detalhado"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 mt-1">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[10px] text-slate-400 font-medium truncate">
+                <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 mt-2">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
                       {currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0
-                        ? `${currentBudget.categoryBudgets.length} item(ns) orçado(s)`
+                        ? `${currentBudget.categoryBudgets.length} categoria(s)`
                         : 'Nenhum detalhe'}
                     </span>
                     <button
                       onClick={() => openDetailedBudget(idx)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-[10px] font-extrabold text-white shadow shadow-blue-500/20 transition-all shrink-0 animate-pulse hover:animate-none hover:scale-105"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow shadow-blue-500/20 transition-all shrink-0 hover:scale-105"
                     >
-                      <Sliders className="h-2.5 w-2.5" />
-                      Orçar por Item
+                      <Sliders className="h-3.5 w-3.5" />
+                      Orçar por categoria
                     </button>
                   </div>
                   <button
                     onClick={() => copyPreviousMonthBudget(idx)}
-                    className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/50 text-[10px] font-bold text-slate-600 dark:text-slate-300 transition-colors border border-slate-200 dark:border-slate-800/80"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/80"
                     title={idx === 0 ? "Copiar do Dezembro do ano anterior" : "Copiar do mês anterior"}
                   >
-                    <Copy className="h-3 w-3 text-slate-400 shrink-0" />
-                    copiar orçado mês anterior
+                    <Copy className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                    Copiar do mês anterior
                   </button>
                 </div>
               </div>
@@ -3785,50 +3794,52 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
 
   return (
     <div className="space-y-6 animate-fade-in max-w-xl mx-auto">
-      <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <div className="border-b border-slate-100 pb-4 dark:border-slate-800 text-center space-y-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Dados Cadastrais e Pessoais</h2>
-          <p className="text-xs text-slate-400">Gerencie suas informações de contato e faturamento para relatórios personalizados.</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">Dados Cadastrais e Pessoais</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gerencie suas informações de contato e faturamento para relatórios personalizados.</p>
         </div>
         {onLogout && (
-          <button
-            type="button"
-            onClick={onLogout}
-            className="flex items-center gap-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-900/50 px-3.5 py-2 text-xs font-bold transition-colors border border-red-200/60 dark:border-red-900/50 shadow-sm"
-          >
-            <LogOut className="h-4 w-4" />
-            Sair da Conta
-          </button>
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              onClick={onLogout}
+              className="flex items-center justify-center gap-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-900/50 px-5 py-2.5 text-sm font-bold transition-colors border border-red-200/60 dark:border-red-900/50 shadow-sm"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair da Conta
+            </button>
+          </div>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4 text-xs">
+      <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-5 text-sm">
         {success && (
-          <div className="rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 font-semibold text-center">
+          <div className="rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 p-3.5 font-semibold text-center text-sm">
             ✓ Informações atualizadas com sucesso no banco de dados!
           </div>
         )}
 
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400">E-mail de Cadastro (Id da Conta)</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">E-mail de Cadastro (Id da Conta)</label>
           <div className="relative mt-1">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
               <Mail className="h-4 w-4 text-slate-400" />
             </span>
             <input
               type="email"
               disabled
               value={userProfile.email}
-              className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2 pl-10 pr-3 text-slate-500 font-mono focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+              className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 pl-10 pr-3.5 text-sm text-slate-600 font-mono focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
             />
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">E-mail utilizado no login. Não pode ser alterado por segurança.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">E-mail utilizado no login. Não pode ser alterado por segurança.</p>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400">Nome Completo</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Nome Completo</label>
           <div className="relative mt-1">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
               <User className="h-4 w-4 text-slate-400" />
             </span>
             <input
@@ -3836,15 +3847,15 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400">Telefone / WhatsApp</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Telefone / WhatsApp</label>
           <div className="relative mt-1">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
               <Phone className="h-4 w-4 text-slate-400" />
             </span>
             <input
@@ -3852,15 +3863,15 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
               placeholder="Ex: (11) 98888-8888"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400">CPF</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">CPF</label>
           <div className="relative mt-1">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
               <Lock className="h-4 w-4 text-slate-400" />
             </span>
             <input
@@ -3868,15 +3879,15 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
               placeholder="Ex: 123.456.789-00"
               value={cpf}
               onChange={(e) => setCpf(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400">Endereço Completo</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Endereço Completo</label>
           <div className="relative mt-1">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
               <MapPin className="h-4 w-4 text-slate-400" />
             </span>
             <input
@@ -3884,41 +3895,43 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
               placeholder="Ex: Rua das Palmeiras, 100"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Cidade</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Cidade</label>
             <input
               type="text"
               placeholder="Ex: São Paulo"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 py-2 px-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Estado</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Estado</label>
             <input
               type="text"
               placeholder="Ex: SP"
               value={state}
               onChange={(e) => setState(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 py-2 px-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
             />
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Salvando...' : 'Atualizar Meus Dados'}
-        </button>
+        <div className="flex justify-center pt-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-6 py-2.5 sm:py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm sm:text-base font-extrabold text-white shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+          >
+            {loading ? 'Salvando...' : 'Atualizar Meus Dados'}
+          </button>
+        </div>
       </form>
 
       {/* Mudar Senha Accordion Card */}
@@ -3928,17 +3941,17 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
           className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
         >
           <div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
-              <Lock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Alterar Senha de Acesso
             </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">Para sua segurança, escolha uma senha forte e não a compartilhe com terceiros.</p>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">Para sua segurança, escolha uma senha forte e não a compartilhe com terceiros.</p>
           </div>
           <div>
             {isPasswordAccordionOpen ? (
-              <ChevronUp className="h-4 w-4 text-slate-400" />
+              <ChevronUp className="h-5 w-5 text-slate-400" />
             ) : (
-              <ChevronDown className="h-4 w-4 text-slate-400" />
+              <ChevronDown className="h-5 w-5 text-slate-400" />
             )}
           </div>
         </div>
@@ -3946,22 +3959,22 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
         {isPasswordAccordionOpen && (
           <div className="p-5 border-t border-slate-100 dark:border-slate-800/60 space-y-4 animate-slide-down">
             {passwordSuccess && (
-              <div className="rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 font-semibold text-center text-xs animate-fade-in">
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 font-semibold text-center text-sm animate-fade-in">
                 ✓ {passwordSuccess}
               </div>
             )}
 
             {passwordError && (
-              <div className="rounded-lg bg-rose-50 border border-rose-100 text-rose-800 p-3 font-semibold text-center text-xs animate-fade-in">
+              <div className="rounded-lg bg-rose-50 border border-rose-100 text-rose-800 p-3 font-semibold text-center text-sm animate-fade-in">
                 ✗ {passwordError}
               </div>
             )}
 
-            <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs">
+            <form onSubmit={handlePasswordSubmit} className="space-y-4 text-sm">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Senha Atual</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Senha Atual</label>
                 <div className="relative mt-1">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
                     <KeyRound className="h-4 w-4 text-slate-400" />
                   </span>
                   <input
@@ -3970,12 +3983,12 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                     value={oldPassword}
                     onChange={(e) => setOldPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-10 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-10 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowOldPassword(!showOldPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
                     title={showOldPassword ? 'Ocultar senha' : 'Exibir senha'}
                   >
                     {showOldPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -3985,9 +3998,9 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nova Senha</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Nova Senha</label>
                   <div className="relative mt-1">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
                       <Lock className="h-4 w-4 text-slate-400" />
                     </span>
                     <input
@@ -3996,12 +4009,12 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-10 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-10 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
                       title={showNewPassword ? 'Ocultar senha' : 'Exibir senha'}
                     >
                       {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -4010,9 +4023,9 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Confirmar Nova Senha</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">Confirmar Nova Senha</label>
                   <div className="relative mt-1">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5">
                       <Check className="h-4 w-4 text-slate-400" />
                     </span>
                     <input
@@ -4021,12 +4034,12 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-10 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-10 text-sm font-medium text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
                       title={showConfirmNewPassword ? 'Ocultar senha' : 'Exibir senha'}
                     >
                       {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -4038,7 +4051,7 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
               <button
                 type="submit"
                 disabled={passwordLoading}
-                className="w-full rounded-lg bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="w-full rounded-xl bg-blue-600 py-3 font-bold text-sm sm:text-base text-white hover:bg-blue-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow"
               >
                 {passwordLoading ? 'Alterando...' : 'Confirmar Nova Senha'}
               </button>
@@ -4054,29 +4067,29 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
           className="p-5 flex items-center justify-between cursor-pointer hover:bg-red-50/20 dark:hover:bg-red-950/10 transition-colors"
         >
           <div>
-            <h3 className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
-              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <h3 className="text-base font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
               Excluir Conta
             </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">Remover completamente seu acesso e limpar seus dados.</p>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">Remover completamente seu acesso e limpar seus dados.</p>
           </div>
           <div>
             {isDeleteAccordionOpen ? (
-              <ChevronUp className="h-4 w-4 text-slate-400" />
+              <ChevronUp className="h-5 w-5 text-slate-400" />
             ) : (
-              <ChevronDown className="h-4 w-4 text-slate-400" />
+              <ChevronDown className="h-5 w-5 text-slate-400" />
             )}
           </div>
         </div>
 
         {isDeleteAccordionOpen && (
           <div className="p-5 border-t border-red-100 dark:border-red-950/20 space-y-4 animate-slide-down text-center">
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-lg mx-auto">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-lg mx-auto">
               Ao excluir sua conta, todos os seus dados pessoais, receitas, despesas, planejamentos, metas e configurações serão apagados permanentemente e **não será possível recuperá-los** de forma alguma.
             </p>
 
             {deleteError && (
-              <div className="rounded-lg bg-rose-50 border border-rose-100 text-rose-800 p-3 font-semibold text-center text-xs max-w-md mx-auto">
+              <div className="rounded-lg bg-rose-50 border border-rose-100 text-rose-800 p-3 font-semibold text-center text-sm max-w-md mx-auto">
                 ✗ {deleteError}
               </div>
             )}
@@ -4084,7 +4097,7 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
             <button
               type="button"
               onClick={() => setShowDeleteConfirmModal(true)}
-              className="px-6 py-2.5 rounded-lg bg-red-600 text-xs font-bold text-white hover:bg-red-500 transition-colors inline-flex items-center gap-1.5 shadow-md shadow-red-500/10"
+              className="px-6 py-3 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-500 transition-colors inline-flex items-center gap-2 shadow-md shadow-red-500/10"
             >
               <Trash2 className="h-4 w-4" />
               Excluir Minha Conta

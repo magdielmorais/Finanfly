@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -10,6 +10,44 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Supabase Connection Verification State
+  const [supabaseStatus, setSupabaseStatus] = useState<{
+    loading: boolean;
+    active: boolean | null;
+    url: string;
+    message: string;
+  }>({
+    loading: true,
+    active: null,
+    url: '',
+    message: '',
+  });
+
+  const checkSupabaseStatus = async () => {
+    setSupabaseStatus(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch('/api/supabase-status');
+      const data = await res.json();
+      setSupabaseStatus({
+        loading: false,
+        active: !!data.active,
+        url: data.url || '',
+        message: data.message || (data.active ? 'Conectado ao Supabase com sucesso!' : 'Desconectado do Supabase'),
+      });
+    } catch (err) {
+      setSupabaseStatus({
+        loading: false,
+        active: false,
+        url: '',
+        message: 'Erro ao verificar conexão com o Supabase.',
+      });
+    }
+  };
+
+  useEffect(() => {
+    checkSupabaseStatus();
+  }, []);
 
   // Active Tab state
   const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios'>('gestao');
@@ -489,6 +527,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       setPricesSuccess('Valores salvos e sincronizados com a página de assinaturas com sucesso!');
       if (data.prices) {
         setPricesDePor(data.prices);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('planPricesUpdated', { detail: data.prices }));
+        }
       }
     } catch (err: any) {
       setPricesError(err.message || 'Erro ao salvar alterações.');
@@ -1779,6 +1820,63 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
         </div>
       )}
+
+      {/* Supabase Connection Verification Card */}
+      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5 min-w-0">
+            <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
+              supabaseStatus.loading
+                ? 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400'
+                : supabaseStatus.active
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
+            }`}>
+              <Database className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-slate-800 dark:text-white tracking-wide">
+                  Status da Conexão com Supabase
+                </span>
+                {supabaseStatus.loading ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                    <RefreshCw className="h-3 w-3 animate-spin" /> Verificando...
+                  </span>
+                ) : supabaseStatus.active ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <CheckCircle2 className="h-3 w-3" /> Conectado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400 border border-red-500/20">
+                    <XCircle className="h-3 w-3" /> Desconectado
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-snug">
+                {supabaseStatus.loading
+                  ? 'Testando comunicação direta com o banco de dados...'
+                  : supabaseStatus.message}
+              </p>
+              {supabaseStatus.url && (
+                <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  URL: {supabaseStatus.url}
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={checkSupabaseStatus}
+            disabled={supabaseStatus.loading}
+            className="flex h-9 px-3.5 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 shrink-0 self-end sm:self-auto"
+            title="Clique para re-testar a conexão com o Supabase"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${supabaseStatus.loading ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
+            <span>Testar Conexão</span>
+          </button>
+        </div>
+      </div>
 
       {/* Custom Confirmation Popup for User Deletion */}
       {userToDelete && (

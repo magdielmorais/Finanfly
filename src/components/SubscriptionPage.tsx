@@ -19,14 +19,34 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
   });
 
   useEffect(() => {
-    fetch('/api/plan-prices')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.mensal_por) {
-          setPrices(data);
-        }
-      })
-      .catch(err => console.error('Erro ao buscar valores dos planos:', err));
+    const fetchLatestPrices = () => {
+      fetch('/api/plan-prices')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.mensal_por) {
+            setPrices(data);
+          }
+        })
+        .catch(err => console.error('Erro ao buscar valores dos planos:', err));
+    };
+
+    fetchLatestPrices();
+
+    const handlePricesUpdated = (e: any) => {
+      if (e?.detail && e.detail.mensal_por) {
+        setPrices(e.detail);
+      } else {
+        fetchLatestPrices();
+      }
+    };
+
+    window.addEventListener('planPricesUpdated', handlePricesUpdated);
+    window.addEventListener('focus', fetchLatestPrices);
+
+    return () => {
+      window.removeEventListener('planPricesUpdated', handlePricesUpdated);
+      window.removeEventListener('focus', fetchLatestPrices);
+    };
   }, []);
 
   const isFreePlanUsed = user.subscription?.freePlanUsed || false;

@@ -44,7 +44,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
             Sua saúde financeira, <br />
             <span className="text-blue-400">sob controle absoluto.</span>
           </h1>
-          <p className="text-slate-300 text-sm max-w-md">
+          <p className="text-slate-200 text-base max-w-md">
             Acompanhe suas receitas, despesas, planeje seu ano e faça listas de compras. Tudo em um único lugar, adaptado para qualquer tela.
           </p>
           <div className="pt-2 flex flex-wrap gap-3">
@@ -81,7 +81,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
             <TrendingUp className="h-5 w-5" />
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Fluxo de Caixa Simplificado</h3>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Cadastre receitas e despesas de forma imediata. Controle categorias ("Centro de Despesa"), formas de pagamento e status de recebimento.
           </p>
         </div>
@@ -92,7 +92,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
             <BarChart3 className="h-5 w-5" />
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Resumos Inteligentes</h3>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo.
           </p>
         </div>
@@ -103,7 +103,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
             <BookOpen className="h-5 w-5" />
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Planejamento e Metas</h3>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo as metas.
           </p>
         </div>
@@ -127,7 +127,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
                 <span className="font-bold tracking-wide">COMO COMEÇAR</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-400 font-medium uppercase">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase">
                   {isComoComecarOpen ? 'Clique para fechar' : 'Clique para abrir'}
                 </span>
                 {isComoComecarOpen ? (
@@ -138,21 +138,21 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
               </div>
             </button>
             {isComoComecarOpen && (
-              <div className="px-4 pb-4 text-xs text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800/50 pt-3 animate-fade-in">
-                Para começar você deve realizar o cadastro de <strong>Tipo de pagamento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro dos tipos de Receitas e Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Planejamento anual</strong> clicando em <strong>Orçar por item</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
+              <div className="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/50 pt-3 animate-fade-in">
+                Para começar você deve realizar o cadastro de <strong>Tipo de pagamento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro tipos de Receitas</strong> e <strong>Cadastro categoria Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Plano anual</strong> clicando em <strong>Orçar por categoria</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
               </div>
             )}
           </div>
 
           <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">{notices.rule50_30_20.title}</h4>
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-blue-400 uppercase tracking-wider">{notices.rule50_30_20.title}</h4>
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
               {notices.rule50_30_20.message}
             </p>
           </div>
           <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">{notices.weeklyCheck.title}</h4>
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-blue-400 uppercase tracking-wider">{notices.weeklyCheck.title}</h4>
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
               {notices.weeklyCheck.message}
             </p>
           </div>

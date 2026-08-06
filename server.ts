@@ -319,29 +319,45 @@ function initDb() {
     users: {},
     userData: {},
     planPrices: {
-      mensal_de: "29,90",
-      mensal_por: "19,90",
-      anual_de: "299,00",
-      anual_por: "149,00"
+      mensal_de: "9,90",
+      mensal_por: "2,99",
+      anual_de: "118,80",
+      anual_por: "29,99"
     },
     freeTrialDays: 60,
     notices: {
       rule50_30_20: {
-        title: "Regra 50/30/20",
-        message: "A regra de ouro das finanças recomenda destinar 50% dos seus rendimentos para necessidades básicas, 30% para desejos pessoais e 20% para prioridades financeiras ou investimentos."
+        title: "Regra 50-30-20",
+        message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
       },
       weeklyCheck: {
-        title: "Check-in Semanal",
-        message: "Reserve 10 minutos no início ou fim de cada semana para registrar todas as suas receitas e despesas. Manter seus lançamentos atualizados evita surpresas no final do mês!"
+        title: "Acompanhamento Semanal",
+        message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês."
       }
     }
   };
 
-  // Overwrite local db.json with empty users and userData
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(defaultDb, null, 2));
-  } catch (err) {
-    console.error("Failed to initialize database file:", err);
+  if (!fs.existsSync(DB_FILE)) {
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(defaultDb, null, 2));
+    } catch (err) {
+      console.error("Failed to initialize database file:", err);
+    }
+  } else {
+    try {
+      const data = fs.readFileSync(DB_FILE, "utf-8");
+      const currentDb = JSON.parse(data);
+      let updated = false;
+      if (!currentDb.planPrices) {
+        currentDb.planPrices = defaultDb.planPrices;
+        updated = true;
+      }
+      if (updated) {
+        fs.writeFileSync(DB_FILE, JSON.stringify(currentDb, null, 2));
+      }
+    } catch (err) {
+      console.error("Error verifying db.json:", err);
+    }
   }
 }
 
@@ -358,8 +374,11 @@ function getDb(): Database {
 }
 
 function saveDb(db: Database) {
-  // Persistência em arquivo local (db.json) desativada.
-  // Todos os dados de login e tabelas de usuários são salvos exclusivamente no Supabase.
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  } catch (err) {
+    console.error("Error saving database file:", err);
+  }
 }
 
 import { createClient } from "@supabase/supabase-js";
@@ -1719,6 +1738,18 @@ app.post("/api/payment/create-preference", async (req, res) => {
     return res.status(400).json({ error: "Plano inválido para checkout." });
   }
 
+  // Retrieve current official price configured by admin
+  const db = getDb();
+  const currentPrices = db.planPrices || {
+    mensal_de: "9,90",
+    mensal_por: "2,99",
+    anual_de: "118,80",
+    anual_por: "29,99"
+  };
+  const configuredPriceStr = planName === "mensal" ? currentPrices.mensal_por : currentPrices.anual_por;
+  const configuredPrice = parseFloat(configuredPriceStr.replace(",", "."));
+  const unitPrice = (!isNaN(configuredPrice) && configuredPrice > 0) ? configuredPrice : (Number(price) || (planName === "mensal" ? 2.99 : 29.99));
+
   const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
   
   // Detect real appUrl from request headers to prevent redirect issues if APP_URL env variable is not set or misconfigured
@@ -1758,7 +1789,7 @@ app.post("/api/payment/create-preference", async (req, res) => {
               id: planName,
               title: `Finan Fly - Assinatura ${planName === "mensal" ? "Mensal" : "Anual"}`,
               quantity: 1,
-              unit_price: Number(price),
+              unit_price: unitPrice,
               currency_id: "BRL",
               category_id: "services"
             }

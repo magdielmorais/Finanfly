@@ -193,18 +193,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   return (
     <div className="space-y-6 animate-fade-in">
       {/* KPI Year Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs gap-3">
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">
+      <div className="flex flex-wrap items-center justify-between bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs sm:text-sm gap-3">
+        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-bold uppercase text-xs">
           <Filter className="h-4 w-4 text-slate-400 shrink-0" />
           Filtrar Painel de Controle (Receitas/Despesas/Saldo)
         </div>
         
         <div className="flex items-center gap-2">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">Ano dos Cards:</span>
+          <span className="text-slate-600 dark:text-slate-300 font-semibold text-xs sm:text-sm">Ano dos Cards:</span>
           <select
             value={selectedKpiYear}
             onChange={(e) => setSelectedKpiYear(e.target.value)}
-            className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
+            className="rounded-lg border border-slate-200/50 bg-white px-3 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white text-xs sm:text-sm"
           >
             <option value="all">Todos os Anos</option>
             {availableYears.map(y => (
@@ -219,7 +219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         {/* Income Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total de Receitas</span>
+            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Total de Receitas</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
               <ArrowUpRight className="h-4 w-4" />
             </div>
@@ -228,7 +228,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
               R$ {totals.incomes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {selectedKpiYear === 'all' ? 'Todo o histórico cadastrado' : `Ano de ${selectedKpiYear}`}
             </p>
           </div>
@@ -237,7 +237,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         {/* Expenses Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total de Despesas</span>
+            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Total de Despesas</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
               <ArrowDownRight className="h-4 w-4" />
             </div>
@@ -246,7 +246,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
               R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {selectedKpiYear === 'all' ? 'Todo o histórico cadastrado' : `Ano de ${selectedKpiYear}`}
             </p>
           </div>
@@ -255,7 +255,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         {/* Saldo Receitas x Despesas Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Saldo Receitas x Despesas</span>
+            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Saldo Receitas x Despesas</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
               <Wallet className="h-4 w-4" />
             </div>
@@ -264,7 +264,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             <h3 className={`text-2xl font-bold font-mono ${totals.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
               R$ {totals.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Total de Receitas (-) Total de Despesas
             </p>
           </div>
@@ -276,7 +276,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t-2 border-slate-200 dark:border-slate-800" />
         </div>
-        <div className="relative bg-slate-50 px-4 py-1 rounded-full border border-slate-200 dark:border-slate-800 dark:bg-slate-950 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div className="relative bg-slate-50 px-4 py-1 rounded-full border border-slate-200 dark:border-slate-800 dark:bg-slate-950 text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
           Orçamento vs Execução Financeira
         </div>
       </div>
@@ -286,7 +286,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         {/* Total Orçado Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Orçado</span>
+            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Total Orçado</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
               <Calendar className="h-4 w-4" />
             </div>
@@ -295,8 +295,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             <h3 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">
               R$ {totalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
-            <p className="mt-1 text-[10px] text-slate-400">
-              Soma do planejamento anual configurado
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Soma do plano anual configurado
             </p>
           </div>
         </div>
@@ -304,7 +304,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         {/* Total Realizado Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Realizado</span>
+            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Total Realizado</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
               <ArrowDownRight className="h-4 w-4" />
             </div>
@@ -313,7 +313,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
               R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Igual ao total de despesas realizadas
             </p>
           </div>
@@ -322,7 +322,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         {/* Saldo Consolidado Card */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Saldo Consolidado</span>
+            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Saldo Consolidado</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
               <Wallet className="h-4 w-4" />
             </div>
@@ -336,7 +336,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 </h3>
               );
             })()}
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Total Orçado (-) Total Realizado
             </p>
           </div>
@@ -510,10 +510,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               <span className="text-sm">🎯</span>
             </button>
             <button
-              onClick={() => onNavigate('Planejamento anual')}
+              onClick={() => onNavigate('Plano anual')}
               className="flex w-full items-center justify-between rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3.5 py-2.5 text-xs font-bold transition-all dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              <span>Configurar Planejamento Anual</span>
+              <span>Configurar Plano Anual</span>
               <span className="text-sm">📅</span>
             </button>
           </div>
