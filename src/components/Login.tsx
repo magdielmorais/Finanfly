@@ -5,9 +5,10 @@ import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCi
 interface LoginProps {
   onLoginSuccess: (user: UserProfile) => void;
   onRedirectToSubscription: (user: UserProfile) => void;
+  inactivityNotice?: string;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscription }) => {
+export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscription, inactivityNotice }) => {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -181,6 +182,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
               Criar Conta Nova
             </button>
           </div>
+
+          {inactivityNotice && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-lg p-3 text-xs bg-amber-950/50 border border-amber-800 text-amber-200">
+              <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+              <div>{inactivityNotice}</div>
+            </div>
+          )}
 
           {error && (
             <div className={`mb-4 flex items-start gap-2.5 rounded-lg p-3 text-xs border ${

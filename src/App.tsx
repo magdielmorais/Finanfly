@@ -52,6 +52,7 @@ export default function App() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentPage, setCurrentPage] = useState<string>('Início');
   const [subscriptionWarning, setSubscriptionWarning] = useState<string>('');
+  const [inactivityNotice, setInactivityNotice] = useState<string>('');
 
   // Sidebar toggle for responsive mobile views
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -216,10 +217,56 @@ export default function App() {
     localStorage.setItem('finanfly_user', JSON.stringify(updated));
   };
 
+  // Auto-logout mechanism after 5 minutes (300,000 ms) of inactivity
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    let timer: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setCurrentUser(null);
+        setUserData(null);
+        localStorage.removeItem('finanfly_user');
+        localStorage.removeItem('finanfy_user');
+        setCurrentPage('Início');
+        setSubscriptionWarning('');
+        setInactivityNotice('Você foi desconectado automaticamente por inatividade (5 minutos sem interação).');
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    let lastReset = Date.now();
+    const handleActivity = () => {
+      const now = Date.now();
+      // Reset timer if at least 1 second passed since last activity event
+      if (now - lastReset > 1000) {
+        lastReset = now;
+        resetTimer();
+      }
+    };
+
+    resetTimer();
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    return () => {
+      clearTimeout(timer);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
+    };
+  }, [currentUser]);
+
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     localStorage.setItem('finanfly_user', JSON.stringify(user));
     setSubscriptionWarning('');
+    setInactivityNotice('');
 
     if (user.role === 'admin') {
       setCurrentPage('Administrador');
@@ -232,6 +279,7 @@ export default function App() {
     setCurrentUser(user);
     localStorage.setItem('finanfly_user', JSON.stringify(user));
     setSubscriptionWarning('Sua assinatura não está ativa ou expirou! Por favor, ative um plano.');
+    setInactivityNotice('');
     setCurrentPage('Assinatura');
   };
 
@@ -242,6 +290,7 @@ export default function App() {
     localStorage.removeItem('finanfy_user');
     setCurrentPage('Início');
     setSubscriptionWarning('');
+    setInactivityNotice('');
   };
 
   // Subscription gate check for normal users
@@ -522,6 +571,7 @@ export default function App() {
         <Login
           onLoginSuccess={handleLoginSuccess}
           onRedirectToSubscription={handleRedirectToSubscription}
+          inactivityNotice={inactivityNotice}
         />
       </>
     );
