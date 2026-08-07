@@ -170,56 +170,12 @@ export default function App() {
     }
   }, [isDark]);
 
-  // Load user session from localStorage and verify persistent token/session with backend
+  // Remove automatic persistent token restore so user must always log in manually on page reload
   useEffect(() => {
-    const savedToken = localStorage.getItem('finanfly_token') || '';
-    const saved = localStorage.getItem('finanfly_user') || localStorage.getItem('finanfy_user');
-    
-    let parsedUser: any = null;
-    if (saved) {
-      try {
-        parsedUser = JSON.parse(saved);
-        if (parsedUser.email && parsedUser.email.endsWith('@finanfy.com')) {
-          parsedUser.email = parsedUser.email.replace('@finanfy.com', '@finanfly.com');
-        }
-        setCurrentUser(parsedUser);
-      } catch (e) {
-        localStorage.removeItem('finanfy_user');
-        localStorage.removeItem('finanfly_user');
-        localStorage.removeItem('finanfly_token');
-      }
-    }
-
-    if (savedToken || parsedUser?.email) {
-      // Verify session token with backend
-      fetch('/api/auth/verify-session', {
-        headers: {
-          'x-auth-token': savedToken,
-          'x-user-email': parsedUser?.email || ''
-        }
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.valid && data.user) {
-            setCurrentUser(data.user);
-            localStorage.setItem('finanfly_user', JSON.stringify(data.user));
-            if (data.token) {
-              localStorage.setItem('finanfly_token', data.token);
-            }
-            localStorage.removeItem('finanfy_user');
-          } else {
-            // Invalid session or expired token
-            console.warn('Sessão expirada ou inválida. Solicitando novo login.');
-            setCurrentUser(null);
-            localStorage.removeItem('finanfly_token');
-            localStorage.removeItem('finanfly_user');
-            localStorage.removeItem('finanfy_user');
-          }
-        })
-        .catch((err) => {
-          console.error('Erro ao verificar token de sessão:', err);
-        });
-    }
+    localStorage.removeItem('finanfly_token');
+    localStorage.removeItem('finanfly_user');
+    localStorage.removeItem('finanfy_user');
+    setCurrentUser(null);
   }, []);
 
   // Sync user data whenever currentUser changes
@@ -760,7 +716,7 @@ export default function App() {
         <div className="p-6 flex items-center justify-between border-b border-slate-800/60">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-md shadow-blue-500/10">F</div>
-            <span className="text-xl font-bold text-white tracking-tight">Finan Fly</span>
+            <span className="text-xl font-bold text-white tracking-tight">FinanFly</span>
           </div>
           {/* Close button for mobile */}
           <button

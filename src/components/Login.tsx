@@ -161,9 +161,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
             <span className="text-2xl font-black text-white">F</span>
           </div>
           <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-white font-sans">
-            Finan Fly
+            FinanFly
           </h2>
-          <p className="mt-1 text-sm font-semibold text-blue-400">
+          <p className="mt-1.5 text-base font-extrabold tracking-wide text-cintilante drop-shadow-sm">
             Suas finanças voando!
           </p>
           <p className="mt-2 text-xs text-white font-medium">

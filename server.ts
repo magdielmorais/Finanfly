@@ -333,7 +333,7 @@ function initDb() {
       },
       weeklyCheck: {
         title: "Acompanhamento Semanal",
-        message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês."
+        message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
       }
     }
   };
@@ -1964,7 +1964,7 @@ app.post("/api/payment/create-preference", async (req, res) => {
           items: [
             {
               id: planName,
-              title: `Finan Fly - Assinatura ${planName === "mensal" ? "Mensal" : "Anual"}`,
+              title: `FinanFly - Assinatura ${planName === "mensal" ? "Mensal" : "Anual"}`,
               quantity: 1,
               unit_price: unitPrice,
               currency_id: "BRL",
@@ -2017,7 +2017,7 @@ app.get("/api/payment/callback", async (req, res) => {
     return res.send(`
       <html>
         <head>
-          <title>Pagamento Finan Fly</title>
+          <title>Pagamento FinanFly</title>
           <style>
             body { font-family: sans-serif; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
             .card { background: #1e293b; padding: 2rem; border-radius: 1rem; text-align: center; max-width: 400px; border: 1px solid #334155; }
@@ -2061,7 +2061,7 @@ app.get("/api/payment/callback", async (req, res) => {
     return res.send(`
       <html>
         <head>
-          <title>Pagamento Aprovado - Finan Fly</title>
+          <title>Pagamento Aprovado - FinanFly</title>
           <style>
             body { font-family: sans-serif; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
             .card { background: #1e293b; padding: 2.5rem; border-radius: 1.5rem; text-align: center; max-width: 450px; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
@@ -2076,9 +2076,9 @@ app.get("/api/payment/callback", async (req, res) => {
           <div class="card">
             <div class="badge">${simulated ? "Simulação Concluída" : "Transação Concluída"}</div>
             <h1>Pagamento Confirmado!</h1>
-            <p>Sua assinatura do plano <strong>${(plan as string).toUpperCase()}</strong> foi ativada com sucesso e sua conta do <strong>Finan Fly</strong> já está liberada!</p>
+            <p>Sua assinatura do plano <strong>${(plan as string).toUpperCase()}</strong> foi ativada com sucesso e sua conta do <strong>FinanFly</strong> já está liberada!</p>
             <p style="font-size:0.8rem; margin-top: 1rem;">Clique abaixo para retornar e explorar o painel.</p>
-            <button onclick="window.location.href='/'">Entrar no Finan Fly</button>
+            <button onclick="window.location.href='/'">Entrar no FinanFly</button>
           </div>
         </body>
       </html>
@@ -2089,7 +2089,7 @@ app.get("/api/payment/callback", async (req, res) => {
   return res.send(`
     <html>
       <head>
-        <title>Pagamento Cancelado - Finan Fly</title>
+        <title>Pagamento Cancelado - FinanFly</title>
         <style>
           body { font-family: sans-serif; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
           .card { background: #1e293b; padding: 2.5rem; border-radius: 1.5rem; text-align: center; max-width: 450px; border: 1px solid #334155; }
@@ -2252,7 +2252,7 @@ app.get("/api/notices", (req, res) => {
     },
     weeklyCheck: {
       title: "Acompanhamento Semanal",
-      message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no Finan Fly. Pequenos ajustes evitam surpresas no fim do mês."
+      message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
     }
   };
   const notices = db.notices || defaultNotices;
