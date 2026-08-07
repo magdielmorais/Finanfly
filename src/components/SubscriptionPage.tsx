@@ -11,23 +11,28 @@ interface SubscriptionPageProps {
 export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpdateUser, message }) => {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
-  const [prices, setPrices] = useState({
-    mensal_de: '9,90',
-    mensal_por: '2,99',
-    anual_de: '118,80',
-    anual_por: '29,99'
-  });
+  const [prices, setPrices] = useState<{
+    mensal_de: string;
+    mensal_por: string;
+    anual_de: string;
+    anual_por: string;
+  } | null>(null);
+  const [loadingPrices, setLoadingPrices] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchLatestPrices = () => {
       fetch('/api/plan-prices')
         .then(res => res.json())
         .then(data => {
-          if (data && data.mensal_por) {
+          if (isMounted && data && data.mensal_por) {
             setPrices(data);
           }
         })
-        .catch(err => console.error('Erro ao buscar valores dos planos:', err));
+        .catch(err => console.error('Erro ao buscar valores dos planos:', err))
+        .finally(() => {
+          if (isMounted) setLoadingPrices(false);
+        });
     };
 
     fetchLatestPrices();
@@ -35,6 +40,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
     const handlePricesUpdated = (e: any) => {
       if (e?.detail && e.detail.mensal_por) {
         setPrices(e.detail);
+        setLoadingPrices(false);
       } else {
         fetchLatestPrices();
       }
@@ -44,6 +50,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
     window.addEventListener('focus', fetchLatestPrices);
 
     return () => {
+      isMounted = false;
       window.removeEventListener('planPricesUpdated', handlePricesUpdated);
       window.removeEventListener('focus', fetchLatestPrices);
     };
@@ -84,9 +91,6 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
       // Paid plans: create Mercado Pago checkout preference and redirect
       setLoadingPlan(plan);
       try {
-        const rawPrice = plan === 'mensal' ? prices.mensal_por : prices.anual_por;
-        const numericPrice = parseFloat(rawPrice.replace(',', '.'));
-
         const res = await fetch('/api/payment/create-preference', {
           method: 'POST',
           headers: {
@@ -94,8 +98,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             'x-user-email': user.email
           },
           body: JSON.stringify({
-            planName: plan,
-            price: numericPrice
+            planName: plan
           }),
         });
 
@@ -253,9 +256,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             <p className="text-xs text-slate-400 mt-1">Cobrança recorrente mensal com desconto especial.</p>
             
             <div className="mt-4">
-              <span className="text-xs text-slate-400 line-through">de R$ {prices.mensal_de}</span>
+              <span className="text-xs text-slate-400 line-through">de R$ {prices?.mensal_de || '...'}</span>
               <div className="flex items-baseline text-slate-900 dark:text-white mt-0.5">
-                <span className="text-3xl font-extrabold tracking-tight text-blue-600 dark:text-blue-400">R$ {prices.mensal_por}</span>
+                <span className="text-3xl font-extrabold tracking-tight text-blue-600 dark:text-blue-400">
+                  {prices ? `R$ ${prices.mensal_por}` : 'Carregando...'}
+                </span>
                 <span className="ml-1 text-xs text-slate-400">/ mês</span>
               </div>
             </div>
@@ -315,9 +320,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             <p className="text-xs text-slate-400 mt-1">Acesso garantido por 1 ano completo com super desconto.</p>
             
             <div className="mt-4">
-              <span className="text-xs text-slate-400 line-through">de R$ {prices.anual_de}</span>
+              <span className="text-xs text-slate-400 line-through">de R$ {prices?.anual_de || '...'}</span>
               <div className="flex items-baseline text-slate-900 dark:text-white mt-0.5">
-                <span className="text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">R$ {prices.anual_por}</span>
+                <span className="text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
+                  {prices ? `R$ ${prices.anual_por}` : 'Carregando...'}
+                </span>
                 <span className="ml-1 text-xs text-slate-400">/ ano</span>
               </div>
             </div>

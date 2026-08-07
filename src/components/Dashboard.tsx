@@ -503,10 +503,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               <span className="text-sm">🛒</span>
             </button>
             <button
-              onClick={() => onNavigate('Metas')}
+              onClick={() => onNavigate('Objetivos')}
               className="flex w-full items-center justify-between rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3.5 py-2.5 text-xs font-bold transition-all dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              <span>Ir para Metas</span>
+              <span>Ir para Objetivos</span>
               <span className="text-sm">🎯</span>
             </button>
             <button

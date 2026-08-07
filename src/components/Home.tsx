@@ -102,9 +102,9 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
             <BookOpen className="h-5 w-5" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Planejamento e Metas</h3>
+          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Planejamento e Objetivos</h3>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo as metas.
+            Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos.
           </p>
         </div>
       </div>

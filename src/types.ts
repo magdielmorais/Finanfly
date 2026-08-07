@@ -97,6 +97,25 @@ export interface Trip {
   expenses: TripExpense[];
 }
 
+export interface Wish {
+  id: string;
+  title: string;
+  description: string;
+  targetDate: string;
+  value: number;
+  status: 'Pendente' | 'Concluído';
+}
+
+export interface Investment {
+  id: string;
+  name: string;
+  type: string;
+  date: string; // YYYY-MM-DD
+  value: number;
+  status: string;
+  notes?: string;
+}
+
 export interface UserData {
   incomes: Income[];
   expenses: Expense[];
@@ -109,5 +128,9 @@ export interface UserData {
   expenseCategories: string[];
   deficitActions?: DeficitAction[];
   trips?: Trip[];
+  wishes?: Wish[];
+  investments?: Investment[];
+  investmentTypes?: string[];
+  investmentStatuses?: string[];
 }
 

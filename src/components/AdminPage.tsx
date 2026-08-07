@@ -58,11 +58,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
   // Values configuration state
   const [pricesDePor, setPricesDePor] = useState({
-    mensal_de: '9,90',
-    mensal_por: '2,99',
-    anual_de: '118,80',
-    anual_por: '29,99'
+    mensal_de: '',
+    mensal_por: '',
+    anual_de: '',
+    anual_por: ''
   });
+  const [fetchingPrices, setFetchingPrices] = useState(true);
   const [pricesLoading, setPricesLoading] = useState(false);
   const [pricesSuccess, setPricesSuccess] = useState('');
   const [pricesError, setPricesError] = useState('');
@@ -90,7 +91,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           setPricesDePor(data);
         }
       })
-      .catch(err => console.error('Erro ao carregar valores no admin:', err));
+      .catch(err => console.error('Erro ao carregar valores no admin:', err))
+      .finally(() => setFetchingPrices(false));
 
     fetch('/api/free-trial-days')
       .then(res => res.json())
@@ -1467,7 +1469,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <input
                         type="text"
                         required
-                        placeholder="9,90"
+                        placeholder="29,90"
                         value={pricesDePor.mensal_de}
                         onChange={(e) => setPricesDePor({ ...pricesDePor, mensal_de: e.target.value })}
                         className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
@@ -1486,7 +1488,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <input
                         type="text"
                         required
-                        placeholder="2,99"
+                        placeholder="19,90"
                         value={pricesDePor.mensal_por}
                         onChange={(e) => setPricesDePor({ ...pricesDePor, mensal_por: e.target.value })}
                         className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
@@ -1515,7 +1517,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <input
                         type="text"
                         required
-                        placeholder="118,80"
+                        placeholder="299,00"
                         value={pricesDePor.anual_de}
                         onChange={(e) => setPricesDePor({ ...pricesDePor, anual_de: e.target.value })}
                         className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"
@@ -1534,7 +1536,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <input
                         type="text"
                         required
-                        placeholder="29,99"
+                        placeholder="149,00"
                         value={pricesDePor.anual_por}
                         onChange={(e) => setPricesDePor({ ...pricesDePor, anual_por: e.target.value })}
                         className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs font-semibold text-slate-800 dark:text-white"

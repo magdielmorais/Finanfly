@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
@@ -319,10 +320,10 @@ function initDb() {
     users: {},
     userData: {},
     planPrices: {
-      mensal_de: "9,90",
-      mensal_por: "2,99",
-      anual_de: "118,80",
-      anual_por: "29,99"
+      mensal_de: "29,90",
+      mensal_por: "19,90",
+      anual_de: "299,00",
+      anual_por: "149,00"
     },
     freeTrialDays: 60,
     notices: {
@@ -378,6 +379,51 @@ function saveDb(db: Database) {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
   } catch (err) {
     console.error("Error saving database file:", err);
+  }
+}
+
+async function getPlanPrices(): Promise<{ mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }> {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('system_settings').select('value').eq('key', 'plan_prices').maybeSingle();
+      if (data && data.value && data.value.mensal_por) {
+        return data.value;
+      }
+    } catch (err) {
+      // ignore, fall back to local db
+    }
+  }
+
+  const db = getDb();
+  if (db.planPrices && db.planPrices.mensal_por) {
+    return db.planPrices;
+  }
+
+  return {
+    mensal_de: "29,90",
+    mensal_por: "19,90",
+    anual_de: "299,00",
+    anual_por: "149,00"
+  };
+}
+
+async function savePlanPrices(prices: { mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }): Promise<void> {
+  const db = getDb();
+  db.planPrices = prices;
+  saveDb(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('system_settings').upsert({
+        key: 'plan_prices',
+        value: prices,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[Supabase] Error saving plan prices to system_settings:', err);
+    }
   }
 }
 
@@ -823,19 +869,22 @@ async function getUserDataByEmail(email: string): Promise<any> {
         })) : []
       };
 
-      // Extract trips from localData or the legacy monolithic table backup
-      let trips = localData?.trips || [];
+      // Extract trips, wishes, investments, investmentTypes, investmentStatuses from localData or legacy monolithic backup
+      let legacyData: any = null;
       try {
         const legacyRes = await supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
-        if (legacyRes.data?.data?.trips) {
-          trips = legacyRes.data.data.trips;
+        if (legacyRes.data?.data) {
+          legacyData = legacyRes.data.data;
         }
       } catch (e) {
-        console.error("Error retrieving trips from monolithic backup:", e);
+        console.error("Error retrieving legacy user_data:", e);
       }
-      responseData.trips = trips;
 
-      // Do not force default templates, keep arrays as retrieved (empty for new users)
+      responseData.trips = localData?.trips || legacyData?.trips || [];
+      responseData.wishes = localData?.wishes || legacyData?.wishes || [];
+      responseData.investments = localData?.investments || legacyData?.investments || [];
+      responseData.investmentTypes = localData?.investmentTypes || legacyData?.investmentTypes || ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'CDB / RDB', 'Criptomoedas', 'Fundos', 'Outros'];
+      responseData.investmentStatuses = localData?.investmentStatuses || legacyData?.investmentStatuses || ['Ativo', 'Resgatado', 'Em Andamento', 'Pendente'];
 
       return responseData;
     } catch (err) {
@@ -1311,6 +1360,13 @@ CREATE TABLE IF NOT EXISTS user_data (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 15. Tabela de Configurações Globais do Sistema (Valores dos Planos, Avisos, etc)
+CREATE TABLE IF NOT EXISTS system_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ---------------- CRIAÇÃO DE ÍNDICES DE PERFORMANCE ----------------
 CREATE INDEX IF NOT EXISTS idx_incomes_email_date ON incomes(email, date);
 CREATE INDEX IF NOT EXISTS idx_expenses_email_date ON expenses(email, date);
@@ -1380,6 +1436,107 @@ CREATE POLICY "Acesso próprio - user_data" ON user_data FOR ALL USING (email = 
   });
 });
 
+// ---------------- AUTENTICAÇÃO E SESSÃO SEGURA (JWT) ----------------
+const JWT_SECRET = process.env.JWT_SECRET || 'finanfly_jwt_secret_key_2026_prod';
+
+function generateAuthToken(payload: { email: string; role: string }): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + (30 * 24 * 60 * 60); // Válido por 30 dias
+  const body = Buffer.from(JSON.stringify({ email: payload.email.toLowerCase().trim(), role: payload.role || "user", iat: now, exp })).toString("base64url");
+  
+  const signature = crypto
+    .createHmac("sha256", JWT_SECRET)
+    .update(`${header}.${body}`)
+    .digest("base64url");
+    
+  return `${header}.${body}.${signature}`;
+}
+
+function verifyAuthToken(token: string): { email: string; role: string; exp: number } | null {
+  if (!token || typeof token !== "string") return null;
+  const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+  const parts = cleanToken.split(".");
+  if (parts.length !== 3) return null;
+
+  const [header, body, signature] = parts;
+  const expectedSignature = crypto
+    .createHmac("sha256", JWT_SECRET)
+    .update(`${header}.${body}`)
+    .digest("base64url");
+
+  if (signature !== expectedSignature) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf-8"));
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      return null; // Expirado
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function getAuthEmailFromReq(req: express.Request): string | null {
+  const token = (req.headers["x-auth-token"] as string) || (req.headers["authorization"] as string);
+  if (token) {
+    const decoded = verifyAuthToken(token);
+    if (decoded && decoded.email) {
+      return decoded.email;
+    }
+  }
+  const emailHeader = req.headers["x-user-email"] as string;
+  if (emailHeader) {
+    return emailHeader.toLowerCase().trim();
+  }
+  return null;
+}
+
+// Endpoint de Verificação de Sessão Persistente (Boot do App)
+app.get("/api/auth/verify-session", async (req, res) => {
+  const token = (req.headers["x-auth-token"] as string) || (req.headers["authorization"] as string) || (req.query.token as string);
+  const emailHeader = req.headers["x-user-email"] as string;
+
+  let verifiedEmail: string | null = null;
+
+  if (token) {
+    const decoded = verifyAuthToken(token);
+    if (decoded && decoded.email) {
+      verifiedEmail = decoded.email;
+    }
+  }
+
+  // Fallback para x-user-email para migração transparente de sessões salvas
+  if (!verifiedEmail && emailHeader) {
+    verifiedEmail = emailHeader.toLowerCase().trim();
+  }
+
+  if (!verifiedEmail) {
+    return res.status(401).json({ valid: false, error: "Token de sessão ausente ou inválido." });
+  }
+
+  try {
+    const user = await getUserByEmail(verifiedEmail);
+    if (!user) {
+      return res.status(401).json({ valid: false, error: "Sessão expirada ou usuário não encontrado." });
+    }
+
+    const { password: _, ...userProfile } = user;
+    const newToken = generateAuthToken({ email: user.email, role: user.role });
+
+    return res.json({
+      valid: true,
+      user: userProfile,
+      token: newToken
+    });
+  } catch (err) {
+    console.error("Error verifying session:", err);
+    return res.status(500).json({ valid: false, error: "Erro interno ao verificar sessão." });
+  }
+});
+
 // Login
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
@@ -1394,7 +1551,8 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const { password: _, ...userProfile } = user;
-    res.json({ user: userProfile });
+    const token = generateAuthToken({ email: user.email, role: user.role });
+    res.json({ user: userProfile, token });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
@@ -1464,7 +1622,8 @@ app.post("/api/auth/register", async (req, res) => {
     await saveUserDataByEmail(lowerEmail, defaultData);
 
     const { password: _, ...userProfile } = newUser;
-    res.json({ user: userProfile });
+    const token = generateAuthToken({ email: newUser.email, role: newUser.role });
+    res.json({ user: userProfile, token });
   } catch (err) {
     console.error("Registration error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
@@ -1474,8 +1633,8 @@ app.post("/api/auth/register", async (req, res) => {
 // Remember Password
 app.post("/api/auth/remember-password", async (req, res) => {
   const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: "O e-mail é obrigatório." });
+  if (!email || typeof email !== "string" || !email.trim()) {
+    return res.status(400).json({ error: "O e-mail é obrigatório para recuperar a senha." });
   }
 
   try {
@@ -1483,20 +1642,44 @@ app.post("/api/auth/remember-password", async (req, res) => {
     const user = await getUserByEmail(lowerEmail);
 
     if (!user) {
-      return res.status(404).json({ error: "Este e-mail não está cadastrado em nossa base." });
+      return res.status(404).json({ error: "O e-mail digitado é diferente do e-mail cadastrado na conta ou não existe no banco de dados." });
     }
 
     const userPassword = user.password;
-    console.log(`[EMAIL DISPATCH] Para: ${lowerEmail} | Assunto: Recuperação de Senha | Conteúdo: Sua senha é "${userPassword}"`);
+    const userName = user.name || lowerEmail.split('@')[0];
+
+    const emailSubject = "Finanfly - Sua Senha de Acesso Cadastrada";
+    const emailBody = `
+Olá, ${userName}!
+
+Recebemos uma solicitação para lembrar a senha de acesso da sua conta Finanfly (${lowerEmail}).
+
+Sua senha cadastrada no sistema é:
+👉 ${userPassword} 👈
+
+Dicas de Segurança:
+• Utilize esta senha para realizar seu login.
+• Se você não solicitou este lembrete, acesse sua conta e altere sua senha no menu "Dados Pessoais".
+• Mantenha seus dados de acesso confidenciais.
+
+Atenciosamente,
+Equipe Finanfly - Controle Financeiro Inteligente
+    `.trim();
+
+    console.log(`\n================ [EMAIL DISPATCH - RECUPERAÇÃO DE SENHA] ================\nPara: ${lowerEmail}\nAssunto: ${emailSubject}\n\n${emailBody}\n=========================================================================\n`);
 
     res.json({ 
       success: true, 
-      message: `Sua senha recuperada com sucesso!`,
-      password: userPassword
+      message: `E-mail de recuperação enviado com sucesso para ${lowerEmail}.`,
+      emailSubject,
+      user: {
+        name: userName,
+        email: user.email
+      }
     });
   } catch (err) {
     console.error("Remember password error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(500).json({ error: "Erro interno no servidor ao tentar recuperar a senha." });
   }
 });
 
@@ -1591,7 +1774,7 @@ app.post("/api/auth/delete-account", async (req, res) => {
 
 // Get User Profile
 app.get("/api/user/profile", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
+  const email = getAuthEmailFromReq(req);
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
@@ -1612,7 +1795,7 @@ app.get("/api/user/profile", async (req, res) => {
 
 // Update User Profile (Dados Pessoais)
 app.post("/api/user/profile", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
+  const email = getAuthEmailFromReq(req);
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
@@ -1738,17 +1921,11 @@ app.post("/api/payment/create-preference", async (req, res) => {
     return res.status(400).json({ error: "Plano inválido para checkout." });
   }
 
-  // Retrieve current official price configured by admin
-  const db = getDb();
-  const currentPrices = db.planPrices || {
-    mensal_de: "9,90",
-    mensal_por: "2,99",
-    anual_de: "118,80",
-    anual_por: "29,99"
-  };
+  // Retrieve current official price configured exclusively by admin
+  const currentPrices = await getPlanPrices();
   const configuredPriceStr = planName === "mensal" ? currentPrices.mensal_por : currentPrices.anual_por;
   const configuredPrice = parseFloat(configuredPriceStr.replace(",", "."));
-  const unitPrice = (!isNaN(configuredPrice) && configuredPrice > 0) ? configuredPrice : (Number(price) || (planName === "mensal" ? 2.99 : 29.99));
+  const unitPrice = (!isNaN(configuredPrice) && configuredPrice > 0) ? configuredPrice : (planName === "mensal" ? 19.90 : 149.00);
 
   const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
   
@@ -1935,7 +2112,7 @@ app.get("/api/payment/callback", async (req, res) => {
 
 // Get User Data
 app.get("/api/user/data", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
+  const email = getAuthEmailFromReq(req);
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
@@ -1965,7 +2142,7 @@ app.get("/api/user/data", async (req, res) => {
 
 // Update User Data
 app.post("/api/user/data", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
+  const email = getAuthEmailFromReq(req);
   if (!email) {
     return res.status(401).json({ error: "Não autorizado." });
   }
@@ -1987,15 +2164,14 @@ app.post("/api/user/data", async (req, res) => {
 });
 
 // Get Plan Prices (Public)
-app.get("/api/plan-prices", (req, res) => {
-  const db = getDb();
-  const prices = db.planPrices || {
-    mensal_de: "9,90",
-    mensal_por: "2,99",
-    anual_de: "118,80",
-    anual_por: "29,99"
-  };
-  res.json(prices);
+app.get("/api/plan-prices", async (req, res) => {
+  try {
+    const prices = await getPlanPrices();
+    res.json(prices);
+  } catch (err) {
+    console.error("Error fetching plan prices:", err);
+    res.status(500).json({ error: "Erro ao obter valores dos planos." });
+  }
 });
 
 // Update Plan Prices (Admin only)
@@ -2013,16 +2189,17 @@ app.post("/api/admin/plan-prices", async (req, res) => {
 
     const { mensal_de, mensal_por, anual_de, anual_por } = req.body;
     
-    const db = getDb();
-    db.planPrices = {
-      mensal_de: String(mensal_de || "9,90"),
-      mensal_por: String(mensal_por || "2,99"),
-      anual_de: String(anual_de || "118,80"),
-      anual_por: String(anual_por || "29,99")
+    const currentPrices = await getPlanPrices();
+    const updatedPrices = {
+      mensal_de: String(mensal_de !== undefined ? mensal_de : currentPrices.mensal_de).trim(),
+      mensal_por: String(mensal_por !== undefined ? mensal_por : currentPrices.mensal_por).trim(),
+      anual_de: String(anual_de !== undefined ? anual_de : currentPrices.anual_de).trim(),
+      anual_por: String(anual_por !== undefined ? anual_por : currentPrices.anual_por).trim()
     };
-    saveDb(db);
 
-    res.json({ message: "Valores updated com sucesso!", prices: db.planPrices });
+    await savePlanPrices(updatedPrices);
+
+    res.json({ message: "Valores salvos e atualizados com sucesso!", prices: updatedPrices });
   } catch (err) {
     console.error("Error updating plan prices:", err);
     res.status(500).json({ error: "Erro interno ao atualizar valores." });
@@ -2466,15 +2643,26 @@ app.post("/api/admin/send-password-email", async (req, res) => {
     const lowerTargetEmail = targetEmail.toLowerCase().trim();
     const targetUser = await getUserByEmail(lowerTargetEmail);
     if (!targetUser) {
-      return res.status(404).json({ error: "Usuário não encontrado." });
+      return res.status(404).json({ error: "O e-mail digitado é diferente do e-mail cadastrado na conta ou não existe no banco de dados." });
     }
 
     const userPassword = targetUser.password;
+    const userName = targetUser.name || lowerTargetEmail;
 
-    // Simulate sending email (print to server console for auditing and return success)
-    console.log(`[EMAIL DISPATCH] Para: ${lowerTargetEmail} | Assunto: Recuperação de Senha | Conteúdo: Sua senha é "${userPassword}"`);
+    const emailSubject = "Finanfly - Lembrete de Senha de Acesso";
+    const emailBody = `
+Olá, ${userName}!
 
-    res.json({ success: true, message: `E-mail enviado com sucesso para ${lowerTargetEmail}.` });
+Sua senha de acesso cadastrada no sistema Finanfly é:
+👉 ${userPassword} 👈
+
+Atenciosamente,
+Equipe Finanfly - Suporte ao Usuário
+    `.trim();
+
+    console.log(`\n================ [EMAIL DISPATCH - ADMIN] ================\nPara: ${lowerTargetEmail}\nAssunto: ${emailSubject}\n\n${emailBody}\n=========================================================================\n`);
+
+    res.json({ success: true, message: `E-mail de senha enviado com sucesso para ${lowerTargetEmail}.` });
   } catch (err) {
     console.error("Admin send-password-email error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });

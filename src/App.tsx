@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, UserData } from './types';
 import { Login } from './components/Login';
 import { Home } from './components/Home';
@@ -11,6 +11,7 @@ import {
   ResumoMensalPage,
   ResumoAnualPage,
   MetasPage,
+  DesejosPage,
   AcaoDeficitPage,
   ListaDeComprasPage,
   PlanejamentoAnualPage,
@@ -19,6 +20,7 @@ import {
 } from './components/Pages';
 import { SuportePage } from './components/SuportePage';
 import { ViagemPage } from './components/ViagemPage';
+import { InvestimentosPage } from './components/InvestimentosPage';
 import { OfflineModal } from './components/OfflineModal';
 
 import {
@@ -44,7 +46,10 @@ import {
   Moon,
   AlertTriangle,
   HelpCircle,
-  Plane
+  Plane,
+  Heart,
+  Database,
+  PiggyBank
 } from 'lucide-react';
 
 export default function App() {
@@ -58,10 +63,54 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Settings menu submenus expanded status
   const [settingsExpanded, setSettingsExpanded] = useState(false);
+  // Dados menu submenus expanded status
+  const [dadosExpanded, setDadosExpanded] = useState(false);
 
-  // Auto collapse settings submenu whenever navigating to any page
+  // Refs and auto-scroll for sidebar menu sections
+  const navRef = useRef<HTMLElement>(null);
+  const settingsSectionRef = useRef<HTMLDivElement>(null);
+  const dadosSectionRef = useRef<HTMLDivElement>(null);
+
+  const scrollToSection = (elementRef: React.RefObject<HTMLDivElement>) => {
+    setTimeout(() => {
+      if (elementRef.current && navRef.current) {
+        const nav = navRef.current;
+        const elem = elementRef.current;
+        const elemBottom = elem.offsetTop + elem.offsetHeight;
+        const navVisibleBottom = nav.scrollTop + nav.clientHeight;
+        
+        if (elemBottom > navVisibleBottom || elem.offsetTop < nav.scrollTop) {
+          nav.scrollTo({
+            top: Math.max(0, elemBottom - nav.clientHeight + 24),
+            behavior: 'smooth'
+          });
+        }
+      }
+    }, 100);
+  };
+
   useEffect(() => {
-    setSettingsExpanded(false);
+    if (settingsExpanded) {
+      scrollToSection(settingsSectionRef);
+    }
+  }, [settingsExpanded]);
+
+  useEffect(() => {
+    if (dadosExpanded) {
+      scrollToSection(dadosSectionRef);
+    }
+  }, [dadosExpanded]);
+
+  // Auto collapse submenus whenever navigating away from their pages
+  useEffect(() => {
+    const isConfigPage = ['Plano anual', 'Tipo de pagamento', 'Situação de pagamento', 'Cadastro tipos de Receitas', 'Cadastro categoria Despesas'].includes(currentPage);
+    if (!isConfigPage) {
+      setSettingsExpanded(false);
+    }
+    const isDadosPage = ['Dados pessoais', 'Assinatura', 'Suporte'].includes(currentPage);
+    if (!isDadosPage) {
+      setDadosExpanded(false);
+    }
   }, [currentPage]);
 
   // Auto-detect language and enforce Português (Brasil) - pt-BR
@@ -121,24 +170,55 @@ export default function App() {
     }
   }, [isDark]);
 
-  // Load user from localStorage if saved
+  // Load user session from localStorage and verify persistent token/session with backend
   useEffect(() => {
+    const savedToken = localStorage.getItem('finanfly_token') || '';
     const saved = localStorage.getItem('finanfly_user') || localStorage.getItem('finanfy_user');
+    
+    let parsedUser: any = null;
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (parsed.email && parsed.email.endsWith('@finanfy.com')) {
-          parsed.email = parsed.email.replace('@finanfy.com', '@finanfly.com');
+        parsedUser = JSON.parse(saved);
+        if (parsedUser.email && parsedUser.email.endsWith('@finanfy.com')) {
+          parsedUser.email = parsedUser.email.replace('@finanfy.com', '@finanfly.com');
         }
-        setCurrentUser(parsed);
-        localStorage.setItem('finanfly_user', JSON.stringify(parsed));
-        localStorage.removeItem('finanfy_user');
-        // Refresh profile on boot
-        refreshProfile(parsed.email);
+        setCurrentUser(parsedUser);
       } catch (e) {
         localStorage.removeItem('finanfy_user');
         localStorage.removeItem('finanfly_user');
+        localStorage.removeItem('finanfly_token');
       }
+    }
+
+    if (savedToken || parsedUser?.email) {
+      // Verify session token with backend
+      fetch('/api/auth/verify-session', {
+        headers: {
+          'x-auth-token': savedToken,
+          'x-user-email': parsedUser?.email || ''
+        }
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.valid && data.user) {
+            setCurrentUser(data.user);
+            localStorage.setItem('finanfly_user', JSON.stringify(data.user));
+            if (data.token) {
+              localStorage.setItem('finanfly_token', data.token);
+            }
+            localStorage.removeItem('finanfy_user');
+          } else {
+            // Invalid session or expired token
+            console.warn('Sessão expirada ou inválida. Solicitando novo login.');
+            setCurrentUser(null);
+            localStorage.removeItem('finanfly_token');
+            localStorage.removeItem('finanfly_user');
+            localStorage.removeItem('finanfy_user');
+          }
+        })
+        .catch((err) => {
+          console.error('Erro ao verificar token de sessão:', err);
+        });
     }
   }, []);
 
@@ -153,8 +233,12 @@ export default function App() {
 
   const refreshProfile = async (email: string) => {
     try {
+      const token = localStorage.getItem('finanfly_token') || '';
       const res = await fetch('/api/user/profile', {
-        headers: { 'x-user-email': email }
+        headers: {
+          'x-user-email': email,
+          'x-auth-token': token
+        }
       });
       const data = await res.json();
       if (res.ok && data.user) {
@@ -168,8 +252,12 @@ export default function App() {
 
   const fetchUserData = async (email: string) => {
     try {
+      const token = localStorage.getItem('finanfly_token') || '';
       const res = await fetch('/api/user/data', {
-        headers: { 'x-user-email': email }
+        headers: {
+          'x-user-email': email,
+          'x-auth-token': token
+        }
       });
       const data = await res.json();
       if (res.ok) {
@@ -187,11 +275,13 @@ export default function App() {
     setUserData(merged); // Optimistic UI update
 
     try {
+      const token = localStorage.getItem('finanfly_token') || '';
       const res = await fetch('/api/user/data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-email': currentUser.email
+          'x-user-email': currentUser.email,
+          'x-auth-token': token
         },
         body: JSON.stringify(newData),
       });
@@ -233,7 +323,7 @@ export default function App() {
       localStorage.removeItem('finanfy_user');
       setCurrentPage('Início');
       setSubscriptionWarning('');
-      setInactivityNotice('Você foi desconectado automaticamente por inatividade (5 minutos sem interação). Faça login para continuar.');
+      setInactivityNotice('Você foi desconectado automaticamente por inatividade (sem interação). Faça login para continuar.');
     };
 
     const resetTimer = () => {
@@ -305,6 +395,7 @@ export default function App() {
     setCurrentUser(null);
     setUserData(null);
     localStorage.removeItem('finanfly_user');
+    localStorage.removeItem('finanfy_token');
     localStorage.removeItem('finanfy_user');
     setCurrentPage('Início');
     setSubscriptionWarning('');
@@ -415,6 +506,16 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
+      case 'Investimentos':
+      case 'Investimento':
+        if (!userData) return null;
+        return (
+          <InvestimentosPage
+            userData={userData}
+            onUpdateUserData={handleUpdateUserData}
+          />
+        );
+      case 'Objetivos':
       case 'Metas':
         if (!userData) return null;
         return (
@@ -425,6 +526,7 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
+      case 'Viagens':
       case 'Viagem':
         if (!userData) return null;
         return (
@@ -433,7 +535,19 @@ export default function App() {
             onUpdateUserData={handleUpdateUserData}
           />
         );
+      case 'Desejos':
+        if (!userData) return null;
+        return (
+          <DesejosPage
+            userData={userData}
+            userProfile={currentUser}
+            onUpdateUserData={handleUpdateUserData}
+            onUpdateUserProfile={handleUpdateUserProfileInState}
+          />
+        );
+      case 'Melhoria financeira':
       case 'Ação de melhoria':
+      case 'Ação para déficit':
         if (!userData) return null;
         return (
           <AcaoDeficitPage
@@ -603,11 +717,12 @@ export default function App() {
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
     { name: 'Receitas', icon: TrendingUp, type: 'link' },
     { name: 'Despesas', icon: TrendingDown, type: 'link' },
-    { name: 'Metas', icon: Target, type: 'link' },
-    { name: 'Viagem', icon: Plane, type: 'link' },
-    { name: 'Ação de melhoria', icon: AlertTriangle, type: 'link' },
+    { name: 'Melhoria financeira', icon: AlertTriangle, type: 'link' },
+    { name: 'Investimentos', icon: PiggyBank, type: 'link' },
+    { name: 'Objetivos', icon: Target, type: 'link' },
+    { name: 'Viagens', icon: Plane, type: 'link' },
+    { name: 'Desejos', icon: Heart, type: 'link' },
     { name: 'Lista de compras', icon: ShoppingCart, type: 'link' },
-    { name: 'Suporte', icon: HelpCircle, type: 'link' },
   ];
 
   const configSubmenus = [
@@ -616,8 +731,12 @@ export default function App() {
     { name: 'Situação de pagamento', icon: CheckCircle },
     { name: 'Cadastro tipos de Receitas', icon: TrendingUp },
     { name: 'Cadastro categoria Despesas', icon: TrendingDown },
+  ];
+
+  const dadosSubmenus = [
     { name: 'Dados pessoais', icon: User },
     { name: 'Assinatura', icon: Sparkles },
+    { name: 'Suporte', icon: HelpCircle },
   ];
 
   return (
@@ -653,7 +772,7 @@ export default function App() {
         </div>
 
         {/* Scrollable menu links */}
-        <nav className="flex-1 px-4 py-3 space-y-1 overflow-y-auto custom-scrollbar">
+        <nav ref={navRef} className="flex-1 px-4 py-3 space-y-1 overflow-y-auto custom-scrollbar relative">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const active = currentPage === item.name || (item.name === 'Início' && currentPage === 'Home') || (item.name === 'Painel' && currentPage === 'Dashboard');
@@ -674,57 +793,108 @@ export default function App() {
                   <span>{item.name}</span>
                 </button>
 
-                {/* Highlighted divider line between Despesas and Metas */}
-                {item.name === 'Despesas' && (
-                  <div className="my-3 border-b-2 border-slate-700/90 shadow-sm mx-1" />
+                {/* Highlighted divider line below Melhoria financeira */}
+                {item.name === 'Melhoria financeira' && (
+                  <div className="my-3 border-b-4 border-slate-700/90 shadow-sm mx-1" />
                 )}
               </div>
             );
           })}
 
           {/* Configurações Seção / Header */}
-          <div className="pt-4 pb-2">
-            <button
-              onClick={() => setSettingsExpanded(!settingsExpanded)}
-              className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              <span className="text-sm font-bold uppercase tracking-wider text-slate-400">Configurações</span>
-              <Settings className="h-4 w-4 text-slate-400" />
-            </button>
-          </div>
+          <div ref={settingsSectionRef}>
+            <div className="pt-4 pb-2">
+              <button
+                onClick={() => {
+                  const next = !settingsExpanded;
+                  setSettingsExpanded(next);
+                  if (next) {
+                    scrollToSection(settingsSectionRef);
+                  }
+                }}
+                className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <span className="text-sm font-bold uppercase tracking-wider text-slate-400">Configurações</span>
+                <Settings className="h-4 w-4 text-slate-400" />
+              </button>
+            </div>
 
-          {settingsExpanded && (
-            <div className="space-y-1 pl-1">
-              {configSubmenus.map((sub) => {
-                const Icon = sub.icon;
-                const active = currentPage === sub.name;
-                const isPersonalOrSubscription = sub.name === 'Dados pessoais' || sub.name === 'Assinatura';
-                return (
-                  <React.Fragment key={sub.name}>
-                    {sub.name === 'Dados pessoais' && (
-                      <div className="my-2.5 border-b border-slate-700/80 mx-1" />
-                    )}
+            {settingsExpanded && (
+              <div className="space-y-1 pl-1">
+                {configSubmenus.map((sub) => {
+                  const Icon = sub.icon;
+                  const active = currentPage === sub.name;
+                  return (
                     <button
+                      key={sub.name}
                       onClick={() => {
                         setCurrentPage(sub.name);
                         setSidebarOpen(false);
                       }}
                       className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-base font-semibold transition-all ${
                         active
-                          ? 'bg-slate-800 text-sky-300 font-bold'
-                          : isPersonalOrSubscription
-                          ? 'text-sky-300 font-bold hover:bg-slate-800/50 hover:text-sky-200'
+                          ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
                       }`}
                     >
-                      <Icon className={`h-5 w-5 shrink-0 ${isPersonalOrSubscription ? 'text-sky-300 opacity-100' : 'opacity-80'}`} />
+                      <Icon className="h-5 w-5 shrink-0 opacity-80" />
                       <span className="truncate">{sub.name}</span>
                     </button>
-                  </React.Fragment>
-                );
-              })}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Dados Seção / Header */}
+          <div ref={dadosSectionRef}>
+            <div className="pt-4 pb-2 border-t border-slate-800/60 mt-2">
+              <button
+                onClick={() => {
+                  const next = !dadosExpanded;
+                  setDadosExpanded(next);
+                  if (next) {
+                    scrollToSection(dadosSectionRef);
+                  }
+                }}
+                className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <span className="text-sm font-bold uppercase tracking-wider text-slate-400">Dados</span>
+                <Database className="h-4 w-4 text-slate-400" />
+              </button>
             </div>
-          )}
+
+            {dadosExpanded && (
+              <div className="space-y-1 pl-1">
+                {dadosSubmenus.map((sub) => {
+                  const Icon = sub.icon;
+                  const active = currentPage === sub.name;
+                  const isLime = sub.name === 'Dados pessoais' || sub.name === 'Assinatura';
+                  return (
+                    <button
+                      key={sub.name}
+                      onClick={() => {
+                        setCurrentPage(sub.name);
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-base font-semibold transition-all ${
+                        active
+                          ? isLime
+                            ? 'bg-slate-800 text-lime-300 font-bold'
+                            : 'bg-slate-800 text-white font-bold'
+                          : isLime
+                          ? 'text-lime-300 font-bold hover:bg-slate-800/50 hover:text-lime-200'
+                          : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                      }`}
+                    >
+                      <Icon className={`h-5 w-5 shrink-0 ${isLime ? 'text-lime-300 opacity-100' : 'opacity-80'}`} />
+                      <span className="truncate">{sub.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Admin exclusive menu block */}
           {currentUser.role === 'admin' && (

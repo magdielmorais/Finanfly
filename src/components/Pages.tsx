@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff } from 'lucide-react';
+import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish } from '../types';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart } from 'lucide-react';
 
 interface PageProps {
   userData: UserData;
@@ -2281,12 +2281,40 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
     });
   }, [userData.actionPlans, filterStatus, filterYear]);
 
+  // Summary Stats
+  const goalStats = useMemo(() => {
+    let openCount = 0;
+    let closedCount = 0;
+    let pendingValue = 0;
+    let completedValue = 0;
+
+    userData.actionPlans.forEach(plan => {
+      const val = typeof plan.value === 'number' && !isNaN(plan.value) ? plan.value : 0;
+      if (plan.status === 'Concluído') {
+        closedCount++;
+        completedValue += val;
+      } else {
+        openCount++;
+        pendingValue += val;
+      }
+    });
+
+    return {
+      openCount,
+      closedCount,
+      totalCount: openCount + closedCount,
+      pendingValue,
+      completedValue,
+      totalValue: pendingValue + completedValue
+    };
+  }, [userData.actionPlans]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Metas</h2>
-          <p className="text-xs text-slate-400">Defina objetivos de curto/médio prazo (comprar carro, fundo de reserva) e acompanhe seu progresso.</p>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Objetivos</h2>
+          <p className="text-xs text-slate-400">Defina metas de curto/médio prazo (comprar carro, fundo de reserva) e acompanhe seu progresso.</p>
         </div>
         <button
           onClick={() => {
@@ -2303,15 +2331,92 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
         </button>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Card 1: Quantidade de Objetivos */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+                <Target className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                Total de Objetivos
+              </span>
+            </div>
+            <span className="text-xs font-extrabold text-slate-400 font-mono">
+              {goalStats.totalCount} {goalStats.totalCount === 1 ? 'item' : 'itens'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                Abertos
+              </span>
+              <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">
+                {goalStats.openCount}
+              </span>
+            </div>
+
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                Fechados
+              </span>
+              <span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                {goalStats.closedCount}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Valores Monetários */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+                <DollarSign className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                Valores dos Objetivos
+              </span>
+            </div>
+            <span className="text-xs font-extrabold text-slate-400 font-mono">
+              R$ {goalStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Pendente
+              </span>
+              <span className="text-sm font-extrabold font-mono text-slate-800 dark:text-slate-200">
+                R$ {goalStats.pendingValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                Realizado
+              </span>
+              <span className="text-sm font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+                R$ {goalStats.completedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {showAdd && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
-              {editingPlanId ? 'Editar Objetivo / Meta' : 'Cadastrar Novo Objetivo'}
+              {editingPlanId ? 'Editar Objetivo' : 'Cadastrar Novo Objetivo'}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Título da Meta</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Título do Objetivo</label>
                 <input type="text" required placeholder="Ex: Fundo de Emergência de 6 meses" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
               </div>
               <div className="sm:col-span-2">
@@ -2338,7 +2443,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
               <button type="button" onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
               <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">
-                {editingPlanId ? 'Salvar Alterações' : 'Cadastrar Meta'}
+                {editingPlanId ? 'Salvar Alterações' : 'Cadastrar Objetivo'}
               </button>
             </div>
           </form>
@@ -2349,7 +2454,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
       <div className="flex flex-wrap gap-4 bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs items-center justify-between">
         <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">
           <Filter className="h-4 w-4 text-slate-400 shrink-0" />
-          Filtrar Metas
+          Filtrar Objetivos
         </div>
         
         <div className="flex flex-wrap gap-4">
@@ -2431,7 +2536,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Meta até:</span>
+                  <span className="text-slate-400">Objetivo até:</span>
                   <span className="text-slate-700 font-mono font-medium dark:text-slate-300">
                     {plan.targetDate ? plan.targetDate.split('-').reverse().join('/') : '-'}
                   </span>
@@ -2449,6 +2554,395 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
                       }`}
                     >
                       {s.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ======================== DESEJOS ========================
+export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
+  const wishesList = userData.wishes || [];
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingWishId, setEditingWishId] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+  const [value, setValue] = useState('');
+  const [status, setStatus] = useState<'Pendente' | 'Concluído'>('Pendente');
+
+  // Filters State
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !value) return;
+
+    if (editingWishId) {
+      onUpdateUserData({
+        wishes: wishesList.map(w =>
+          w.id === editingWishId
+            ? { ...w, title, description, targetDate, value: parseFloat(value), status }
+            : w
+        )
+      });
+      setEditingWishId(null);
+    } else {
+      const newWish: Wish = {
+        id: 'wish-' + Date.now(),
+        title,
+        description,
+        targetDate,
+        value: parseFloat(value),
+        status
+      };
+
+      onUpdateUserData({
+        wishes: [...wishesList, newWish]
+      });
+    }
+
+    setTitle('');
+    setDescription('');
+    setTargetDate('');
+    setValue('');
+    setStatus('Pendente');
+    setShowAdd(false);
+  };
+
+  const handleStartEdit = (wish: Wish) => {
+    setEditingWishId(wish.id);
+    setTitle(wish.title);
+    setDescription(wish.description);
+    setTargetDate(wish.targetDate);
+    setValue(wish.value.toString());
+    setStatus(wish.status);
+    setShowAdd(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingWishId(null);
+    setTitle('');
+    setDescription('');
+    setTargetDate('');
+    setValue('');
+    setStatus('Pendente');
+    setShowAdd(false);
+  };
+
+  const handleDelete = (id: string) => {
+    onUpdateUserData({
+      wishes: wishesList.filter(w => w.id !== id)
+    });
+    if (editingWishId === id) {
+      handleCancelEdit();
+    }
+  };
+
+  const handleStatusChange = (id: string, newStatus: 'Pendente' | 'Concluído') => {
+    onUpdateUserData({
+      wishes: wishesList.map(w => w.id === id ? { ...w, status: newStatus } : w)
+    });
+  };
+
+  // Extract list of years dynamically for filters
+  const wishYears = useMemo(() => {
+    const years = new Set<string>();
+    wishesList.forEach(w => {
+      if (w.targetDate) {
+        const y = w.targetDate.split('-')[0];
+        if (y) years.add(y);
+      }
+    });
+    return Array.from(years).sort().reverse();
+  }, [wishesList]);
+
+  // Filter wishes
+  const filteredWishes = useMemo(() => {
+    return wishesList.filter(w => {
+      const matchesStatus = filterStatus === 'all' || w.status === filterStatus;
+      const wishYear = w.targetDate ? w.targetDate.split('-')[0] : '';
+      const matchesYear = filterYear === 'all' || wishYear === filterYear;
+      return matchesStatus && matchesYear;
+    });
+  }, [wishesList, filterStatus, filterYear]);
+
+  // Summary Stats
+  const wishStats = useMemo(() => {
+    let openCount = 0;
+    let closedCount = 0;
+    let pendingValue = 0;
+    let completedValue = 0;
+
+    wishesList.forEach(wish => {
+      const val = typeof wish.value === 'number' && !isNaN(wish.value) ? wish.value : 0;
+      if (wish.status === 'Concluído') {
+        closedCount++;
+        completedValue += val;
+      } else {
+        openCount++;
+        pendingValue += val;
+      }
+    });
+
+    return {
+      openCount,
+      closedCount,
+      totalCount: openCount + closedCount,
+      pendingValue,
+      completedValue,
+      totalValue: pendingValue + completedValue
+    };
+  }, [wishesList]);
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Desejos</h2>
+          <p className="text-xs text-slate-400">Registre seus desejos e acompanhe o status de realização.</p>
+        </div>
+        <button
+          onClick={() => {
+            if (showAdd) {
+              handleCancelEdit();
+            } else {
+              setShowAdd(true);
+            }
+          }}
+          className="flex items-center gap-1.5 rounded-lg bg-pink-600 px-4 py-2 text-xs font-semibold text-white hover:bg-pink-500 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          {editingWishId ? 'Editar Desejo' : 'Novo Desejo'}
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Card 1: Quantidade de Desejos */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-pink-50 text-pink-600 dark:bg-pink-950/50 dark:text-pink-400">
+                <Heart className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                Total de Desejos
+              </span>
+            </div>
+            <span className="text-xs font-extrabold text-slate-400 font-mono">
+              {wishStats.totalCount} {wishStats.totalCount === 1 ? 'item' : 'itens'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                Pendentes
+              </span>
+              <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">
+                {wishStats.openCount}
+              </span>
+            </div>
+
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                Concluídos
+              </span>
+              <span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                {wishStats.closedCount}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Valores Monetários */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+                <DollarSign className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                Valores dos Desejos
+              </span>
+            </div>
+            <span className="text-xs font-extrabold text-slate-400 font-mono">
+              R$ {wishStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Pendente
+              </span>
+              <span className="text-sm font-extrabold font-mono text-slate-800 dark:text-slate-200">
+                R$ {wishStats.pendingValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 rounded-lg p-2.5">
+              <span className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                Realizado
+              </span>
+              <span className="text-sm font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+                R$ {wishStats.completedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
+              {editingWishId ? 'Editar Desejo' : 'Cadastrar Novo Desejo'}
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Título do Desejo</label>
+                <input type="text" required placeholder="Ex: Viagem para o Japão, Notebook novo" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição / Detalhes</label>
+                <textarea placeholder="Detalhes do desejo ou como pretende realizá-lo." value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Valor Alvo (R$)</label>
+                <input type="number" required placeholder="Ex: 5000,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Data Limite</label>
+                <input type="date" required value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
+                <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                  <option value="Pendente">Pendente</option>
+                  <option value="Concluído">Concluído</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button type="button" onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
+              <button type="submit" className="rounded-lg bg-pink-600 px-5 py-2 font-bold text-white hover:bg-pink-500 transition-colors">
+                {editingWishId ? 'Salvar Alterações' : 'Cadastrar Desejo'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Filters Bar */}
+      <div className="flex flex-wrap gap-4 bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs items-center justify-between">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">
+          <Filter className="h-4 w-4 text-slate-400 shrink-0" />
+          Filtrar Desejos
+        </div>
+        
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 font-medium">Status:</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="all">Todos os Status</option>
+              <option value="Pendente">Pendente</option>
+              <option value="Concluído">Concluído</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 font-medium">Ano Alvo:</span>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="all">Todos os Anos</option>
+              {wishYears.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid of Wish cards */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredWishes.length === 0 ? (
+          <div className="sm:col-span-3 text-center py-12 text-slate-400 text-xs rounded-xl border border-dashed border-slate-200 bg-slate-50 dark:bg-slate-900/40 dark:border-slate-800">
+            Nenhum desejo encontrado para os filtros selecionados.
+          </div>
+        ) : (
+          filteredWishes.map((wish) => (
+            <div key={wish.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    wish.status === 'Concluído'
+                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40'
+                      : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40'
+                  }`}>{wish.status}</span>
+                  
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleStartEdit(wish)}
+                      className="text-slate-400 hover:text-pink-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                      title="Editar Desejo"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(wish.id)}
+                      className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                      title="Excluir Desejo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">{wish.title}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3">{wish.description || 'Sem descrição cadastrada.'}</p>
+              </div>
+
+              <div className="space-y-3.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-slate-400">Valor Alvo:</span>
+                  <span className="text-slate-800 font-mono font-bold dark:text-white">R$ {wish.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Desejo até:</span>
+                  <span className="text-slate-700 font-mono font-medium dark:text-slate-300">
+                    {wish.targetDate ? wish.targetDate.split('-').reverse().join('/') : '-'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg dark:bg-slate-950 text-[10px] font-bold uppercase text-slate-500">
+                  {(['Pendente', 'Concluído'] as const).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => handleStatusChange(wish.id, s)}
+                      className={`flex-1 py-1 rounded text-center transition-all ${
+                        wish.status === s
+                          ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-800 dark:text-white'
+                          : 'hover:text-slate-800'
+                      }`}
+                    >
+                      {s}
                     </button>
                   ))}
                 </div>
@@ -2554,7 +3048,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Ação de melhoria</h2>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Melhoria financeira</h2>
           <p className="text-xs text-slate-400">Crie ações corretivas para os centros de custos estourados para gerar aprendizados e melhorias.</p>
         </div>
         <button
