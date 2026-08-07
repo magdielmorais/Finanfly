@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
@@ -22,6 +22,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   // Modals state for "Relembrar senha" and "Mudar senha"
   const [showRememberModal, setShowRememberModal] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  useEffect(() => {
+    if (inactivityNotice) {
+      setIsRegister(false);
+    }
+  }, [inactivityNotice]);
 
   const [rememberEmail, setRememberEmail] = useState('');
   const [rememberLoading, setRememberLoading] = useState(false);

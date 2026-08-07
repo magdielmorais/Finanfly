@@ -223,27 +223,40 @@ export default function App() {
 
     const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
     let timer: NodeJS.Timeout;
+    let lastActivityTime = Date.now();
+
+    const performLogout = () => {
+      clearTimeout(timer);
+      setCurrentUser(null);
+      setUserData(null);
+      localStorage.removeItem('finanfly_user');
+      localStorage.removeItem('finanfy_user');
+      setCurrentPage('Início');
+      setSubscriptionWarning('');
+      setInactivityNotice('Você foi desconectado automaticamente por inatividade (5 minutos sem interação). Faça login para continuar.');
+    };
 
     const resetTimer = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => {
-        setCurrentUser(null);
-        setUserData(null);
-        localStorage.removeItem('finanfly_user');
-        localStorage.removeItem('finanfy_user');
-        setCurrentPage('Início');
-        setSubscriptionWarning('');
-        setInactivityNotice('Você foi desconectado automaticamente por inatividade (5 minutos sem interação).');
-      }, INACTIVITY_TIMEOUT_MS);
+      lastActivityTime = Date.now();
+      timer = setTimeout(performLogout, INACTIVITY_TIMEOUT_MS);
     };
 
-    let lastReset = Date.now();
     const handleActivity = () => {
       const now = Date.now();
-      // Reset timer if at least 1 second passed since last activity event
-      if (now - lastReset > 1000) {
-        lastReset = now;
+      if (now - lastActivityTime >= INACTIVITY_TIMEOUT_MS) {
+        performLogout();
+        return;
+      }
+      // Throttle resetting the timer to once every second
+      if (now - lastActivityTime > 1000) {
         resetTimer();
+      }
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (Date.now() - lastActivityTime >= INACTIVITY_TIMEOUT_MS) {
+        performLogout();
       }
     };
 
@@ -254,11 +267,16 @@ export default function App() {
       window.addEventListener(event, handleActivity, { passive: true });
     });
 
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
     return () => {
       clearTimeout(timer);
       activityEvents.forEach((event) => {
         window.removeEventListener(event, handleActivity);
       });
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, [currentUser]);
 
