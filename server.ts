@@ -769,7 +769,12 @@ async function getUserDataByEmail(email: string): Promise<any> {
         annualRes,
         shopRes,
         actPlansRes,
-        defActionsRes
+        defActionsRes,
+        tripsRes,
+        wishesRes,
+        investmentsRes,
+        invTypesRes,
+        invStatusesRes
       ] = await Promise.all([
         supabase.from('payment_types').select('name').eq('email', lowerEmail),
         supabase.from('payment_statuses').select('name').eq('email', lowerEmail),
@@ -780,7 +785,12 @@ async function getUserDataByEmail(email: string): Promise<any> {
         supabase.from('annual_planning').select('*').eq('email', lowerEmail),
         supabase.from('shopping_list').select('*').eq('email', lowerEmail),
         supabase.from('action_plans').select('*').eq('email', lowerEmail).order('target_date', { ascending: true }),
-        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false })
+        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
+        supabase.from('trips').select('*').eq('email', lowerEmail),
+        supabase.from('wishes').select('*').eq('email', lowerEmail),
+        supabase.from('investments').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
+        supabase.from('investment_types').select('name').eq('email', lowerEmail),
+        supabase.from('investment_statuses').select('name').eq('email', lowerEmail)
       ]);
 
       // If database schema is missing, fall back to monolithic user_data table or local DB
@@ -866,10 +876,34 @@ async function getUserDataByEmail(email: string): Promise<any> {
           responsible: r.responsible,
           date: r.date,
           status: r.status
-        })) : []
+        })) : [],
+        trips: (tripsRes.data && tripsRes.data.length > 0) ? tripsRes.data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          expenses: r.expenses || []
+        })) : undefined,
+        wishes: (wishesRes.data && wishesRes.data.length > 0) ? wishesRes.data.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description || '',
+          targetDate: r.target_date,
+          value: Number(r.value),
+          status: r.status
+        })) : undefined,
+        investments: (investmentsRes.data && investmentsRes.data.length > 0) ? investmentsRes.data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          date: r.date,
+          value: Number(r.value),
+          status: r.status,
+          notes: r.notes || undefined
+        })) : undefined,
+        investmentTypes: (invTypesRes.data && invTypesRes.data.length > 0) ? invTypesRes.data.map((r: any) => r.name) : undefined,
+        investmentStatuses: (invStatusesRes.data && invStatusesRes.data.length > 0) ? invStatusesRes.data.map((r: any) => r.name) : undefined
       };
 
-      // Extract trips, wishes, investments, investmentTypes, investmentStatuses from localData or legacy monolithic backup
+      // Extract trips, wishes, investments, investmentTypes, investmentStatuses from localData or legacy monolithic backup if missing
       let legacyData: any = null;
       try {
         const legacyRes = await supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
@@ -880,11 +914,11 @@ async function getUserDataByEmail(email: string): Promise<any> {
         console.error("Error retrieving legacy user_data:", e);
       }
 
-      responseData.trips = localData?.trips || legacyData?.trips || [];
-      responseData.wishes = localData?.wishes || legacyData?.wishes || [];
-      responseData.investments = localData?.investments || legacyData?.investments || [];
-      responseData.investmentTypes = localData?.investmentTypes || legacyData?.investmentTypes || ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'CDB / RDB', 'Criptomoedas', 'Fundos', 'Outros'];
-      responseData.investmentStatuses = localData?.investmentStatuses || legacyData?.investmentStatuses || ['Ativo', 'Resgatado', 'Em Andamento', 'Pendente'];
+      responseData.trips = responseData.trips || localData?.trips || legacyData?.trips || [];
+      responseData.wishes = responseData.wishes || localData?.wishes || legacyData?.wishes || [];
+      responseData.investments = responseData.investments || localData?.investments || legacyData?.investments || [];
+      responseData.investmentTypes = responseData.investmentTypes || localData?.investmentTypes || legacyData?.investmentTypes || ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'CDB / RDB', 'Criptomoedas', 'Fundos', 'Outros'];
+      responseData.investmentStatuses = responseData.investmentStatuses || localData?.investmentStatuses || legacyData?.investmentStatuses || ['Ativo', 'Resgatado', 'Em Andamento', 'Pendente'];
 
       return responseData;
     } catch (err) {
@@ -1060,6 +1094,83 @@ async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
         })());
       }
 
+      // 11. Sync trips
+      if (data.trips) {
+        promises.push((async () => {
+          await supabase.from('trips').delete().eq('email', lowerEmail);
+          if (data.trips.length > 0) {
+            const rows = data.trips.map((trip: any) => ({
+              id: trip.id,
+              email: lowerEmail,
+              name: trip.name,
+              expenses: trip.expenses || []
+            }));
+            await supabase.from('trips').insert(rows);
+          }
+        })());
+      }
+
+      // 12. Sync wishes
+      if (data.wishes) {
+        promises.push((async () => {
+          await supabase.from('wishes').delete().eq('email', lowerEmail);
+          if (data.wishes.length > 0) {
+            const rows = data.wishes.map((wish: any) => ({
+              id: wish.id,
+              email: lowerEmail,
+              title: wish.title,
+              description: wish.description || '',
+              target_date: wish.targetDate || null,
+              value: Number(wish.value || 0),
+              status: wish.status || 'Pendente'
+            }));
+            await supabase.from('wishes').insert(rows);
+          }
+        })());
+      }
+
+      // 13. Sync investments
+      if (data.investments) {
+        promises.push((async () => {
+          await supabase.from('investments').delete().eq('email', lowerEmail);
+          if (data.investments.length > 0) {
+            const rows = data.investments.map((inv: any) => ({
+              id: inv.id,
+              email: lowerEmail,
+              name: inv.name,
+              type: inv.type,
+              date: inv.date,
+              value: Number(inv.value || 0),
+              status: inv.status,
+              notes: inv.notes || null
+            }));
+            await supabase.from('investments').insert(rows);
+          }
+        })());
+      }
+
+      // 14. Sync investmentTypes
+      if (data.investmentTypes) {
+        promises.push((async () => {
+          await supabase.from('investment_types').delete().eq('email', lowerEmail);
+          if (data.investmentTypes.length > 0) {
+            const rows = data.investmentTypes.map((name: string) => ({ email: lowerEmail, name }));
+            await supabase.from('investment_types').insert(rows);
+          }
+        })());
+      }
+
+      // 15. Sync investmentStatuses
+      if (data.investmentStatuses) {
+        promises.push((async () => {
+          await supabase.from('investment_statuses').delete().eq('email', lowerEmail);
+          if (data.investmentStatuses.length > 0) {
+            const rows = data.investmentStatuses.map((name: string) => ({ email: lowerEmail, name }));
+            await supabase.from('investment_statuses').insert(rows);
+          }
+        })());
+      }
+
       await Promise.all(promises);
 
       // Also upsert to user_data table in Supabase for backup
@@ -1195,6 +1306,11 @@ app.get("/api/supabase-status", async (req, res) => {
 -- ----------------- DIAGNÓSTICO E LIMPEZA -----------------
 -- Este script irá limpar (DROP) as tabelas antigas se existirem para recriá-las do zero com a estrutura correta.
 -- ATENÇÃO: Isso removerá os dados existentes nestas tabelas no seu banco Supabase.
+DROP TABLE IF EXISTS investment_statuses CASCADE;
+DROP TABLE IF EXISTS investment_types CASCADE;
+DROP TABLE IF EXISTS investments CASCADE;
+DROP TABLE IF EXISTS wishes CASCADE;
+DROP TABLE IF EXISTS trips CASCADE;
 DROP TABLE IF EXISTS deficit_actions CASCADE;
 DROP TABLE IF EXISTS action_plans CASCADE;
 DROP TABLE IF EXISTS shopping_list CASCADE;
@@ -1206,8 +1322,10 @@ DROP TABLE IF EXISTS income_categories CASCADE;
 DROP TABLE IF EXISTS payment_statuses CASCADE;
 DROP TABLE IF EXISTS payment_types CASCADE;
 DROP TABLE IF EXISTS subscriptions CASCADE;
+DROP TABLE IF EXISTS trial_history CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 DROP TABLE IF EXISTS user_data CASCADE;
+DROP TABLE IF EXISTS system_settings CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- 1. Tabela de Usuários (Login e credenciais básicas)
@@ -1230,14 +1348,14 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabela de Histórico de Período de Experiência (Não apaga quando deleta o usuário)
+-- 3. Tabela de Histórico de Período de Experiência (Não apaga ao deletar o usuário)
 CREATE TABLE IF NOT EXISTS trial_history (
   email TEXT PRIMARY KEY,
   cpf TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Tabela de Assinaturas (Status do plano)
+-- 4. Tabela de Assinaturas (Status do plano)
 CREATE TABLE IF NOT EXISTS subscriptions (
   email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
   plan TEXT DEFAULT 'none',
@@ -1248,7 +1366,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Tabela de Tipos de Pagamento
+-- 5. Tabela de Tipos de Pagamento
 CREATE TABLE IF NOT EXISTS payment_types (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1256,7 +1374,7 @@ CREATE TABLE IF NOT EXISTS payment_types (
   UNIQUE (email, name)
 );
 
--- 5. Tabela de Status de Pagamento
+-- 6. Tabela de Status de Pagamento
 CREATE TABLE IF NOT EXISTS payment_statuses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1264,7 +1382,7 @@ CREATE TABLE IF NOT EXISTS payment_statuses (
   UNIQUE (email, name)
 );
 
--- 6. Tabela de Categorias de Receita
+-- 7. Tabela de Categorias de Receita
 CREATE TABLE IF NOT EXISTS income_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1272,7 +1390,7 @@ CREATE TABLE IF NOT EXISTS income_categories (
   UNIQUE (email, name)
 );
 
--- 7. Tabela de Categorias de Despesa
+-- 8. Tabela de Categorias de Despesa
 CREATE TABLE IF NOT EXISTS expense_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1280,7 +1398,7 @@ CREATE TABLE IF NOT EXISTS expense_categories (
   UNIQUE (email, name)
 );
 
--- 8. Tabela de Lançamentos de Receitas (Incomes)
+-- 9. Tabela de Lançamentos de Receitas (Incomes)
 CREATE TABLE IF NOT EXISTS incomes (
   id TEXT PRIMARY KEY,
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1293,7 +1411,7 @@ CREATE TABLE IF NOT EXISTS incomes (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. Tabela de Lançamentos de Despesas (Expenses)
+-- 10. Tabela de Lançamentos de Despesas (Expenses)
 CREATE TABLE IF NOT EXISTS expenses (
   id TEXT PRIMARY KEY,
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1306,7 +1424,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 10. Tabela de Planejamento Anual
+-- 11. Tabela de Planejamento Anual
 CREATE TABLE IF NOT EXISTS annual_planning (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1315,7 +1433,7 @@ CREATE TABLE IF NOT EXISTS annual_planning (
   UNIQUE (email, year)
 );
 
--- 11. Tabela de Lista de Compras (Shopping List)
+-- 12. Tabela de Lista de Compras (Shopping List)
 CREATE TABLE IF NOT EXISTS shopping_list (
   id TEXT PRIMARY KEY,
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1328,7 +1446,7 @@ CREATE TABLE IF NOT EXISTS shopping_list (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 12. Tabela de Metas / Planos de Ação (Action Plans)
+-- 13. Tabela de Metas / Planos de Ação (Action Plans)
 CREATE TABLE IF NOT EXISTS action_plans (
   id TEXT PRIMARY KEY,
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1340,7 +1458,7 @@ CREATE TABLE IF NOT EXISTS action_plans (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 13. Tabela de Ações de Déficit (Deficit Actions)
+-- 14. Tabela de Ações de Déficit / Plano de Melhoria
 CREATE TABLE IF NOT EXISTS deficit_actions (
   id TEXT PRIMARY KEY,
   email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -1353,14 +1471,64 @@ CREATE TABLE IF NOT EXISTS deficit_actions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 14. Tabela de Suporte para Compatibilidade e Transição
+-- 15. Tabela de Viagens (Trips)
+CREATE TABLE IF NOT EXISTS trips (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  expenses JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 16. Tabela de Desejos de Consumo (Wishes)
+CREATE TABLE IF NOT EXISTS wishes (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  target_date DATE,
+  value NUMERIC(15, 2) NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Pendente',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 17. Tabela de Investimentos (Investments)
+CREATE TABLE IF NOT EXISTS investments (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  date DATE NOT NULL,
+  value NUMERIC(15, 2) NOT NULL,
+  status TEXT NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 18. Tabela de Tipos de Investimento
+CREATE TABLE IF NOT EXISTS investment_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);
+
+-- 19. Tabela de Status de Investimento
+CREATE TABLE IF NOT EXISTS investment_statuses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);
+
+-- 20. Tabela de Suporte para Compatibilidade e Backup Monolítico
 CREATE TABLE IF NOT EXISTS user_data (
   email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
   data JSONB,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 15. Tabela de Configurações Globais do Sistema (Valores dos Planos, Avisos, etc)
+-- 21. Tabela de Configurações Globais do Sistema (Valores dos Planos, Avisos, etc)
 CREATE TABLE IF NOT EXISTS system_settings (
   key TEXT PRIMARY KEY,
   value JSONB,
@@ -1373,10 +1541,14 @@ CREATE INDEX IF NOT EXISTS idx_expenses_email_date ON expenses(email, date);
 CREATE INDEX IF NOT EXISTS idx_shopping_list_email ON shopping_list(email);
 CREATE INDEX IF NOT EXISTS idx_action_plans_email ON action_plans(email);
 CREATE INDEX IF NOT EXISTS idx_deficit_actions_email ON deficit_actions(email);
+CREATE INDEX IF NOT EXISTS idx_trips_email ON trips(email);
+CREATE INDEX IF NOT EXISTS idx_wishes_email ON wishes(email);
+CREATE INDEX IF NOT EXISTS idx_investments_email ON investments(email);
 
--- ---------------- Row Level Security (RLS) ----------------
+-- ---------------- Row Level Security (RLS) & Permissões ----------------
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trial_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_statuses ENABLE ROW LEVEL SECURITY;
@@ -1388,50 +1560,77 @@ ALTER TABLE annual_planning ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shopping_list ENABLE ROW LEVEL SECURITY;
 ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deficit_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wishes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE investments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE investment_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE investment_statuses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_data ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 
--- ---------------- POLÍTICAS DE ACESSO INDIVIDUAL ----------------
-DROP POLICY IF EXISTS "Acesso próprio - users" ON users;
-CREATE POLICY "Acesso próprio - users" ON users FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+-- POLÍTICAS DE ACESSO TOTAL PARA REST API E CHAVES DE SERVIÇO / ANON
+DROP POLICY IF EXISTS "Acesso total - users" ON users;
+CREATE POLICY "Acesso total - users" ON users FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - profiles" ON profiles;
-CREATE POLICY "Acesso próprio - profiles" ON profiles FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - profiles" ON profiles;
+CREATE POLICY "Acesso total - profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - subscriptions" ON subscriptions;
-CREATE POLICY "Acesso próprio - subscriptions" ON subscriptions FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - trial_history" ON trial_history;
+CREATE POLICY "Acesso total - trial_history" ON trial_history FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - pt" ON payment_types;
-CREATE POLICY "Acesso próprio - pt" ON payment_types FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - subscriptions" ON subscriptions;
+CREATE POLICY "Acesso total - subscriptions" ON subscriptions FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - ps" ON payment_statuses;
-CREATE POLICY "Acesso próprio - ps" ON payment_statuses FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - payment_types" ON payment_types;
+CREATE POLICY "Acesso total - payment_types" ON payment_types FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - ic" ON income_categories;
-CREATE POLICY "Acesso próprio - ic" ON income_categories FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - payment_statuses" ON payment_statuses;
+CREATE POLICY "Acesso total - payment_statuses" ON payment_statuses FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - ec" ON expense_categories;
-CREATE POLICY "Acesso próprio - ec" ON expense_categories FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - income_categories" ON income_categories;
+CREATE POLICY "Acesso total - income_categories" ON income_categories FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - incomes" ON incomes;
-CREATE POLICY "Acesso próprio - incomes" ON incomes FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - expense_categories" ON expense_categories;
+CREATE POLICY "Acesso total - expense_categories" ON expense_categories FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - expenses" ON expenses;
-CREATE POLICY "Acesso próprio - expenses" ON expenses FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - incomes" ON incomes;
+CREATE POLICY "Acesso total - incomes" ON incomes FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - annual" ON annual_planning;
-CREATE POLICY "Acesso próprio - annual" ON annual_planning FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - expenses" ON expenses;
+CREATE POLICY "Acesso total - expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - shop" ON shopping_list;
-CREATE POLICY "Acesso próprio - shop" ON shopping_list FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - annual_planning" ON annual_planning;
+CREATE POLICY "Acesso total - annual_planning" ON annual_planning FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - action" ON action_plans;
-CREATE POLICY "Acesso próprio - action" ON action_plans FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - shopping_list" ON shopping_list;
+CREATE POLICY "Acesso total - shopping_list" ON shopping_list FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - deficit" ON deficit_actions;
-CREATE POLICY "Acesso próprio - deficit" ON deficit_actions FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - action_plans" ON action_plans;
+CREATE POLICY "Acesso total - action_plans" ON action_plans FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Acesso próprio - user_data" ON user_data;
-CREATE POLICY "Acesso próprio - user_data" ON user_data FOR ALL USING (email = auth.jwt() ->> 'email' OR email = CURRENT_USER);
+DROP POLICY IF EXISTS "Acesso total - deficit_actions" ON deficit_actions;
+CREATE POLICY "Acesso total - deficit_actions" ON deficit_actions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acesso total - trips" ON trips;
+CREATE POLICY "Acesso total - trips" ON trips FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acesso total - wishes" ON wishes;
+CREATE POLICY "Acesso total - wishes" ON wishes FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acesso total - investments" ON investments;
+CREATE POLICY "Acesso total - investments" ON investments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acesso total - investment_types" ON investment_types;
+CREATE POLICY "Acesso total - investment_types" ON investment_types FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acesso total - investment_statuses" ON investment_statuses;
+CREATE POLICY "Acesso total - investment_statuses" ON investment_statuses FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acesso total - user_data" ON user_data;
+CREATE POLICY "Acesso total - user_data" ON user_data FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acesso total - system_settings" ON system_settings;
+CREATE POLICY "Acesso total - system_settings" ON system_settings FOR ALL USING (true) WITH CHECK (true);
 `
   });
 });
@@ -1758,6 +1957,11 @@ app.post("/api/auth/delete-account", async (req, res) => {
           supabase.from('shopping_list').delete().eq('email', lowerEmail),
           supabase.from('action_plans').delete().eq('email', lowerEmail),
           supabase.from('deficit_actions').delete().eq('email', lowerEmail),
+          supabase.from('trips').delete().eq('email', lowerEmail),
+          supabase.from('wishes').delete().eq('email', lowerEmail),
+          supabase.from('investments').delete().eq('email', lowerEmail),
+          supabase.from('investment_types').delete().eq('email', lowerEmail),
+          supabase.from('investment_statuses').delete().eq('email', lowerEmail),
           supabase.from('user_data').delete().eq('email', lowerEmail)
         ]);
       } catch (subErr) {
@@ -2608,6 +2812,11 @@ app.post("/api/admin/delete-user", async (req, res) => {
           supabase.from('shopping_list').delete().eq('email', lowerTargetEmail),
           supabase.from('action_plans').delete().eq('email', lowerTargetEmail),
           supabase.from('deficit_actions').delete().eq('email', lowerTargetEmail),
+          supabase.from('trips').delete().eq('email', lowerTargetEmail),
+          supabase.from('wishes').delete().eq('email', lowerTargetEmail),
+          supabase.from('investments').delete().eq('email', lowerTargetEmail),
+          supabase.from('investment_types').delete().eq('email', lowerTargetEmail),
+          supabase.from('investment_statuses').delete().eq('email', lowerTargetEmail),
           supabase.from('user_data').delete().eq('email', lowerTargetEmail)
         ]);
       } catch (subErr) {
