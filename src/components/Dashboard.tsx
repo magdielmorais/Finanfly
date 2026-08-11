@@ -225,7 +225,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             </div>
           </div>
           <div className="mt-2.5">
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white font-mono">
               R$ {totals.incomes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -243,7 +243,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             </div>
           </div>
           <div className="mt-2.5">
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white font-mono">
               R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -261,7 +261,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             </div>
           </div>
           <div className="mt-2.5">
-            <h3 className={`text-2xl font-bold font-mono ${totals.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            <h3 className={`text-xl font-bold font-mono ${totals.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
               R$ {totals.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -292,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             </div>
           </div>
           <div className="mt-2.5">
-            <h3 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+            <h3 className="text-xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">
               R$ {totalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -310,7 +310,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             </div>
           </div>
           <div className="mt-2.5">
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white font-mono">
               R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -331,7 +331,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             {(() => {
               const consolidatedBalance = totalBudgeted - totals.expenses;
               return (
-                <h3 className={`text-2xl font-bold font-mono ${consolidatedBalance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                <h3 className={`text-xl font-bold font-mono ${consolidatedBalance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                   R$ {consolidatedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </h3>
               );

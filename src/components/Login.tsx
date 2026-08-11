@@ -160,7 +160,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-500/20">
             <span className="text-2xl font-black text-white">F</span>
           </div>
-          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-white font-sans">
+          <h2 className="mt-4 text-2xl font-bold tracking-tight text-white font-sans">
             FinanFly
           </h2>
           <p className="mt-1.5 text-base font-extrabold tracking-wide text-cintilante drop-shadow-sm">
@@ -377,6 +377,15 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           </form>
         </div>
 
+        {/* Beta Disclaimer Message */}
+        <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3.5 text-center text-xs text-sky-200/90 shadow-sm leading-relaxed">
+          <p className="font-bold text-sky-300 mb-1 tracking-wide">
+            versão Beta 1.1
+          </p>
+          <p>
+            Atenção! Versão liberada somente para testes de funcionalidades, o app poderá sofrer instabilidades ou perda de dados na migração definitiva do banco de dados. Assim que for liberado em definitivo o usuário receberá uma mensagem.
+          </p>
+        </div>
 
       </div>
 

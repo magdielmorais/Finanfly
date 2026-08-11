@@ -40,7 +40,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-400">
             👋 Bem-vindo {userName}!
           </span>
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
             Sua saúde financeira, <br />
             <span className="text-blue-400">sob controle absoluto.</span>
           </h1>

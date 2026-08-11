@@ -170,11 +170,34 @@ export default function App() {
     }
   }, [isDark]);
 
-  // Remove automatic persistent token restore so user must always log in manually on page reload
+  // Persistent session restore on page reload: restore user if within 5 minutes (300,000 ms) of last activity
   useEffect(() => {
-    localStorage.removeItem('finanfly_token');
+    const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+    const savedUserStr = localStorage.getItem('finanfly_user');
+    const lastActivityStr = localStorage.getItem('finanfly_last_activity');
+
+    if (savedUserStr && lastActivityStr) {
+      const lastActivityTime = parseInt(lastActivityStr, 10);
+      const now = Date.now();
+      if (!isNaN(lastActivityTime) && (now - lastActivityTime < INACTIVITY_TIMEOUT_MS)) {
+        try {
+          const user = JSON.parse(savedUserStr);
+          setCurrentUser(user);
+          localStorage.setItem('finanfly_last_activity', now.toString());
+          return;
+        } catch (e) {
+          console.error('Error parsing saved user session:', e);
+        }
+      } else {
+        setInactivityNotice('Você foi desconectado automaticamente por inatividade. Faça login para continuar.');
+      }
+    }
+
+    // Clean up if expired or no active session
     localStorage.removeItem('finanfly_user');
     localStorage.removeItem('finanfy_user');
+    localStorage.removeItem('finanfly_token');
+    localStorage.removeItem('finanfly_last_activity');
     setCurrentUser(null);
   }, []);
 
@@ -277,14 +300,17 @@ export default function App() {
       setUserData(null);
       localStorage.removeItem('finanfly_user');
       localStorage.removeItem('finanfy_user');
+      localStorage.removeItem('finanfly_token');
+      localStorage.removeItem('finanfly_last_activity');
       setCurrentPage('Início');
       setSubscriptionWarning('');
-      setInactivityNotice('Você foi desconectado automaticamente por inatividade (sem interação). Faça login para continuar.');
+      setInactivityNotice('Você foi desconectado automaticamente por inatividade. Faça login para continuar.');
     };
 
     const resetTimer = () => {
       clearTimeout(timer);
       lastActivityTime = Date.now();
+      localStorage.setItem('finanfly_last_activity', lastActivityTime.toString());
       timer = setTimeout(performLogout, INACTIVITY_TIMEOUT_MS);
     };
 
@@ -301,7 +327,9 @@ export default function App() {
     };
 
     const handleVisibilityOrFocus = () => {
-      if (Date.now() - lastActivityTime >= INACTIVITY_TIMEOUT_MS) {
+      const savedLastActivity = localStorage.getItem('finanfly_last_activity');
+      const timeToCheck = savedLastActivity ? parseInt(savedLastActivity, 10) : lastActivityTime;
+      if (Date.now() - timeToCheck >= INACTIVITY_TIMEOUT_MS) {
         performLogout();
       }
     };
@@ -329,6 +357,7 @@ export default function App() {
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     localStorage.setItem('finanfly_user', JSON.stringify(user));
+    localStorage.setItem('finanfly_last_activity', Date.now().toString());
     setSubscriptionWarning('');
     setInactivityNotice('');
 
@@ -342,6 +371,7 @@ export default function App() {
   const handleRedirectToSubscription = (user: UserProfile) => {
     setCurrentUser(user);
     localStorage.setItem('finanfly_user', JSON.stringify(user));
+    localStorage.setItem('finanfly_last_activity', Date.now().toString());
     setSubscriptionWarning('Sua assinatura não está ativa ou expirou! Por favor, ative um plano.');
     setInactivityNotice('');
     setCurrentPage('Assinatura');
@@ -351,8 +381,9 @@ export default function App() {
     setCurrentUser(null);
     setUserData(null);
     localStorage.removeItem('finanfly_user');
-    localStorage.removeItem('finanfy_token');
+    localStorage.removeItem('finanfly_token');
     localStorage.removeItem('finanfy_user');
+    localStorage.removeItem('finanfly_last_activity');
     setCurrentPage('Início');
     setSubscriptionWarning('');
     setInactivityNotice('');
@@ -713,10 +744,10 @@ export default function App() {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Brand logo */}
-        <div className="p-6 flex items-center justify-between border-b border-slate-800/60">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-md shadow-blue-500/10">F</div>
-            <span className="text-xl font-bold text-white tracking-tight">FinanFly</span>
+        <div className="p-5 flex items-center justify-between border-b border-slate-800/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-md shadow-blue-500/10">F</div>
+            <span className="text-lg font-bold text-white tracking-tight">FinanFly</span>
           </div>
           {/* Close button for mobile */}
           <button
@@ -728,7 +759,7 @@ export default function App() {
         </div>
 
         {/* Scrollable menu links */}
-        <nav ref={navRef} className="flex-1 px-4 py-3 space-y-1 overflow-y-auto custom-scrollbar relative">
+        <nav ref={navRef} className="flex-1 px-3 py-3 space-y-1 overflow-y-auto custom-scrollbar relative">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const active = currentPage === item.name || (item.name === 'Início' && currentPage === 'Home') || (item.name === 'Painel' && currentPage === 'Dashboard');
@@ -739,19 +770,19 @@ export default function App() {
                     setCurrentPage(item.name);
                     setSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-base font-semibold tracking-wide transition-all ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-all ${
                     active
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
-                  <IconComponent className={`h-5 w-5 shrink-0 ${active ? 'text-white' : 'opacity-80'}`} />
+                  <IconComponent className={`h-4.5 w-4.5 shrink-0 ${active ? 'text-white' : 'opacity-80'}`} />
                   <span>{item.name}</span>
                 </button>
 
                 {/* Highlighted divider line below Melhoria financeira */}
                 {item.name === 'Melhoria financeira' && (
-                  <div className="my-3 border-b-4 border-slate-700/90 shadow-sm mx-1" />
+                  <div className="my-2.5 border-b-4 border-slate-700/90 shadow-sm mx-1" />
                 )}
               </div>
             );
@@ -759,7 +790,7 @@ export default function App() {
 
           {/* Configurações Seção / Header */}
           <div ref={settingsSectionRef}>
-            <div className="pt-4 pb-2">
+            <div className="pt-3 pb-1.5">
               <button
                 onClick={() => {
                   const next = !settingsExpanded;
@@ -770,8 +801,8 @@ export default function App() {
                 }}
                 className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
               >
-                <span className="text-sm font-bold uppercase tracking-wider text-slate-400">Configurações</span>
-                <Settings className="h-4 w-4 text-slate-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Configurações</span>
+                <Settings className="h-3.5 w-3.5 text-slate-400" />
               </button>
             </div>
 
@@ -787,13 +818,13 @@ export default function App() {
                         setCurrentPage(sub.name);
                         setSidebarOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-base font-semibold transition-all ${
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold transition-all ${
                         active
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
                       }`}
                     >
-                      <Icon className="h-5 w-5 shrink-0 opacity-80" />
+                      <Icon className="h-4.5 w-4.5 shrink-0 opacity-80" />
                       <span className="truncate">{sub.name}</span>
                     </button>
                   );
@@ -804,7 +835,7 @@ export default function App() {
 
           {/* Dados Seção / Header */}
           <div ref={dadosSectionRef}>
-            <div className="pt-4 pb-2 border-t border-slate-800/60 mt-2">
+            <div className="pt-3 pb-1.5 border-t border-slate-800/60 mt-2">
               <button
                 onClick={() => {
                   const next = !dadosExpanded;
@@ -815,8 +846,8 @@ export default function App() {
                 }}
                 className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
               >
-                <span className="text-sm font-bold uppercase tracking-wider text-slate-400">Dados</span>
-                <Database className="h-4 w-4 text-slate-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Dados</span>
+                <Database className="h-3.5 w-3.5 text-slate-400" />
               </button>
             </div>
 
@@ -825,7 +856,7 @@ export default function App() {
                 {dadosSubmenus.map((sub) => {
                   const Icon = sub.icon;
                   const active = currentPage === sub.name;
-                  const isLime = sub.name === 'Dados pessoais' || sub.name === 'Assinatura';
+                  const isLightBlue = sub.name === 'Dados pessoais' || sub.name === 'Assinatura';
                   return (
                     <button
                       key={sub.name}
@@ -833,17 +864,17 @@ export default function App() {
                         setCurrentPage(sub.name);
                         setSidebarOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-base font-semibold transition-all ${
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold transition-all ${
                         active
-                          ? isLime
-                            ? 'bg-slate-800 text-lime-300 font-bold'
+                          ? isLightBlue
+                            ? 'bg-slate-800 text-sky-300 font-bold'
                             : 'bg-slate-800 text-white font-bold'
-                          : isLime
-                          ? 'text-lime-300 font-bold hover:bg-slate-800/50 hover:text-lime-200'
+                          : isLightBlue
+                          ? 'text-sky-300 font-bold hover:bg-slate-800/50 hover:text-sky-200'
                           : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
                       }`}
                     >
-                      <Icon className={`h-5 w-5 shrink-0 ${isLime ? 'text-lime-300 opacity-100' : 'opacity-80'}`} />
+                      <Icon className={`h-4.5 w-4.5 shrink-0 ${isLightBlue ? 'text-sky-300 opacity-100' : 'opacity-80'}`} />
                       <span className="truncate">{sub.name}</span>
                     </button>
                   );
@@ -877,15 +908,15 @@ export default function App() {
         </nav>
 
         {/* Profile indicator & log out option at the footer of sidebar */}
-        <div className="p-4 border-t border-slate-800">
-          <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800/60">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+        <div className="p-3 border-t border-slate-800">
+          <div className="bg-slate-950/60 rounded-xl p-2.5 border border-slate-800/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
                 {currentUser.name.substring(0, 2).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mt-0.5">
+                <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-0.5">
                   {currentUser.role === 'admin' ? 'Administrador ✓' : 'Membro'}
                 </p>
               </div>
@@ -893,9 +924,9 @@ export default function App() {
             
             <button
               onClick={handleLogout}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900/90 py-2 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+              className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/90 py-1.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
               Sair da Conta
             </button>
           </div>
@@ -916,7 +947,7 @@ export default function App() {
               <Menu className="h-5 w-5" />
             </button>
             
-            <h2 className="text-lg sm:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+            <h2 className="text-base sm:text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
               {currentPage}
             </h2>
 
