@@ -56,14 +56,14 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
               <ArrowRight className="h-4 w-4" />
             </button>
             <button
-              onClick={() => onNavigate('Receitas')}
+              onClick={() => onNavigate('Receitas (Ganhos)')}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50"
             >
               <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse" />
               Adicionar Receitas
             </button>
             <button
-              onClick={() => onNavigate('Despesas')}
+              onClick={() => onNavigate('Despesas (Gastos)')}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50"
             >
               <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse" />
@@ -82,7 +82,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Fluxo de Caixa Simplificado</h3>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            Cadastre receitas e despesas de forma imediata. Controle categorias ("Centro de Despesa"), formas de pagamento e status de recebimento.
+            Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), formas de pagamento e status de recebimento.
           </p>
         </div>
 
@@ -109,6 +109,34 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
         </div>
       </div>
 
+      {/* Card COMO COMEÇAR (Separated above) */}
+      <div className="bg-white rounded-xl border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 overflow-hidden transition-all duration-300 shadow-sm">
+        <button
+          onClick={() => setIsComoComecarOpen(!isComoComecarOpen)}
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Info className="h-5 w-5 text-blue-600" />
+            <span className="font-bold tracking-wide">COMO COMEÇAR</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase">
+              {isComoComecarOpen ? 'Clique para fechar' : 'Clique para abrir'}
+            </span>
+            {isComoComecarOpen ? (
+              <ChevronUp className="h-4 w-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            )}
+          </div>
+        </button>
+        {isComoComecarOpen && (
+          <div className="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/50 pt-3 animate-fade-in">
+            Para começar você deve realizar o cadastro de <strong>Tipo de pagamento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro tipos de Receitas</strong> e <strong>Cadastro categoria Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Plano anual</strong> clicando em <strong>Orçar por categoria</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
+          </div>
+        )}
+      </div>
+
       {/* Financial Tips Section */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 dark:border-slate-800 dark:bg-slate-900/40">
         <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
@@ -116,34 +144,6 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           Dicas para Saúde Financeira
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {/* Card COMO COMEÇAR */}
-          <div className="sm:col-span-2 bg-white rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 overflow-hidden transition-all duration-300">
-            <button
-              onClick={() => setIsComoComecarOpen(!isComoComecarOpen)}
-              className="w-full flex items-center justify-between p-4 text-left font-semibold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all"
-            >
-              <div className="flex items-center gap-2">
-                <Info className="h-5 w-5 text-blue-600" />
-                <span className="font-bold tracking-wide">COMO COMEÇAR</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase">
-                  {isComoComecarOpen ? 'Clique para fechar' : 'Clique para abrir'}
-                </span>
-                {isComoComecarOpen ? (
-                  <ChevronUp className="h-4 w-4 text-slate-400" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
-                )}
-              </div>
-            </button>
-            {isComoComecarOpen && (
-              <div className="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/50 pt-3 animate-fade-in">
-                Para começar você deve realizar o cadastro de <strong>Tipo de pagamento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro tipos de Receitas</strong> e <strong>Cadastro categoria Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Plano anual</strong> clicando em <strong>Orçar por categoria</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
-              </div>
-            )}
-          </div>
-
           <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
             <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-blue-400 uppercase tracking-wider">{notices.rule50_30_20.title}</h4>
             <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">

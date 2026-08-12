@@ -40,6 +40,7 @@ export interface Expense {
   category: string; // Centro Despesa
   status: string;
   paymentType: string;
+  classification?: 'Fixo' | 'Variável' | 'Eventual' | string;
 }
 
 export interface ActionPlan {

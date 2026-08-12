@@ -66,6 +66,26 @@ input::placeholder, textarea::placeholder {
   font-weight: 400 !important;
 }
 
+/* Barra de rolagem customizada */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+}
+
 /* No modo escuro */
 .dark input:not([type="checkbox"]):not([type="radio"]), .dark select, .dark textarea {
   background-color: #0f172a !important; /* bg-slate-900 */

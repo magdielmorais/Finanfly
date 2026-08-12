@@ -52,8 +52,8 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
   const gap = 3;
 
   return (
-    <div className="w-full">
-      <div className="relative w-full overflow-x-auto pb-2">
+    <div className="w-full min-w-0">
+      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           style={{ minWidth: '650px' }}
@@ -91,10 +91,10 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                   className="opacity-30"
                 />
                 <text
-                  x={margin.left - 10}
-                  y={y + 5}
+                  x={margin.left - 8}
+                  y={y + 4}
                   textAnchor="end"
-                  className="fill-slate-800 dark:fill-slate-100 text-[15px] font-extrabold font-mono"
+                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>
@@ -196,10 +196,10 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                 {/* X axis labels */}
                 <text
                   x={groupCenter}
-                  y={height - margin.bottom + 22}
+                  y={height - margin.bottom + 20}
                   textAnchor="middle"
-                  className={`text-[17px] font-black transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-900 dark:fill-white'
+                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
                   }`}
                   onMouseEnter={() => setHoveredIndex(i)}
                   onMouseLeave={() => setHoveredIndex(null)}
@@ -395,8 +395,8 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
   const gap = 2;
 
   return (
-    <div className="w-full">
-      <div className="relative w-full overflow-x-auto pb-2">
+    <div className="w-full min-w-0">
+      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           style={{ minWidth: '750px' }}
@@ -438,10 +438,10 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                   className="opacity-30"
                 />
                 <text
-                  x={margin.left - 10}
-                  y={y + 5}
+                  x={margin.left - 8}
+                  y={y + 4}
                   textAnchor="end"
-                  className="fill-slate-800 dark:fill-slate-100 text-[15px] font-extrabold font-mono"
+                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
                 >
                   R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                 </text>
@@ -543,10 +543,10 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                 {/* X axis labels */}
                 <text
                   x={groupCenter}
-                  y={height - margin.bottom + 22}
+                  y={height - margin.bottom + 20}
                   textAnchor="middle"
-                  className={`text-[15px] font-black transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-900 dark:fill-white'
+                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
                   }`}
                   onMouseEnter={() => setHoveredIndex(i)}
                   onMouseLeave={() => setHoveredIndex(null)}
@@ -605,3 +605,239 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
     </div>
   );
 };
+
+interface ClassificationPieData {
+  name: string;
+  value: number;
+  color: string;
+  bgClass: string;
+}
+
+export const ExpenseClassificationPieChart: React.FC<{
+  data: ClassificationPieData[];
+  totalValue: number;
+}> = ({ data, totalValue }) => {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const width = 240;
+  const height = 240;
+  const cx = width / 2;
+  const cy = height / 2;
+  const rOuter = 95;
+  const rInner = 60;
+
+  const activeSlices = data.filter(d => d.value > 0);
+
+  // If no expenses registered for this month
+  if (totalValue === 0 || activeSlices.length === 0) {
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4">
+        <div className="relative flex items-center justify-center shrink-0">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-48 h-48">
+            <circle
+              cx={cx}
+              cy={cy}
+              r={(rOuter + rInner) / 2}
+              fill="none"
+              stroke="#e2e8f0"
+              strokeWidth={rOuter - rInner}
+              className="dark:stroke-slate-800"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
+            <span className="text-xs text-slate-400 font-medium">Sem despesas</span>
+            <span className="text-sm font-bold text-slate-600 dark:text-slate-300 font-mono">R$ 0,00</span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2.5 min-w-[180px]">
+          {data.map((item, i) => (
+            <div key={i} className="flex items-center justify-between text-xs font-semibold text-slate-400 dark:text-slate-500">
+              <div className="flex items-center gap-2">
+                <span className={`h-3 w-3 rounded-full ${item.bgClass} opacity-40`} />
+                <span>{item.name}</span>
+              </div>
+              <span>0%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Generate slice paths
+  let currentAngle = -Math.PI / 2; // Start from top
+  const totalAngle = 2 * Math.PI;
+
+  const slices = data.map((item, idx) => {
+    if (item.value <= 0) return null;
+
+    const angleVal = (item.value / totalValue) * totalAngle;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + angleVal;
+    currentAngle = endAngle;
+
+    if (activeSlices.length === 1) {
+      const midR = (rOuter + rInner) / 2;
+      const strokeW = rOuter - rInner;
+      return {
+        ...item,
+        idx,
+        isFullCircle: true,
+        midR,
+        strokeW,
+        angleVal
+      };
+    }
+
+    const gapAngle = 0.02; // Small gap between slices
+    const actualStart = startAngle + gapAngle / 2;
+    const actualEnd = endAngle - gapAngle / 2;
+
+    const x1 = cx + rOuter * Math.cos(actualStart);
+    const y1 = cy + rOuter * Math.sin(actualStart);
+    const x2 = cx + rOuter * Math.cos(actualEnd);
+    const y2 = cy + rOuter * Math.sin(actualEnd);
+
+    const x3 = cx + rInner * Math.cos(actualEnd);
+    const y3 = cy + rInner * Math.sin(actualEnd);
+    const x4 = cx + rInner * Math.cos(actualStart);
+    const y4 = cy + rInner * Math.sin(actualStart);
+
+    const largeArc = (actualEnd - actualStart) > Math.PI ? 1 : 0;
+
+    const d = `M ${x1} ${y1} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+
+    return {
+      ...item,
+      idx,
+      d,
+      isFullCircle: false
+    };
+  }).filter(Boolean);
+
+  const hoveredItem = hoveredIndex !== null ? data[hoveredIndex] : null;
+
+  return (
+    <div className="w-full">
+      <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+      {/* Donut SVG */}
+      <div className="relative flex items-center justify-center shrink-0">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-52 h-52 overflow-visible">
+          {slices.map((slice) => {
+            if (!slice) return null;
+            const isHovered = hoveredIndex === slice.idx;
+
+            if (slice.isFullCircle) {
+              return (
+                <circle
+                  key={slice.idx}
+                  cx={cx}
+                  cy={cy}
+                  r={slice.midR}
+                  fill="none"
+                  stroke={slice.color}
+                  strokeWidth={slice.strokeW}
+                  className="transition-all duration-200 cursor-pointer"
+                  style={{
+                    filter: isHovered ? 'brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none',
+                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1
+                  }}
+                  onMouseEnter={() => setHoveredIndex(slice.idx)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+              );
+            }
+
+            return (
+              <path
+                key={slice.idx}
+                d={slice.d}
+                fill={slice.color}
+                className="transition-all duration-200 cursor-pointer"
+                style={{
+                  transform: isHovered ? 'scale(1.04)' : 'scale(1)',
+                  transformOrigin: `${cx}px ${cy}px`,
+                  filter: isHovered ? 'brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none',
+                  opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1
+                }}
+                onMouseEnter={() => setHoveredIndex(slice.idx)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              />
+            );
+          })}
+        </svg>
+
+        {/* Center label inside donut */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2 pointer-events-none">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            {hoveredItem ? hoveredItem.name : 'Total Mês'}
+          </span>
+          <span className="text-sm font-bold text-slate-800 dark:text-white font-mono">
+            R$ {(hoveredItem ? hoveredItem.value : totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+            {hoveredItem && totalValue > 0
+              ? `${((hoveredItem.value / totalValue) * 100).toFixed(1)}%`
+              : 'Despesas'}
+          </span>
+        </div>
+      </div>
+
+      {/* Legend and Values List */}
+      <div className="flex flex-col gap-2.5 w-full sm:w-auto min-w-[220px]">
+        {data.map((item, idx) => {
+          const pct = totalValue > 0 ? ((item.value / totalValue) * 100).toFixed(1) : '0.0';
+          const isHovered = hoveredIndex === idx;
+
+          const borderLeftClass = item.name === 'Fixo'
+            ? 'border-l-4 border-l-blue-500'
+            : item.name === 'Variável'
+            ? 'border-l-4 border-l-amber-500'
+            : 'border-l-4 border-l-purple-500';
+
+          return (
+            <div
+              key={idx}
+              onMouseEnter={() => setHoveredIndex(idx)}
+              onMouseLeave={() => setHoveredIndex(null)}
+              className={`flex items-center justify-between p-2.5 rounded-lg border transition-all cursor-pointer ${borderLeftClass} ${
+                isHovered
+                  ? 'bg-slate-100/90 border-slate-300 dark:bg-slate-800 dark:border-slate-700 shadow-md scale-[1.02]'
+                  : 'bg-slate-50 border-slate-200/80 dark:bg-slate-900/60 dark:border-slate-800'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className={`h-4 w-4 rounded-md ${item.bgClass} shadow-sm shrink-0`} />
+                <div className="flex flex-col">
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-white">{item.name}</span>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{pct}% do total</span>
+                </div>
+              </div>
+              <span className="text-xs font-extrabold text-slate-900 dark:text-white font-mono bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 shadow-2xs">
+                R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    {/* Horizontal Legend bar matching comparison chart above */}
+    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-center gap-6 text-xs font-bold text-slate-700 dark:text-slate-300">
+      <div className="flex items-center gap-2 cursor-pointer hover:opacity-80" onMouseEnter={() => setHoveredIndex(0)} onMouseLeave={() => setHoveredIndex(null)}>
+        <span className="h-3.5 w-3.5 rounded bg-blue-500 shadow-xs inline-block" />
+        <span>Despesas Fixas</span>
+      </div>
+      <div className="flex items-center gap-2 cursor-pointer hover:opacity-80" onMouseEnter={() => setHoveredIndex(1)} onMouseLeave={() => setHoveredIndex(null)}>
+        <span className="h-3.5 w-3.5 rounded bg-amber-500 shadow-xs inline-block" />
+        <span>Despesas Variáveis</span>
+      </div>
+      <div className="flex items-center gap-2 cursor-pointer hover:opacity-80" onMouseEnter={() => setHoveredIndex(2)} onMouseLeave={() => setHoveredIndex(null)}>
+        <span className="h-3.5 w-3.5 rounded bg-purple-500 shadow-xs inline-block" />
+        <span>Despesas Eventuais</span>
+      </div>
+    </div>
+    </div>
+  );
+};
+

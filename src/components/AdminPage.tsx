@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -17,12 +17,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     active: boolean | null;
     url: string;
     message: string;
+    schema?: string;
   }>({
     loading: true,
     active: null,
     url: '',
     message: '',
+    schema: '',
   });
+
+  const [copiedSchema, setCopiedSchema] = useState(false);
 
   const checkSupabaseStatus = async () => {
     setSupabaseStatus(prev => ({ ...prev, loading: true }));
@@ -34,6 +38,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         active: !!data.active,
         url: data.url || '',
         message: data.message || (data.active ? 'Conectado ao Supabase com sucesso!' : 'Desconectado do Supabase'),
+        schema: data.schema || '',
       });
     } catch (err) {
       setSupabaseStatus({
@@ -41,7 +46,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         active: false,
         url: '',
         message: 'Erro ao verificar conexão com o Supabase.',
+        schema: '',
       });
+    }
+  };
+
+  const handleCopySchema = () => {
+    if (supabaseStatus.schema) {
+      navigator.clipboard.writeText(supabaseStatus.schema);
+      setCopiedSchema(true);
+      setTimeout(() => setCopiedSchema(false), 2000);
     }
   };
 
@@ -1877,6 +1891,73 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <RefreshCw className={`h-3.5 w-3.5 ${supabaseStatus.loading ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
             <span>Testar Conexão</span>
           </button>
+        </div>
+      </div>
+
+      {/* Database Connection Info & SQL Schema Card */}
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all space-y-4 text-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="flex items-center space-x-2">
+            <Database className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm">Estrutura e Tabelas do Banco de Dados</h3>
+          </div>
+          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+            supabaseStatus.active
+              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+              : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
+          }`}>
+            {supabaseStatus.active ? 'Nuvem Conectada' : 'Modo Backup Local'}
+          </span>
+        </div>
+
+        {supabaseStatus.active ? (
+          <div className="space-y-2">
+            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+              Sua aplicação está conectada com sucesso ao banco de dados do <strong>Supabase</strong>. Todos os cadastros, acessos de login e lançamentos financeiros estão sendo persistidos com segurança na nuvem.
+            </p>
+            {supabaseStatus.url && (
+              <div className="rounded-lg bg-slate-50 p-2.5 text-[11px] font-mono text-slate-600 dark:bg-slate-950 dark:text-slate-400 break-all border border-slate-100 dark:border-slate-800">
+                <strong>SUPABASE_URL:</strong> {supabaseStatus.url}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-start space-x-2 text-amber-800 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                As variáveis de ambiente do Supabase não foram configuradas ou a chave de API está inválida. A aplicação está rodando no <strong>Modo Backup Local</strong> salvando os dados localmente no servidor.
+              </p>
+            </div>
+            <div className="rounded-lg bg-amber-50/50 p-3 border border-amber-100 dark:bg-amber-950/10 dark:border-amber-900/30 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+              <p className="font-bold">Para ativar a persistência em Nuvem com Supabase:</p>
+              <ol className="list-decimal pl-4 space-y-1">
+                <li>Crie um projeto em <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline font-semibold">supabase.com</a></li>
+                <li>Obtenha a URL e a Anon Key em API Settings.</li>
+                <li>Adicione as variáveis de ambiente no sistema.</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
+        <div className="border-t border-slate-100 pt-3 dark:border-slate-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-700 dark:text-slate-300">Esquema das Tabelas (Script SQL DDL)</span>
+            <button
+              type="button"
+              onClick={handleCopySchema}
+              className="flex items-center space-x-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors text-xs font-semibold"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              <span>{copiedSchema ? 'Copiado!' : 'Copiar Script SQL'}</span>
+            </button>
+          </div>
+          <p className="text-slate-500 dark:text-slate-400 text-[11px]">
+            Execute o script abaixo no <strong>SQL Editor</strong> do seu painel Supabase para criar/atualizar todas as tabelas e permissões do sistema:
+          </p>
+          <pre className="rounded-lg bg-slate-950 p-3.5 text-[10px] font-mono text-slate-300 overflow-x-auto max-h-48 border border-slate-800 leading-relaxed custom-scrollbar">
+            {supabaseStatus.schema || 'Carregando esquema SQL...'}
+          </pre>
         </div>
       </div>
 

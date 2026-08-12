@@ -383,7 +383,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
             versão Beta 1.1
           </p>
           <p>
-            Atenção! Versão liberada somente para testes de funcionalidades, o app poderá sofrer instabilidades ou perda de dados na migração definitiva do banco de dados. Assim que for liberado em definitivo o usuário receberá uma mensagem.
+            Atenção! Versão liberada somente para testes de funcionalidades, o app poderá sofrer instabilidades ou perda de dados na migração do banco de dados. Assim que for liberado o usuário receberá uma mensagem.
           </p>
         </div>
 

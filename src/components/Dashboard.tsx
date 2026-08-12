@@ -1,7 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { UserData } from '../types';
-import { AnnualComparisonChart, TopItemsBarChart, ExpenseBudgetComparisonChart } from './CustomChart';
-import { ArrowUpRight, ArrowDownRight, Wallet, Filter, Calendar, Activity } from 'lucide-react';
+import { AnnualComparisonChart, TopItemsBarChart, ExpenseBudgetComparisonChart, ExpenseClassificationPieChart } from './CustomChart';
+import { ArrowUpRight, ArrowDownRight, Wallet, Filter, Calendar, Activity, PieChart } from 'lucide-react';
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
 
 interface DashboardProps {
   userData: UserData;
@@ -15,6 +20,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   const [selectedKpiYear, setSelectedKpiYear] = useState<string>('all');
   const [budgetComparisonYear, setBudgetComparisonYear] = useState<number>(new Date().getFullYear());
   const [recentFilter, setRecentFilter] = useState<'Todos' | 'Receitas' | 'Despesas'>('Todos');
+  const [classificationMonth, setClassificationMonth] = useState<number>(new Date().getMonth());
+  const [classificationYear, setClassificationYear] = useState<number>(new Date().getFullYear());
 
   // Extract available years dynamically
   const availableYears = useMemo(() => {
@@ -150,6 +157,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
       };
     });
   }, [userData.annualPlanning, userData.expenses, budgetComparisonYear]);
+
+  // Expense Classification Pie Chart Data for selected month/year
+  const classificationData = useMemo(() => {
+    let fixo = 0;
+    let variavel = 0;
+    let eventual = 0;
+
+    userData.expenses.forEach(exp => {
+      if (!exp.date) return;
+      const parts = exp.date.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        if (y === classificationYear && m === classificationMonth) {
+          const classif = (exp.classification || 'Fixo').trim().toLowerCase();
+          if (classif.includes('variáv') || classif.includes('variavel')) {
+            variavel += exp.value;
+          } else if (classif.includes('eventual')) {
+            eventual += exp.value;
+          } else {
+            fixo += exp.value;
+          }
+        }
+      }
+    });
+
+    return [
+      { name: 'Fixo', value: fixo, color: '#3b82f6', bgClass: 'bg-blue-500' },
+      { name: 'Variável', value: variavel, color: '#f59e0b', bgClass: 'bg-amber-500' },
+      { name: 'Eventual', value: eventual, color: '#a855f7', bgClass: 'bg-purple-500' }
+    ];
+  }, [userData.expenses, classificationMonth, classificationYear]);
+
+  const classificationTotal = useMemo(() => {
+    return classificationData.reduce((acc, curr) => acc + curr.value, 0);
+  }, [classificationData]);
 
   // 3. Extract the last 10 greatest incomes & expenses for Top Items Chart
   const topIncomes = useMemo(() => {
@@ -344,11 +387,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
       </div>
 
       {/* Main Charts Area */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 min-w-0">
         {/* Left Column: Annual comparison and new expense comparison */}
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           {/* Annual Chart Card */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-blue-500" />
@@ -360,7 +403,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
           </div>
 
           {/* Budget vs Realized Expense Comparison Chart Card */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Activity className="h-4 w-4 text-blue-500" />
@@ -382,6 +425,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               </div>
             </div>
             <ExpenseBudgetComparisonChart data={monthlyExpenseComparisonData} />
+          </div>
+
+          {/* Expense Classification Pie Chart Card */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <PieChart className="h-4 w-4 text-blue-500" />
+                Classificação das Despesas ({MONTH_NAMES[classificationMonth]}/{classificationYear})
+              </h3>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* Month Selector */}
+                <select
+                  value={classificationMonth}
+                  onChange={(e) => setClassificationMonth(parseInt(e.target.value, 10))}
+                  className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
+                >
+                  {MONTH_NAMES.map((mName, idx) => (
+                    <option key={idx} value={idx}>{mName}</option>
+                  ))}
+                </select>
+
+                {/* Year Selector */}
+                <select
+                  value={classificationYear}
+                  onChange={(e) => setClassificationYear(parseInt(e.target.value, 10))}
+                  className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
+                >
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <ExpenseClassificationPieChart data={classificationData} totalValue={classificationTotal} />
           </div>
         </div>
 
@@ -482,14 +561,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
           </div>
           <div className="space-y-2.5">
             <button
-              onClick={() => onNavigate('Receitas')}
+              onClick={() => onNavigate('Receitas (Ganhos)')}
               className="flex w-full items-center justify-between rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2.5 text-xs font-bold transition-all shadow-sm"
             >
               <span>Nova Receita</span>
               <span className="text-sm">＋</span>
             </button>
             <button
-              onClick={() => onNavigate('Despesas')}
+              onClick={() => onNavigate('Despesas (Gastos)')}
               className="flex w-full items-center justify-between rounded-lg bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 text-xs font-bold transition-all border border-slate-700/50"
             >
               <span>Nova Despesa</span>

@@ -454,6 +454,7 @@ export default function App() {
           />
         );
       case 'Receitas':
+      case 'Receitas (Ganhos)':
         if (!userData) return null;
         return (
           <ReceitasPage
@@ -464,6 +465,7 @@ export default function App() {
           />
         );
       case 'Despesas':
+      case 'Despesas (Gastos)':
         if (!userData) return null;
         return (
           <DespesasPage
@@ -702,8 +704,8 @@ export default function App() {
     { name: 'Painel', icon: BarChart3, type: 'link' },
     { name: 'Resumo mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
-    { name: 'Receitas', icon: TrendingUp, type: 'link' },
-    { name: 'Despesas', icon: TrendingDown, type: 'link' },
+    { name: 'Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
+    { name: 'Despesas (Gastos)', icon: TrendingDown, type: 'link' },
     { name: 'Melhoria financeira', icon: AlertTriangle, type: 'link' },
     { name: 'Investimentos', icon: PiggyBank, type: 'link' },
     { name: 'Objetivos', icon: Target, type: 'link' },
@@ -762,7 +764,11 @@ export default function App() {
         <nav ref={navRef} className="flex-1 px-3 py-3 space-y-1 overflow-y-auto custom-scrollbar relative">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
-            const active = currentPage === item.name || (item.name === 'Início' && currentPage === 'Home') || (item.name === 'Painel' && currentPage === 'Dashboard');
+            const active = currentPage === item.name || 
+              (item.name === 'Início' && currentPage === 'Home') || 
+              (item.name === 'Painel' && currentPage === 'Dashboard') ||
+              (item.name === 'Receitas (Ganhos)' && currentPage === 'Receitas') ||
+              (item.name === 'Despesas (Gastos)' && currentPage === 'Despesas');
             return (
               <div key={item.name}>
                 <button

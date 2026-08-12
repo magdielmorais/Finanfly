@@ -387,12 +387,12 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               <button
                 type="button"
                 onClick={() => {
-                  setShowManageCategories(!showManageCategories);
+                  setShowManageCategories(true);
                   setShowManagePaymentTypes(false);
                 }}
-                className="text-[10px] font-bold text-blue-600 hover:text-blue-500 hover:underline"
+                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
-                {showManageCategories ? 'Fechar' : 'Gerenciar'}
+                Gerenciar
               </button>
             </div>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
@@ -407,12 +407,12 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               <button
                 type="button"
                 onClick={() => {
-                  setShowManagePaymentTypes(!showManagePaymentTypes);
+                  setShowManagePaymentTypes(true);
                   setShowManageCategories(false);
                 }}
-                className="text-[10px] font-bold text-blue-600 hover:text-blue-500 hover:underline"
+                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
-                {showManagePaymentTypes ? 'Fechar' : 'Gerenciar'}
+                Gerenciar
               </button>
             </div>
             <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
@@ -430,204 +430,6 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </select>
           </div>
 
-          {/* Manage Categories Section */}
-          {showManageCategories && (
-            <div className="sm:col-span-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 animate-fade-in space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Gerenciar Categorias de Receita</span>
-                <button
-                  type="button"
-                  onClick={() => setShowManageCategories(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Nome da nova categoria"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddCategory}
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs flex items-center gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Adicionar
-                </button>
-              </div>
-              
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Categorias Existentes</span>
-                {userData.incomeCategories.map(cat => (
-                  <div key={cat} className="flex items-center justify-between bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px]">
-                    {editingCategory === cat ? (
-                      <div className="flex-1 flex gap-1.5 items-center">
-                        <input
-                          type="text"
-                          value={editCategoryValue}
-                          onChange={(e) => setEditCategoryValue(e.target.value)}
-                          className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:outline-none"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleEditCategory(cat);
-                            if (e.key === 'Escape') setEditingCategory(null);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleEditCategory(cat)}
-                          className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Salvar"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingCategory(null)}
-                          className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Cancelar"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">{cat}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingCategory(cat);
-                              setEditCategoryValue(cat);
-                            }}
-                            className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Editar Categoria"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(cat)}
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Excluir Categoria"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {userData.incomeCategories.length === 0 && (
-                  <p className="text-center text-slate-400 py-2">Nenhuma categoria cadastrada.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Manage Payment Types Section */}
-          {showManagePaymentTypes && (
-            <div className="sm:col-span-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 animate-fade-in space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Gerenciar Formas de Recebimento</span>
-                <button
-                  type="button"
-                  onClick={() => setShowManagePaymentTypes(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Nome da nova forma"
-                  value={newPaymentTypeName}
-                  onChange={(e) => setNewPaymentTypeName(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPaymentType}
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs flex items-center gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Adicionar
-                </button>
-              </div>
-              
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Formas Existentes</span>
-                {userData.paymentTypes.map(pt => (
-                  <div key={pt} className="flex items-center justify-between bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px]">
-                    {editingPaymentType === pt ? (
-                      <div className="flex-1 flex gap-1.5 items-center">
-                        <input
-                          type="text"
-                          value={editPaymentTypeValue}
-                          onChange={(e) => setEditPaymentTypeValue(e.target.value)}
-                          className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:outline-none"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleEditPaymentType(pt);
-                            if (e.key === 'Escape') setEditingPaymentType(null);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleEditPaymentType(pt)}
-                          className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Salvar"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingPaymentType(null)}
-                          className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Cancelar"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">{pt}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingPaymentType(pt);
-                              setEditPaymentTypeValue(pt);
-                            }}
-                            className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Editar Forma de Recebimento"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePaymentType(pt)}
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Excluir Forma de Recebimento"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {userData.paymentTypes.length === 0 && (
-                  <p className="text-center text-slate-400 py-2">Nenhuma forma cadastrada.</p>
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="sm:col-span-3 flex justify-end gap-2.5 pt-2">
             <button
               type="button"
@@ -638,20 +440,247 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 setValue('');
                 setShowManageCategories(false);
                 setShowManagePaymentTypes(false);
-                setNewCategoryName('');
-                setNewPaymentTypeName('');
               }}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
+              className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
             >
               Cancelar
             </button>
-            <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">
-              {editingIncomeId ? 'Salvar Alterações' : 'Salvar Registro'}
+            <button
+              type="submit"
+              className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors"
+            >
+              {editingIncomeId ? 'Atualizar Registro' : 'Salvar Registro'}
             </button>
           </div>
         </form>
+      </div>
+    )}
+
+    {/* Manage Categories Popup Modal */}
+    {showManageCategories && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Categorias de Receita</h3>
+            <button
+              type="button"
+              onClick={() => setShowManageCategories(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <input
+              type="text"
+              placeholder="Nome da nova categoria"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
+            />
+            <button
+              type="button"
+              onClick={handleAddCategory}
+              className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4" /> Adicionar
+            </button>
+          </div>
+          
+          <div className="space-y-2 w-full">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Categorias Existentes</span>
+            <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
+              {userData.incomeCategories.map(cat => (
+                <div key={cat} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
+                  {editingCategory === cat ? (
+                    <div className="flex-1 flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={editCategoryValue}
+                        onChange={(e) => setEditCategoryValue(e.target.value)}
+                        className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEditCategory(cat);
+                          if (e.key === 'Escape') setEditingCategory(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEditCategory(cat)}
+                        className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{cat}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCategory(cat);
+                            setEditCategoryValue(cat);
+                          }}
+                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Editar Categoria"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Excluir Categoria"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {userData.incomeCategories.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma categoria cadastrada.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowManageCategories(false)}
+              className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              Concluir
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    )}
+
+    {/* Manage Payment Types Popup Modal */}
+    {showManagePaymentTypes && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Formas de Recebimento</h3>
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentTypes(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <input
+              type="text"
+              placeholder="Nome da nova forma"
+              value={newPaymentTypeName}
+              onChange={(e) => setNewPaymentTypeName(e.target.value)}
+              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
+            />
+            <button
+              type="button"
+              onClick={handleAddPaymentType}
+              className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4" /> Adicionar
+            </button>
+          </div>
+          
+          <div className="space-y-2 w-full">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Formas Existentes</span>
+            <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
+              {userData.paymentTypes.map(pt => (
+                <div key={pt} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
+                  {editingPaymentType === pt ? (
+                    <div className="flex-1 flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={editPaymentTypeValue}
+                        onChange={(e) => setEditPaymentTypeValue(e.target.value)}
+                        className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEditPaymentType(pt);
+                          if (e.key === 'Escape') setEditingPaymentType(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEditPaymentType(pt)}
+                        className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPaymentType(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{pt}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPaymentType(pt);
+                            setEditPaymentTypeValue(pt);
+                          }}
+                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Editar Forma de Recebimento"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePaymentType(pt)}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Excluir Forma de Recebimento"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {userData.paymentTypes.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma forma cadastrada.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentTypes(false)}
+              className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              Concluir
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
       {/* Filter and Table Card */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
@@ -858,9 +887,11 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
+  const [installments, setInstallments] = useState<number>(1);
   const [category, setCategory] = useState(userData.expenseCategories[0] || 'Outros');
   const [paymentType, setPaymentType] = useState(userData.paymentTypes[0] || 'Pix');
   const [status, setStatus] = useState(userData.paymentStatuses[0] || 'Pendente');
+  const [classification, setClassification] = useState<'Fixo' | 'Variável' | 'Eventual'>('Fixo');
   const [search, setSearch] = useState('');
 
   // Category, Payment Type and Payment Status Management States
@@ -956,6 +987,28 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     return `${monthNames[monthIdx]} / ${year}`;
   };
 
+  const getNextMonthDate = (baseDateStr: string, monthsToAdd: number): string => {
+    if (monthsToAdd === 0) return baseDateStr;
+    const [yearStr, monthStr, dayStr] = baseDateStr.split('-');
+    let year = parseInt(yearStr, 10);
+    let month = parseInt(monthStr, 10) - 1 + monthsToAdd;
+    let day = parseInt(dayStr, 10);
+
+    year += Math.floor(month / 12);
+    month = ((month % 12) + 12) % 12;
+
+    const daysInNewMonth = new Date(year, month + 1, 0).getDate();
+    if (day > daysInNewMonth) {
+      day = daysInNewMonth;
+    }
+
+    const newYyyy = String(year);
+    const newMm = String(month + 1).padStart(2, '0');
+    const newDd = String(day).padStart(2, '0');
+
+    return `${newYyyy}-${newMm}-${newDd}`;
+  };
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !value) return;
@@ -971,7 +1024,8 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             value: parseFloat(value),
             category,
             paymentType,
-            status
+            status,
+            classification
           };
         }
         return exp;
@@ -984,23 +1038,48 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       setEditingExpenseId(null);
     } else {
       // Create mode
-      const newExpense: Expense = {
-        id: 'exp-' + Date.now(),
-        date,
-        description,
-        value: parseFloat(value),
-        category,
-        paymentType,
-        status
-      };
+      const parsedVal = parseFloat(value);
+      if (installments > 1) {
+        const newExpensesList: Expense[] = [];
+        const baseTimestamp = Date.now();
+        for (let i = 1; i <= installments; i++) {
+          const instDate = getNextMonthDate(date, i - 1);
+          newExpensesList.push({
+            id: 'exp-' + baseTimestamp + '-' + i,
+            date: instDate,
+            description: `${description} (${i}/${installments})`,
+            value: parsedVal,
+            category,
+            paymentType,
+            status: i === 1 ? status : (status === 'Pago' ? 'Pendente' : status),
+            classification
+          });
+        }
+        onUpdateUserData({
+          expenses: [...newExpensesList, ...userData.expenses]
+        });
+      } else {
+        const newExpense: Expense = {
+          id: 'exp-' + Date.now(),
+          date,
+          description,
+          value: parsedVal,
+          category,
+          paymentType,
+          status,
+          classification
+        };
 
-      onUpdateUserData({
-        expenses: [newExpense, ...userData.expenses]
-      });
+        onUpdateUserData({
+          expenses: [newExpense, ...userData.expenses]
+        });
+      }
     }
 
     setDescription('');
     setValue('');
+    setInstallments(1);
+    setClassification('Fixo');
     setShowAddForm(false);
   };
 
@@ -1012,6 +1091,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setCategory(exp.category);
     setPaymentType(exp.paymentType);
     setStatus(exp.status);
+    setClassification((exp.classification as any) || 'Fixo');
     setShowAddForm(true);
     setTimeout(() => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1193,15 +1273,18 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               setEditingExpenseId(null);
               setDescription('');
               setValue('');
+              setInstallments(1);
             } else {
               setShowAddForm(true);
               setEditingExpenseId(null);
               setDescription('');
               setValue('');
+              setInstallments(1);
               setDate(new Date().toISOString().split('T')[0]);
               setCategory(userData.expenseCategories[0] || 'Outros');
               setPaymentType(userData.paymentTypes[0] || 'Pix');
               setStatus(userData.paymentStatuses[0] || 'Pendente');
+              setClassification('Fixo');
               setShowManageCategories(false);
               setShowManagePaymentTypes(false);
               setShowManagePaymentStatuses(false);
@@ -1259,19 +1342,37 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
             <input type="number" required step="0.01" placeholder="R$ 150,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
           </div>
+          {!editingExpenseId && (
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-400">Quantidade de Parcelas</label>
+              <select
+                value={installments}
+                onChange={(e) => setInstallments(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              >
+                <option value={1}>1x (À vista / Sem parcelamento)</option>
+                {Array.from({ length: 59 }, (_, idx) => idx + 2).map(num => (
+                  <option key={num} value={num}>{num}x</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-normal">
+                * Os lançamentos automáticos nos meses subsequentes ocorrem a partir da 2ª parcela.
+              </p>
+            </div>
+          )}
           <div>
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Centro de Despesa</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria da despesa</label>
               <button
                 type="button"
                 onClick={() => {
-                  setShowManageCategories(!showManageCategories);
+                  setShowManageCategories(true);
                   setShowManagePaymentTypes(false);
                   setShowManagePaymentStatuses(false);
                 }}
-                className="text-[10px] font-bold text-blue-600 hover:text-blue-500 hover:underline"
+                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
-                {showManageCategories ? 'Fechar' : 'Gerenciar'}
+                Gerenciar
               </button>
             </div>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
@@ -1286,13 +1387,13 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               <button
                 type="button"
                 onClick={() => {
-                  setShowManagePaymentTypes(!showManagePaymentTypes);
+                  setShowManagePaymentTypes(true);
                   setShowManageCategories(false);
                   setShowManagePaymentStatuses(false);
                 }}
-                className="text-[10px] font-bold text-blue-600 hover:text-blue-500 hover:underline"
+                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
-                {showManagePaymentTypes ? 'Fechar' : 'Gerenciar'}
+                Gerenciar
               </button>
             </div>
             <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
@@ -1307,13 +1408,13 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               <button
                 type="button"
                 onClick={() => {
-                  setShowManagePaymentStatuses(!showManagePaymentStatuses);
+                  setShowManagePaymentStatuses(true);
                   setShowManageCategories(false);
                   setShowManagePaymentTypes(false);
                 }}
-                className="text-[10px] font-bold text-blue-600 hover:text-blue-500 hover:underline"
+                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
-                {showManagePaymentStatuses ? 'Fechar' : 'Gerenciar'}
+                Gerenciar
               </button>
             </div>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
@@ -1323,302 +1424,18 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </select>
           </div>
 
-          {/* Manage Categories Section */}
-          {showManageCategories && (
-            <div className="sm:col-span-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 animate-fade-in space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Gerenciar Centros de Despesa</span>
-                <button
-                  type="button"
-                  onClick={() => setShowManageCategories(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Nome do novo centro de despesa"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddCategory}
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs flex items-center gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Adicionar
-                </button>
-              </div>
-              
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Centros de Despesa Existentes</span>
-                {userData.expenseCategories.map(cat => (
-                  <div key={cat} className="flex items-center justify-between bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px]">
-                    {editingCategory === cat ? (
-                      <div className="flex-1 flex gap-1.5 items-center">
-                        <input
-                          type="text"
-                          value={editCategoryValue}
-                          onChange={(e) => setEditCategoryValue(e.target.value)}
-                          className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:outline-none"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleEditCategory(cat);
-                            if (e.key === 'Escape') setEditingCategory(null);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleEditCategory(cat)}
-                          className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Salvar"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingCategory(null)}
-                          className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Cancelar"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">{cat}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingCategory(cat);
-                              setEditCategoryValue(cat);
-                            }}
-                            className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Editar Centro de Despesa"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(cat)}
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Excluir Centro de Despesa"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {userData.expenseCategories.length === 0 && (
-                  <p className="text-center text-slate-400 py-2">Nenhum centro de despesa cadastrado.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Manage Payment Types Section */}
-          {showManagePaymentTypes && (
-            <div className="sm:col-span-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 animate-fade-in space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Gerenciar Tipos de Pagamento</span>
-                <button
-                  type="button"
-                  onClick={() => setShowManagePaymentTypes(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Nome do novo tipo de pagamento"
-                  value={newPaymentTypeName}
-                  onChange={(e) => setNewPaymentTypeName(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPaymentType}
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs flex items-center gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Adicionar
-                </button>
-              </div>
-              
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tipos de Pagamento Existentes</span>
-                {userData.paymentTypes.map(pt => (
-                  <div key={pt} className="flex items-center justify-between bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px]">
-                    {editingPaymentType === pt ? (
-                      <div className="flex-1 flex gap-1.5 items-center">
-                        <input
-                          type="text"
-                          value={editPaymentTypeValue}
-                          onChange={(e) => setEditPaymentTypeValue(e.target.value)}
-                          className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:outline-none"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleEditPaymentType(pt);
-                            if (e.key === 'Escape') setEditingPaymentType(null);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleEditPaymentType(pt)}
-                          className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Salvar"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingPaymentType(null)}
-                          className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Cancelar"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">{pt}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingPaymentType(pt);
-                              setEditPaymentTypeValue(pt);
-                            }}
-                            className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Editar Tipo de Pagamento"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePaymentType(pt)}
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Excluir Tipo de Pagamento"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {userData.paymentTypes.length === 0 && (
-                  <p className="text-center text-slate-400 py-2">Nenhum tipo de pagamento cadastrado.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Manage Payment Statuses Section */}
-          {showManagePaymentStatuses && (
-            <div className="sm:col-span-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 animate-fade-in space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Gerenciar Situações de Pagamento</span>
-                <button
-                  type="button"
-                  onClick={() => setShowManagePaymentStatuses(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Nome da nova situação de pagamento"
-                  value={newPaymentStatusName}
-                  onChange={(e) => setNewPaymentStatusName(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPaymentStatus}
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs flex items-center gap-1"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Adicionar
-                </button>
-              </div>
-              
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Situações de Pagamento Existentes</span>
-                {userData.paymentStatuses.map(ps => (
-                  <div key={ps} className="flex items-center justify-between bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px]">
-                    {editingPaymentStatus === ps ? (
-                      <div className="flex-1 flex gap-1.5 items-center">
-                        <input
-                          type="text"
-                          value={editPaymentStatusValue}
-                          onChange={(e) => setEditPaymentStatusValue(e.target.value)}
-                          className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-950 dark:text-white focus:outline-none"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleEditPaymentStatus(ps);
-                            if (e.key === 'Escape') setEditingPaymentStatus(null);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleEditPaymentStatus(ps)}
-                          className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Salvar"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingPaymentStatus(null)}
-                          className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-850"
-                          title="Cancelar"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">{ps}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingPaymentStatus(ps);
-                              setEditPaymentStatusValue(ps);
-                            }}
-                            className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Editar Situação de Pagamento"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePaymentStatus(ps)}
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                            title="Excluir Situação de Pagamento"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {userData.paymentStatuses.length === 0 && (
-                  <p className="text-center text-slate-400 py-2">Nenhuma situação de pagamento cadastrada.</p>
-                )}
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-slate-400">Classificação de Despesa</label>
+            <select
+              value={classification}
+              onChange={(e) => setClassification(e.target.value as 'Fixo' | 'Variável' | 'Eventual')}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="Fixo">Fixo</option>
+              <option value="Variável">Variável</option>
+              <option value="Eventual">Eventual</option>
+            </select>
+          </div>
 
           <div className="sm:col-span-3 flex justify-end gap-2.5 pt-2">
             <button
@@ -1628,6 +1445,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 setEditingExpenseId(null);
                 setDescription('');
                 setValue('');
+                setInstallments(1);
                 setShowManageCategories(false);
                 setShowManagePaymentTypes(false);
                 setShowManagePaymentStatuses(false);
@@ -1638,14 +1456,353 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors"
+              className="rounded-lg bg-rose-600 px-4 py-2 font-bold text-white hover:bg-rose-500 transition-colors"
             >
               {editingExpenseId ? 'Atualizar Registro' : 'Salvar Registro'}
             </button>
           </div>
         </form>
+      </div>
+    )}
+
+    {/* Manage Categories Popup Modal */}
+    {showManageCategories && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Categorias de Despesa</h3>
+            <button
+              type="button"
+              onClick={() => setShowManageCategories(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <input
+              type="text"
+              placeholder="Nome da nova categoria de despesa"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
+            />
+            <button
+              type="button"
+              onClick={handleAddCategory}
+              className="rounded-lg bg-rose-600 px-4 py-2 font-bold text-white hover:bg-rose-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4" /> Adicionar
+            </button>
+          </div>
+          
+          <div className="space-y-2 w-full">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Categorias Existentes</span>
+            <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
+              {userData.expenseCategories.map(cat => (
+                <div key={cat} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
+                  {editingCategory === cat ? (
+                    <div className="flex-1 flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={editCategoryValue}
+                        onChange={(e) => setEditCategoryValue(e.target.value)}
+                        className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEditCategory(cat);
+                          if (e.key === 'Escape') setEditingCategory(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEditCategory(cat)}
+                        className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{cat}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCategory(cat);
+                            setEditCategoryValue(cat);
+                          }}
+                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Editar Categoria de Despesa"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Excluir Categoria de Despesa"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {userData.expenseCategories.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma categoria de despesa cadastrada.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowManageCategories(false)}
+              className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              Concluir
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    )}
+
+    {/* Manage Payment Types Popup Modal */}
+    {showManagePaymentTypes && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Tipos de Pagamento</h3>
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentTypes(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <input
+              type="text"
+              placeholder="Nome do novo tipo de pagamento"
+              value={newPaymentTypeName}
+              onChange={(e) => setNewPaymentTypeName(e.target.value)}
+              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
+            />
+            <button
+              type="button"
+              onClick={handleAddPaymentType}
+              className="rounded-lg bg-rose-600 px-4 py-2 font-bold text-white hover:bg-rose-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4" /> Adicionar
+            </button>
+          </div>
+          
+          <div className="space-y-2 w-full">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tipos de Pagamento Existentes</span>
+            <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
+              {userData.paymentTypes.map(pt => (
+                <div key={pt} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
+                  {editingPaymentType === pt ? (
+                    <div className="flex-1 flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={editPaymentTypeValue}
+                        onChange={(e) => setEditPaymentTypeValue(e.target.value)}
+                        className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEditPaymentType(pt);
+                          if (e.key === 'Escape') setEditingPaymentType(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEditPaymentType(pt)}
+                        className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPaymentType(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{pt}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPaymentType(pt);
+                            setEditPaymentTypeValue(pt);
+                          }}
+                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Editar Tipo de Pagamento"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePaymentType(pt)}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Excluir Tipo de Pagamento"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {userData.paymentTypes.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhum tipo de pagamento cadastrado.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentTypes(false)}
+              className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              Concluir
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Manage Payment Statuses Popup Modal */}
+    {showManagePaymentStatuses && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Situações de Pagamento</h3>
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentStatuses(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <input
+              type="text"
+              placeholder="Nome da nova situação de pagamento"
+              value={newPaymentStatusName}
+              onChange={(e) => setNewPaymentStatusName(e.target.value)}
+              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
+            />
+            <button
+              type="button"
+              onClick={handleAddPaymentStatus}
+              className="rounded-lg bg-rose-600 px-4 py-2 font-bold text-white hover:bg-rose-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4" /> Adicionar
+            </button>
+          </div>
+          
+          <div className="space-y-2 w-full">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Situações de Pagamento Existentes</span>
+            <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
+              {userData.paymentStatuses.map(ps => (
+                <div key={ps} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
+                  {editingPaymentStatus === ps ? (
+                    <div className="flex-1 flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={editPaymentStatusValue}
+                        onChange={(e) => setEditPaymentStatusValue(e.target.value)}
+                        className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEditPaymentStatus(ps);
+                          if (e.key === 'Escape') setEditingPaymentStatus(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEditPaymentStatus(ps)}
+                        className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPaymentStatus(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{ps}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPaymentStatus(ps);
+                            setEditPaymentStatusValue(ps);
+                          }}
+                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Editar Situação de Pagamento"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePaymentStatus(ps)}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Excluir Situação de Pagamento"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {userData.paymentStatuses.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma situação de pagamento cadastrada.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentStatuses(false)}
+              className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              Concluir
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
       {/* Filter and Table Card */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
@@ -1658,7 +1815,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               </span>
               <input
                 type="text"
-                placeholder="Pesquisar por descrição ou centro de despesa..."
+                placeholder="Pesquisar por descrição ou categoria da despesa..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-lg border border-slate-200/50 bg-slate-50 py-2 pl-9 pr-3 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
@@ -1786,7 +1943,8 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
                 <th className="pb-3 font-semibold">Data</th>
                 <th className="pb-3 font-semibold">Descrição</th>
-                <th className="pb-3 font-semibold">Centro de Despesa</th>
+                <th className="pb-3 font-semibold">Categoria da despesa</th>
+                <th className="pb-3 font-semibold">Classificação</th>
                 <th className="pb-3 font-semibold">Forma de Pagamento</th>
                 <th className="pb-3 font-semibold">Situação</th>
                 <th className="pb-3 font-semibold text-right">Valor</th>
@@ -1796,7 +1954,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {filteredExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-400">Nenhum registro de despesa localizado.</td>
+                  <td colSpan={8} className="text-center py-8 text-slate-400">Nenhum registro de despesa localizado.</td>
                 </tr>
               ) : (
                 filteredExpenses.map((exp) => (
@@ -1805,6 +1963,9 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                     <td className="py-3 font-bold text-slate-800 dark:text-slate-200">{exp.description}</td>
                     <td className="py-3">
                       <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 dark:bg-slate-800 dark:text-slate-400">{exp.category}</span>
+                    </td>
+                    <td className="py-3">
+                      <span className="bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">{exp.classification || 'Fixo'}</span>
                     </td>
                     <td className="py-3 text-slate-500">{exp.paymentType}</td>
                     <td className="py-3">
@@ -1923,7 +2084,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       sumIncome,
       sumExpense,
       sumBudget,
-      balance: sumIncome - sumExpense,
+      balance: sumBudget - sumExpense,
       catStats: Object.entries(catStats).map(([category, value]) => ({ category, value })),
       statement,
       categoriesTableData
@@ -1978,7 +2139,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
 
       {/* Explanatory footnote */}
       <div className="text-[11px] text-slate-500 italic dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
-        *O Saldo do Mês é calculado subtraindo os Realizados do Mês do total de Receitas do Mês. Orçados do Mês representa o planejamento configurado para o período.
+        *O Saldo do Mês é calculado considerando o valor de Orçados do Mês e os Realizados do Mês. Orçados do Mês representa o planejamento configurado para o período.
       </div>
 
       {/* Performance by Category Table */}
@@ -2142,13 +2303,13 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Desempenho Mês a Mês</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs table-fixed">
             <thead>
               <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
-                <th className="pb-3.5 font-semibold">Mês</th>
-                <th className="pb-3.5 font-semibold text-right">Orçado</th>
-                <th className="pb-3.5 font-semibold text-right">Realizado</th>
-                <th className="pb-3.5 font-semibold text-right">Saldo</th>
+                <th className="pb-3.5 font-semibold w-[14%]">Mês</th>
+                <th className="pb-3.5 font-semibold text-right w-[28.66%]">Orçado</th>
+                <th className="pb-3.5 font-semibold text-right w-[28.66%]">Realizado</th>
+                <th className="pb-3.5 font-semibold text-right w-[28.68%]">Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
@@ -4635,126 +4796,6 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
           </div>
         </div>
       )}
-
-      {/* Supabase Status Dashboard */}
-      <SupabaseStatusDashboard isAdmin={userProfile.role === 'admin'} />
-    </div>
-  );
-};
-
-// Sub-component for Supabase Status & Schema Helper
-const SupabaseStatusDashboard: React.FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
-  const [status, setStatus] = useState<{ active: boolean; url: string; schema: string } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-
-  React.useEffect(() => {
-    fetch('/api/supabase-status')
-      .then((res) => res.json())
-      .then((data) => {
-        setStatus(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error('Error fetching Supabase status:', err);
-        setLoading(false);
-      });
-  }, []);
-
-  const handleCopySchema = () => {
-    if (status?.schema) {
-      navigator.clipboard.writeText(status.schema);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-center text-xs text-slate-400">
-        Carregando status do banco de dados...
-      </div>
-    );
-  }
-
-  const isConnected = !!status?.active;
-
-  // View for non-admin common users: only title and status
-  if (!isAdmin) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className={`h-2.5 w-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-            <h3 className="font-bold text-slate-800 dark:text-white">Status da Conexão do Banco de Dados</h3>
-          </div>
-          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${isConnected ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'}`}>
-            {isConnected ? 'Conectado' : 'Modo Backup Local'}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  // View for administrator: full connection info and database schema script
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4 text-xs">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
-        <div className="flex items-center space-x-2">
-          <div className={`h-2.5 w-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-          <h3 className="font-bold text-slate-800 dark:text-white">Status da Conexão Supabase</h3>
-        </div>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${isConnected ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'}`}>
-          {isConnected ? 'Nuvem Conectada' : 'Modo Backup Local'}
-        </span>
-      </div>
-
-      {isConnected ? (
-        <div className="space-y-2">
-          <p className="text-slate-500 leading-relaxed">
-            Parabéns! Sua aplicação está conectada com sucesso ao banco de dados do **Supabase**. Todos os acessos de login, cadastro e lançamentos financeiros estão sendo persistidos de forma segura na nuvem.
-          </p>
-          <div className="rounded-lg bg-slate-50 p-2 text-[10px] font-mono text-slate-500 dark:bg-slate-950 dark:text-slate-400 break-all border border-slate-100 dark:border-slate-800">
-            <strong>SUPABASE_URL:</strong> {status?.url}
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex items-start space-x-2 text-amber-800 dark:text-amber-400">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <p className="text-slate-500 leading-relaxed">
-              As variáveis de ambiente do Supabase não foram configuradas no seu arquivo `.env`. Por segurança, a aplicação está rodando no **Modo Backup Local** salvando seus dados localmente no servidor.
-            </p>
-          </div>
-          <div className="rounded-lg bg-amber-50/50 p-3 border border-amber-100 dark:bg-amber-950/10 dark:border-amber-900/30 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
-            <p className="font-bold">Para ativar a persistência em Nuvem com Supabase:</p>
-            <ol className="list-decimal pl-4 space-y-1">
-              <li>Crie um projeto grátis em <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline font-semibold">supabase.com</a></li>
-              <li>Acesse as configurações de API do projeto para obter a URL e a Anon Key.</li>
-              <li>Adicione as variáveis ao seu arquivo `.env` da aplicação.</li>
-            </ol>
-          </div>
-        </div>
-      )}
-
-      <div className="border-t border-slate-100 pt-3 dark:border-slate-800 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-700 dark:text-slate-300">Esquema do Banco de Dados (DDL)</span>
-          <button
-            onClick={handleCopySchema}
-            className="flex items-center space-x-1.5 rounded bg-slate-100 px-2 py-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-          >
-            <Copy className="h-3 w-3" />
-            <span>{copied ? 'Copiado!' : 'Copiar Script SQL'}</span>
-          </button>
-        </div>
-        <p className="text-slate-400 text-[10px]">
-          Execute o script abaixo no **SQL Editor** do painel do seu Supabase para criar as tabelas estruturadas necessárias para a sua conta de login e lançamentos:
-        </p>
-        <pre className="rounded-lg bg-slate-950 p-3 text-[10px] font-mono text-slate-300 overflow-x-auto max-h-40 border border-slate-800">
-          {status?.schema}
-        </pre>
-      </div>
     </div>
   );
 };
