@@ -238,6 +238,18 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
           <CheckCircle2 className="h-3.5 w-3.5" />
           <span>Status ({statuses.length})</span>
         </button>
+
+        {activeTab !== 'all' && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 transition-colors dark:border-red-950 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400 ml-auto"
+            title="Limpar filtro de abas"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>Limpar filtro</span>
+          </button>
+        )}
       </div>
 
       {/* Grid containing two main sections */}

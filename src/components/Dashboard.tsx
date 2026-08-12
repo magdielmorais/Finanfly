@@ -11,7 +11,7 @@ import {
   TYPE_COLOR_MAP,
   STATUS_COLOR_MAP
 } from './CustomChart';
-import { ArrowUpRight, ArrowDownRight, Wallet, Filter, Calendar, Activity, PieChart, TrendingUp, Layers, Tag } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Wallet, Filter, Calendar, Activity, PieChart, TrendingUp, Layers, Tag, Trash2 } from 'lucide-react';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -414,6 +414,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               <option key={y} value={y.toString()}>{y}</option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={() => setSelectedKpiYear('all')}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              selectedKpiYear !== 'all'
+                ? 'border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 text-red-600 dark:border-red-950 dark:bg-red-950/30 dark:hover:bg-red-950/50 dark:text-red-400'
+                : 'border-slate-200/60 bg-white text-slate-400 hover:text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:hover:text-slate-200'
+            }`}
+            title="Limpar filtro de ano"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
@@ -602,6 +614,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  onClick={() => setBudgetComparisonYear(new Date().getFullYear())}
+                  className="p-1 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                  title="Limpar filtro de ano"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
             <ExpenseBudgetComparisonChart data={monthlyExpenseComparisonData} />
@@ -637,6 +657,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClassificationMonth(new Date().getMonth());
+                    setClassificationYear(new Date().getFullYear());
+                  }}
+                  className="p-1 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                  title="Limpar filtros (voltar ao mês/ano atual)"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
 
@@ -652,20 +684,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               Maiores Lançamentos (Top 10)
             </h3>
             {/* Filter buttons - only Receitas and Despesas */}
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg dark:bg-slate-800">
-              {(['Receitas', 'Despesas'] as const).map(type => (
-                <button
-                  key={type}
-                  onClick={() => setFilterType(type)}
-                  className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
-                    filterType === type
-                      ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
-                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg dark:bg-slate-800">
+                {(['Receitas', 'Despesas'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setFilterType(type)}
+                    className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
+                      filterType === type
+                        ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilterType('Receitas')}
+                className="p-1.5 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                title="Limpar filtro"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
           <TopItemsBarChart incomes={topIncomes} expenses={topExpenses} filter={filterType} />
@@ -680,20 +722,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
             Lançamentos Recentes
           </h3>
           {/* Recent transaction filter buttons */}
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg dark:bg-slate-800">
-            {(['Todos', 'Receitas', 'Despesas'] as const).map(type => (
-              <button
-                key={type}
-                onClick={() => setRecentFilter(type)}
-                className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
-                  recentFilter === type
-                    ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg dark:bg-slate-800">
+              {(['Todos', 'Receitas', 'Despesas'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setRecentFilter(type)}
+                  className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
+                    recentFilter === type
+                      ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setRecentFilter('Todos')}
+              className="p-1.5 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+              title="Limpar filtro"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
         
@@ -827,6 +879,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 ))}
               </select>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setInvestmentMonth(new Date().getMonth());
+                setInvestmentYear(new Date().getFullYear());
+              }}
+              className="p-1.5 rounded-lg border border-purple-200 hover:border-red-300 bg-white hover:bg-red-50 text-purple-600 hover:text-red-600 transition-colors dark:border-purple-800 dark:bg-slate-950 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+              title="Limpar filtros (voltar ao mês/ano atual)"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 

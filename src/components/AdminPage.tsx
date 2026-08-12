@@ -217,7 +217,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         type: 'Receita',
         typeBadge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
         description: inc.description || 'Sem descrição',
-        details: [inc.category ? `Categoria: ${inc.category}` : null, inc.paymentType ? `Forma: ${inc.paymentType}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
+        details: [inc.category ? `Categoria: ${inc.category}` : null, inc.paymentType ? `Tipo: ${inc.paymentType}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -231,7 +231,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         type: 'Despesa',
         typeBadge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800',
         description: exp.description || 'Sem descrição',
-        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Forma: ${exp.paymentType}` : null, exp.classification ? `Classificação: ${exp.classification}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
+        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Tipo: ${exp.paymentType}` : null, exp.classification ? `Classificação: ${exp.classification}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -1359,6 +1359,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 <option value="expired">Inativos / Expirados ❌</option>
                 <option value="admin">Administradores 🛡️</option>
               </select>
+
+              {(searchQuery !== '' || statusFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setStatusFilter('all');
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 text-xs font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400 shrink-0"
+                  title="Limpar filtros"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Limpar</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1971,7 +1986,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
 
           {/* Filters card */}
-          <div className="grid gap-4 sm:grid-cols-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-700 dark:text-slate-300">
+          <div className="grid gap-4 sm:grid-cols-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-700 dark:text-slate-300 items-end">
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filtrar por Estado</label>
               <select
@@ -1987,7 +2002,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filtrar por Cidade</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Filtrar por Cidade</label>
+                {(reportStateFilter !== 'all' || reportCityFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReportStateFilter('all');
+                      setReportCityFilter('all');
+                    }}
+                    className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 hover:underline"
+                    title="Limpar filtros relatórios"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Limpar</span>
+                  </button>
+                )}
+              </div>
               <select
                 value={reportCityFilter}
                 onChange={(e) => setReportCityFilter(e.target.value)}

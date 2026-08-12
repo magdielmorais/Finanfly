@@ -109,6 +109,7 @@ export default function App() {
       'Plano anual',
       'Tipo de pagamento',
       'Situação de pagamento',
+      'Cadastro categoria Receitas',
       'Cadastro tipos de Receitas',
       'Cadastro categoria Despesas',
       'Tipos e Status Investimentos'
@@ -584,7 +585,7 @@ export default function App() {
         if (!userData) return null;
         return (
           <ListManagerPage
-            title="Formas de Pagamento"
+            title="Tipos de Pagamento"
             description="Cadastre as opções que você utiliza para pagar despesas ou receber receitas (Pix, Cartão, Boleto, etc)."
             items={userData.paymentTypes}
             placeholder="Ex: Cartão de Débito"
@@ -622,6 +623,7 @@ export default function App() {
             }}
           />
         );
+      case 'Cadastro categoria Receitas':
       case 'Cadastro tipos de Receitas':
         if (!userData) return null;
         return (
@@ -740,7 +742,7 @@ export default function App() {
     { name: 'Plano anual', icon: FileText },
     { name: 'Tipo de pagamento', icon: CreditCard },
     { name: 'Situação de pagamento', icon: CheckCircle },
-    { name: 'Cadastro tipos de Receitas', icon: TrendingUp },
+    { name: 'Cadastro categoria Receitas', icon: TrendingUp },
     { name: 'Cadastro categoria Despesas', icon: TrendingDown },
     { name: 'Tipos e Status Investimentos', icon: Vault },
   ];

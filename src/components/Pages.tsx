@@ -22,16 +22,20 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [status, setStatus] = useState(userData.paymentStatuses[0] || 'Pago');
   const [search, setSearch] = useState('');
 
-  // Category and Payment Type Management States
+  // Category, Payment Type and Payment Status Management States
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showManagePaymentTypes, setShowManagePaymentTypes] = useState(false);
   const [newPaymentTypeName, setNewPaymentTypeName] = useState('');
+  const [showManagePaymentStatuses, setShowManagePaymentStatuses] = useState(false);
+  const [newPaymentStatusName, setNewPaymentStatusName] = useState('');
 
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editCategoryValue, setEditCategoryValue] = useState('');
   const [editingPaymentType, setEditingPaymentType] = useState<string | null>(null);
   const [editPaymentTypeValue, setEditPaymentTypeValue] = useState('');
+  const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null);
+  const [editPaymentStatusValue, setEditPaymentStatusValue] = useState('');
 
   const currentMonthYearStr = useMemo(() => {
     const today = new Date();
@@ -269,6 +273,50 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setEditPaymentTypeValue('');
   };
 
+  const handleAddPaymentStatus = () => {
+    const trimmed = newPaymentStatusName.trim();
+    if (!trimmed) return;
+    if (userData.paymentStatuses.includes(trimmed)) return;
+    const updated = [...userData.paymentStatuses, trimmed];
+    onUpdateUserData({
+      paymentStatuses: updated
+    });
+    setNewPaymentStatusName('');
+    setStatus(trimmed);
+  };
+
+  const handleDeletePaymentStatus = (psToDelete: string) => {
+    const updated = userData.paymentStatuses.filter(ps => ps !== psToDelete);
+    onUpdateUserData({
+      paymentStatuses: updated
+    });
+    if (status === psToDelete) {
+      setStatus(updated[0] || 'Pago');
+    }
+  };
+
+  const handleEditPaymentStatus = (oldPs: string) => {
+    const trimmed = editPaymentStatusValue.trim();
+    if (!trimmed) return;
+    if (userData.paymentStatuses.includes(trimmed) && trimmed !== oldPs) return;
+
+    const updatedStatuses = userData.paymentStatuses.map(ps => ps === oldPs ? trimmed : ps);
+    const updatedIncomes = userData.incomes.map(inc => inc.status === oldPs ? { ...inc, status: trimmed } : inc);
+    const updatedExpenses = userData.expenses.map(exp => exp.status === oldPs ? { ...exp, status: trimmed } : exp);
+
+    onUpdateUserData({
+      paymentStatuses: updatedStatuses,
+      incomes: updatedIncomes,
+      expenses: updatedExpenses
+    });
+
+    if (status === oldPs) {
+      setStatus(trimmed);
+    }
+    setEditingPaymentStatus(null);
+    setEditPaymentStatusValue('');
+  };
+
   const filteredIncomes = useMemo(() => {
     return userData.incomes.filter(i => {
       const matchesSearch = 
@@ -345,12 +393,12 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas receitas:</p>
             <ul className="list-decimal pl-4 space-y-1.5">
               <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Receita</strong> no canto superior direito.</li>
-              <li>Preencha os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Categoria</strong> e <strong className="text-slate-800 dark:text-white">Forma de Recebimento</strong>.</li>
+              <li>Preencha os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Categoria</strong> e <strong className="text-slate-800 dark:text-white">Tipo de Pagamento</strong>.</li>
               <li>Selecione o status da transação (<strong className="text-slate-800 dark:text-white">Pago</strong> para valores recebidos ou <strong className="text-slate-800 dark:text-white">Pendente</strong> para previsões).</li>
               <li>Clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Registro</strong> para gravar a entrada.</li>
             </ul>
             <p className="mt-2 text-[11px] bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 p-2.5 rounded-lg">
-              <strong>Dica Prática:</strong> Personalize suas categorias e meios de recebimento clicando nas opções <strong className="underline">Gerenciar Categorias</strong> e <strong className="underline">Gerenciar Formas</strong> disponíveis no próprio formulário.
+              <strong>Dica Prática:</strong> Personalize suas categorias e meios de recebimento clicando nas opções <strong className="underline">Gerenciar Categorias</strong> e <strong className="underline">Gerenciar Tipos</strong> disponíveis no próprio formulário.
             </p>
           </div>
         )}
@@ -389,6 +437,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 onClick={() => {
                   setShowManageCategories(true);
                   setShowManagePaymentTypes(false);
+                  setShowManagePaymentStatuses(false);
                 }}
                 className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
@@ -403,12 +452,13 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </div>
           <div>
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Forma de Recebimento</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo de Pagamento</label>
               <button
                 type="button"
                 onClick={() => {
                   setShowManagePaymentTypes(true);
                   setShowManageCategories(false);
+                  setShowManagePaymentStatuses(false);
                 }}
                 className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
@@ -422,7 +472,20 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManagePaymentStatuses(true);
+                  setShowManageCategories(false);
+                  setShowManagePaymentTypes(false);
+                }}
+                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
+              >
+                Gerenciar
+              </button>
+            </div>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
               {userData.paymentStatuses.map(ps => (
                 <option key={ps} value={ps}>{ps}</option>
@@ -440,6 +503,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 setValue('');
                 setShowManageCategories(false);
                 setShowManagePaymentTypes(false);
+                setShowManagePaymentStatuses(false);
               }}
               className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
             >
@@ -574,7 +638,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Formas de Recebimento</h3>
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Tipos de Pagamento</h3>
             <button
               type="button"
               onClick={() => setShowManagePaymentTypes(false)}
@@ -586,7 +650,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <div className="flex flex-col sm:flex-row gap-2 w-full">
             <input
               type="text"
-              placeholder="Nome da nova forma"
+              placeholder="Nome do novo tipo"
               value={newPaymentTypeName}
               onChange={(e) => setNewPaymentTypeName(e.target.value)}
               className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
@@ -601,7 +665,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </div>
           
           <div className="space-y-2 w-full">
-            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Formas Existentes</span>
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tipos Existentes</span>
             <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
               {userData.paymentTypes.map(pt => (
                 <div key={pt} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
@@ -646,7 +710,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                             setEditPaymentTypeValue(pt);
                           }}
                           className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
-                          title="Editar Forma de Recebimento"
+                          title="Editar Tipo de Pagamento"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -654,7 +718,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                           type="button"
                           onClick={() => handleDeletePaymentType(pt)}
                           className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
-                          title="Excluir Forma de Recebimento"
+                          title="Excluir Tipo de Pagamento"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -664,7 +728,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 </div>
               ))}
               {userData.paymentTypes.length === 0 && (
-                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma forma cadastrada.</p>
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhum tipo cadastrado.</p>
               )}
             </div>
           </div>
@@ -673,6 +737,119 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             <button
               type="button"
               onClick={() => setShowManagePaymentTypes(false)}
+              className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              Concluir
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Manage Payment Statuses Popup Modal */}
+    {showManagePaymentStatuses && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Situações de Pagamento</h3>
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentStatuses(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <input
+              type="text"
+              placeholder="Nome da nova situação de pagamento"
+              value={newPaymentStatusName}
+              onChange={(e) => setNewPaymentStatusName(e.target.value)}
+              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
+            />
+            <button
+              type="button"
+              onClick={handleAddPaymentStatus}
+              className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
+            >
+              <Plus className="h-4 w-4" /> Adicionar
+            </button>
+          </div>
+          
+          <div className="space-y-2 w-full">
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Situações de Pagamento Existentes</span>
+            <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
+              {userData.paymentStatuses.map(ps => (
+                <div key={ps} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
+                  {editingPaymentStatus === ps ? (
+                    <div className="flex-1 flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={editPaymentStatusValue}
+                        onChange={(e) => setEditPaymentStatusValue(e.target.value)}
+                        className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEditPaymentStatus(ps);
+                          if (e.key === 'Escape') setEditingPaymentStatus(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEditPaymentStatus(ps)}
+                        className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPaymentStatus(null)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{ps}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPaymentStatus(ps);
+                            setEditPaymentStatusValue(ps);
+                          }}
+                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Editar Situação de Pagamento"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePaymentStatus(ps)}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          title="Excluir Situação de Pagamento"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {userData.paymentStatuses.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma situação de pagamento cadastrada.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowManagePaymentStatuses(false)}
               className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               Concluir
@@ -804,7 +981,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40"
                 title="Limpar todos os filtros"
               >
-                <X className="h-3.5 w-3.5" />
+                <Trash2 className="h-3.5 w-3.5" />
                 Limpar Filtros
               </button>
             )}
@@ -1926,7 +2103,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40"
                 title="Limpar todos os filtros"
               >
-                <X className="h-3.5 w-3.5" />
+                <Trash2 className="h-3.5 w-3.5" />
                 Limpar Filtros
               </button>
             )}
@@ -1945,7 +2122,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <th className="pb-3 font-semibold">Descrição</th>
                 <th className="pb-3 font-semibold">Categoria da despesa</th>
                 <th className="pb-3 font-semibold">Classificação</th>
-                <th className="pb-3 font-semibold">Forma de Pagamento</th>
+                <th className="pb-3 font-semibold">Tipo de Pagamento</th>
                 <th className="pb-3 font-semibold">Situação</th>
                 <th className="pb-3 font-semibold text-right">Valor</th>
                 <th className="pb-3 font-semibold text-right">Ação</th>
@@ -2112,6 +2289,18 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMonth(new Date().getMonth());
+              setSelectedYear(new Date().getFullYear());
+            }}
+            className="p-2 rounded-lg border border-slate-200/50 hover:border-red-300 bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+            title="Limpar filtros (voltar para mês e ano atuais)"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -2265,11 +2454,21 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
           <h2 className="text-xl font-bold text-slate-800 dark:text-white">Resumo Consolidado Anual</h2>
           <p className="text-xs text-slate-400">Analise seu desempenho orçamentário anual, metas planejadas e realistas.</p>
         </div>
-        <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white">
-          {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white">
+            {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setSelectedYear(new Date().getFullYear())}
+            className="p-2 rounded-lg border border-slate-200/50 hover:border-red-300 bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+            title="Limpar filtro (voltar para o ano atual)"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* KPI Row */}
@@ -2646,6 +2845,21 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
               ))}
             </select>
           </div>
+
+          {(filterStatus !== 'all' || filterYear !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilterStatus('all');
+                setFilterYear('all');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition-colors dark:border-red-950 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400"
+              title="Limpar filtros de objetivos"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Limpar</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -3037,6 +3251,21 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
               ))}
             </select>
           </div>
+
+          {(filterStatus !== 'all' || filterYear !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilterStatus('all');
+                setFilterYear('all');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition-colors dark:border-red-950 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400"
+              title="Limpar filtros de desejos"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Limpar</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -3634,6 +3863,21 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
               ))}
             </select>
           </div>
+
+          {(filterMonth !== 'all' || filterYear !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMonth('all');
+                setFilterYear('all');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition-colors dark:border-red-950 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400"
+              title="Limpar filtros da lista"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Limpar</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -4051,15 +4295,25 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         <label className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100">
           Escolha o ano:
         </label>
-        <select
-          value={selectedYear}
-          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-2 text-sm font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-inner"
-        >
-          {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-2 text-sm font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-inner"
+          >
+            {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setSelectedYear(new Date().getFullYear())}
+            className="p-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:bg-slate-950 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+            title="Limpar filtro (voltar para o ano atual)"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Help Accordion Card */}

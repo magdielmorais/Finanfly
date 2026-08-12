@@ -82,7 +82,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Fluxo de Caixa Simplificado</h3>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), formas de pagamento e status de recebimento.
+            Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), tipos de pagamento e status de recebimento.
           </p>
         </div>
 
@@ -132,7 +132,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
         </button>
         {isComoComecarOpen && (
           <div className="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/50 pt-3 animate-fade-in">
-            Para começar você deve realizar o cadastro de <strong>Tipo de pagamento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro tipos de Receitas</strong> e <strong>Cadastro categoria Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Plano anual</strong> clicando em <strong>Orçar por categoria</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
+            Para começar você deve realizar o cadastro de <strong>Tipo de pagamento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro categoria Receitas</strong> e <strong>Cadastro categoria Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Plano anual</strong> clicando em <strong>Orçar por categoria</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
           </div>
         )}
       </div>

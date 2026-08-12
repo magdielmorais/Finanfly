@@ -372,13 +372,16 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
 
             {(filterType !== 'todos' || filterYear !== 'todos') && (
               <button
+                type="button"
                 onClick={() => {
                   setFilterType('todos');
                   setFilterYear('todos');
                 }}
-                className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline px-1"
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1.5 font-bold transition-colors text-xs dark:border-red-950 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400"
+                title="Limpar todos os filtros"
               >
-                Limpar filtros
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Limpar filtros</span>
               </button>
             )}
           </div>
