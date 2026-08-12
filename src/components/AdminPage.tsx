@@ -174,8 +174,154 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
   // Auditing inspector state
   const [selectedUserForAudit, setSelectedUserForAudit] = useState<UserProfile | null>(null);
-  const [auditData, setAuditData] = useState<UserData | null>(null);
+  const [auditData, setAuditData] = useState<any>(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
+
+  // Helper memo to compute audit statistics and last 30 entries (without values)
+  const auditAnalysis = useMemo(() => {
+    if (!auditData) return { totalEntriesCount: 0, incomesCount: 0, expensesCount: 0, investmentsCount: 0, tripsCount: 0, wishesCount: 0, shoppingCount: 0, plansCount: 0, recent30AuditEntries: [] };
+
+    const uData = auditData.userData || auditData || {};
+    const incomes = Array.isArray(uData.incomes) ? uData.incomes : [];
+    const expenses = Array.isArray(uData.expenses) ? uData.expenses : [];
+    const investments = Array.isArray(uData.investments) ? uData.investments : [];
+    const trips = Array.isArray(uData.trips) ? uData.trips : [];
+    const wishes = Array.isArray(uData.wishes) ? uData.wishes : [];
+    const shoppingList = Array.isArray(uData.shoppingList) ? uData.shoppingList : [];
+    const actionPlans = Array.isArray(uData.actionPlans) ? uData.actionPlans : [];
+
+    const incomesCount = incomes.length;
+    const expensesCount = expenses.length;
+    const investmentsCount = investments.length;
+    const tripsCount = trips.length;
+    const wishesCount = wishes.length;
+    const shoppingCount = shoppingList.length;
+    const plansCount = actionPlans.length;
+
+    const totalEntriesCount = incomesCount + expensesCount + investmentsCount + tripsCount + wishesCount + shoppingCount + plansCount;
+
+    const list: Array<{
+      type: string;
+      typeBadge: string;
+      description: string;
+      details: string;
+      date: string;
+      timestamp: number;
+    }> = [];
+
+    // Incomes
+    incomes.forEach((inc: any) => {
+      const d = inc.date || '';
+      const ts = d ? new Date(d).getTime() : 0;
+      list.push({
+        type: 'Receita',
+        typeBadge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+        description: inc.description || 'Sem descrição',
+        details: [inc.category ? `Categoria: ${inc.category}` : null, inc.paymentType ? `Forma: ${inc.paymentType}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
+        date: d,
+        timestamp: isNaN(ts) ? 0 : ts
+      });
+    });
+
+    // Expenses
+    expenses.forEach((exp: any) => {
+      const d = exp.date || '';
+      const ts = d ? new Date(d).getTime() : 0;
+      list.push({
+        type: 'Despesa',
+        typeBadge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800',
+        description: exp.description || 'Sem descrição',
+        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Forma: ${exp.paymentType}` : null, exp.classification ? `Classificação: ${exp.classification}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
+        date: d,
+        timestamp: isNaN(ts) ? 0 : ts
+      });
+    });
+
+    // Investments
+    investments.forEach((inv: any) => {
+      const d = inv.date || '';
+      const ts = d ? new Date(d).getTime() : 0;
+      list.push({
+        type: 'Investimento',
+        typeBadge: 'bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800',
+        description: inv.name || 'Sem nome',
+        details: [inv.type ? `Tipo: ${inv.type}` : null, inv.status ? `Status: ${inv.status}` : null].filter(Boolean).join(' • ') || 'Investimento',
+        date: d,
+        timestamp: isNaN(ts) ? 0 : ts
+      });
+    });
+
+    // Trips
+    trips.forEach((trip: any) => {
+      const d = trip.startDate || (trip.year ? `${trip.year}-01-01` : '');
+      const ts = d ? new Date(d).getTime() : 0;
+      list.push({
+        type: 'Viagem',
+        typeBadge: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/80 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800',
+        description: trip.title || trip.destination || 'Viagem',
+        details: trip.destination ? `Destino: ${trip.destination}` : 'Viagem',
+        date: d,
+        timestamp: isNaN(ts) ? 0 : ts
+      });
+    });
+
+    // Wishes
+    wishes.forEach((wish: any) => {
+      const d = wish.targetDate || '';
+      const ts = d ? new Date(d).getTime() : 0;
+      list.push({
+        type: 'Desejo / Sonho',
+        typeBadge: 'bg-pink-100 text-pink-700 dark:bg-pink-950/80 dark:text-pink-300 border border-pink-200 dark:border-pink-800',
+        description: wish.title || 'Desejo',
+        details: wish.category ? `Categoria: ${wish.category}` : 'Desejo',
+        date: d,
+        timestamp: isNaN(ts) ? 0 : ts
+      });
+    });
+
+    // Shopping List
+    shoppingList.forEach((shop: any) => {
+      const d = shop.date || '';
+      const ts = d ? new Date(d).getTime() : 0;
+      list.push({
+        type: 'Lista de Compras',
+        typeBadge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800',
+        description: shop.name || 'Item de compra',
+        details: shop.category ? `Categoria: ${shop.category}` : 'Lista de Compras',
+        date: d,
+        timestamp: isNaN(ts) ? 0 : ts
+      });
+    });
+
+    // Action Plans
+    actionPlans.forEach((plan: any) => {
+      const d = plan.deadline || '';
+      const ts = d ? new Date(d).getTime() : 0;
+      list.push({
+        type: 'Plano de Ação',
+        typeBadge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
+        description: plan.description || 'Plano de Ação',
+        details: plan.target ? `Alvo: ${plan.target}` : 'Ação',
+        date: d,
+        timestamp: isNaN(ts) ? 0 : ts
+      });
+    });
+
+    // Sort by timestamp descending
+    list.sort((a, b) => b.timestamp - a.timestamp);
+
+    return {
+      totalEntriesCount,
+      incomesCount,
+      expensesCount,
+      investmentsCount,
+      tripsCount,
+      wishesCount,
+      shoppingCount,
+      plansCount,
+      recent30AuditEntries: list.slice(0, 30)
+    };
+  }, [auditData]);
 
   // Dynamic calculations for Reports
   const uniqueStates = useMemo(() => {
@@ -1358,18 +1504,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
 
           {/* User profile details layout */}
-          <div className="grid gap-4 sm:grid-cols-3 mb-6 text-xs text-slate-600 dark:text-slate-300">
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-slate-400" />
-              <span>E-mail: <strong>{selectedUserForAudit.email}</strong></span>
+          <div className="grid gap-3 sm:grid-cols-3 mb-6 text-xs text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <Mail className="h-4 w-4 text-blue-500 shrink-0" />
+              <span className="truncate">E-mail: <strong>{selectedUserForAudit.email}</strong></span>
             </div>
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-slate-400" />
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <Phone className="h-4 w-4 text-emerald-500 shrink-0" />
               <span>Telefone: <strong>{selectedUserForAudit.phone || 'Não cadastrado'}</strong></span>
             </div>
-            <div className="flex items-start gap-2 sm:col-span-3 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/40 mt-1">
-              <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-              <div className="space-y-1 text-slate-700 dark:text-slate-300">
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <Clock className="h-4 w-4 text-purple-500 shrink-0" />
+              <span>
+                Último Acesso:{' '}
+                <strong>
+                  {auditData?.lastAccess
+                    ? new Date(auditData.lastAccess).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : selectedUserForAudit.createdAt
+                    ? new Date(selectedUserForAudit.createdAt).toLocaleDateString('pt-BR')
+                    : 'Não registrado'}
+                </strong>
+              </span>
+            </div>
+            <div className="flex items-start gap-2 sm:col-span-3 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <MapPin className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 text-slate-700 dark:text-slate-300">
                 <div>
                   Endereço: <strong className="text-slate-800 dark:text-white">{selectedUserForAudit.address || 'Não informado'}</strong>
                 </div>
@@ -1383,55 +1548,105 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
 
           {loadingAudit ? (
-            <p className="text-center text-xs text-slate-400 py-6">Buscando dados financeiros e cadastros de submenus...</p>
+            <p className="text-center text-xs text-slate-400 py-6">Buscando auditoria de lançamentos do usuário...</p>
           ) : !auditData ? (
             <p className="text-center text-xs text-slate-400 py-6">Nenhum registro para este usuário.</p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Incomes audit */}
-              <div className="bg-white rounded-lg border border-slate-200 p-4 dark:bg-slate-900 dark:border-slate-800">
-                <h4 className="text-xs font-bold text-blue-600 mb-2">Histórico de Receitas ({auditData.incomes?.length || 0})</h4>
-                <div className="max-h-52 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100 dark:divide-slate-800">
-                  {(!auditData.incomes || auditData.incomes.length === 0) ? (
-                    <p className="text-[10px] text-slate-400 py-2">Nenhuma receita registrada.</p>
+            <div className="space-y-6">
+              {/* Status de lançamento de dados */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                      Status de Lançamento de Dados
+                    </h4>
+                  </div>
+                  {auditAnalysis.totalEntriesCount > 0 ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 w-fit">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      Realizando Lançamentos Ativamente
+                    </span>
                   ) : (
-                    auditData.incomes.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-[11px] pt-2">
-                        <div>
-                          <p className="font-bold text-slate-800 dark:text-slate-300">{item.description}</p>
-                          <p className="text-[9px] text-slate-400">{item.category} • {item.paymentType}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-blue-600">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          <p className="text-[8px] text-slate-400 font-mono">{item.date}</p>
-                        </div>
-                      </div>
-                    ))
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1.5 w-fit">
+                      <XCircle className="h-3.5 w-3.5 text-amber-600" />
+                      Sem Lançamentos Cadastrados
+                    </span>
                   )}
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 text-xs text-slate-600 dark:text-slate-300">
+                  <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Registrado</span>
+                    <strong className="text-sm font-extrabold text-slate-800 dark:text-white">{auditAnalysis.totalEntriesCount} lançamentos</strong>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Receitas / Despesas</span>
+                    <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.incomesCount} Rec. / {auditAnalysis.expensesCount} Desp.</strong>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Investimentos</span>
+                    <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.investmentsCount} cadastros</strong>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Outros Módulos</span>
+                    <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.tripsCount + auditAnalysis.wishesCount + auditAnalysis.shoppingCount + auditAnalysis.plansCount} registros</strong>
+                  </div>
                 </div>
               </div>
 
-              {/* Expenses audit */}
-              <div className="bg-white rounded-lg border border-slate-200 p-4 dark:bg-slate-900 dark:border-slate-800">
-                <h4 className="text-xs font-bold text-red-500 mb-2">Histórico de Despesas ({auditData.expenses?.length || 0})</h4>
-                <div className="max-h-52 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100 dark:divide-slate-800">
-                  {(!auditData.expenses || auditData.expenses.length === 0) ? (
-                    <p className="text-[10px] text-slate-400 py-2">Nenhuma despesa registrada.</p>
-                  ) : (
-                    auditData.expenses.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-[11px] pt-2">
-                        <div>
-                          <p className="font-bold text-slate-800 dark:text-slate-300">{item.description}</p>
-                          <p className="text-[9px] text-slate-400">{item.category} • {item.paymentType}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-red-500">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          <p className="text-[8px] text-slate-400 font-mono">{item.date}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
+              {/* Breve histórico dos últimos 30 tipos de lançamento (sem valores) */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    Últimos Lançamentos (Até 30 itens • Sem Exibição de Valores)
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Histórico com os tipos, descrições e categorias das movimentações recentes do usuário.
+                  </p>
                 </div>
+
+                {auditAnalysis.recent30AuditEntries.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-6">
+                    Nenhum lançamento foi realizado por este usuário até o momento.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase text-slate-400 bg-slate-50/50 dark:bg-slate-800/30">
+                          <th className="py-2 px-3 w-10">#</th>
+                          <th className="py-2 px-3">Tipo / Módulo</th>
+                          <th className="py-2 px-3">Descrição do Lançamento</th>
+                          <th className="py-2 px-3">Categoria / Detalhes</th>
+                          <th className="py-2 px-3 text-right">Data</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {auditAnalysis.recent30AuditEntries.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                            <td className="py-2 px-3 text-[10px] font-mono text-slate-400">{String(idx + 1).padStart(2, '0')}</td>
+                            <td className="py-2 px-3">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold ${item.typeBadge}`}>
+                                {item.type}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200">
+                              {item.description}
+                            </td>
+                            <td className="py-2 px-3 text-[11px] text-slate-500 dark:text-slate-400">
+                              {item.details}
+                            </td>
+                            <td className="py-2 px-3 text-right text-[10px] font-mono text-slate-500 whitespace-nowrap">
+                              {item.date || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}

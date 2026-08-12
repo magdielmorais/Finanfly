@@ -8,7 +8,7 @@ import {
   Edit2,
   Check,
   X,
-  PiggyBank,
+  Vault,
   ArrowRight,
   Info
 } from 'lucide-react';
@@ -175,7 +175,7 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <PiggyBank className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            <Vault className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             <h2 className="text-xl font-extrabold text-slate-800 dark:text-white">
               Tipos e Status de Investimentos
             </h2>

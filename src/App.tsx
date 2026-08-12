@@ -50,7 +50,8 @@ import {
   Plane,
   Heart,
   Database,
-  PiggyBank
+  PiggyBank,
+  Vault
 } from 'lucide-react';
 
 export default function App() {
@@ -741,7 +742,7 @@ export default function App() {
     { name: 'Situação de pagamento', icon: CheckCircle },
     { name: 'Cadastro tipos de Receitas', icon: TrendingUp },
     { name: 'Cadastro categoria Despesas', icon: TrendingDown },
-    { name: 'Tipos e Status Investimentos', icon: PiggyBank },
+    { name: 'Tipos e Status Investimentos', icon: Vault },
   ];
 
   const dadosSubmenus = [

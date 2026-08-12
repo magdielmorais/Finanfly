@@ -611,6 +611,7 @@ async function getUserByEmail(email: string): Promise<any> {
           password: userData.password,
           role: userData.role || 'user',
           createdAt: userData.created_at || userData.createdAt || new Date().toISOString(),
+          lastAccess: localUser?.lastAccess || profileData?.updated_at || userData?.created_at || new Date().toISOString(),
           name: profileData ? profileData.name : (userData.name || ''),
           address: profileData ? profileData.address : (userData.address || ''),
           city: profileData ? profileData.city : (userData.city || ''),
@@ -1749,6 +1750,14 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ error: "E-mail ou senha incorretos." });
     }
 
+    user.lastAccess = new Date().toISOString();
+    const db = getDb();
+    const lowerE = user.email.toLowerCase().trim();
+    if (db.users[lowerE]) {
+      db.users[lowerE].lastAccess = user.lastAccess;
+      saveDb(db);
+    }
+
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
     res.json({ user: userProfile, token });
@@ -2747,8 +2756,14 @@ app.get("/api/admin/user-details/:userEmail", async (req, res) => {
     }
 
     const targetEmail = req.params.userEmail.toLowerCase().trim();
+    const targetUser = await getUserByEmail(targetEmail);
     const targetUserData = await getUserDataByEmail(targetEmail) || {};
-    res.json(targetUserData);
+
+    res.json({
+      userData: targetUserData,
+      lastAccess: targetUser?.lastAccess || targetUserData?.lastUpdated || targetUser?.createdAt || null,
+      createdAt: targetUser?.createdAt || null
+    });
   } catch (err) {
     console.error("Admin user-details error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
