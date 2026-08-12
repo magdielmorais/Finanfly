@@ -21,6 +21,7 @@ import {
 import { SuportePage } from './components/SuportePage';
 import { ViagemPage } from './components/ViagemPage';
 import { InvestimentosPage } from './components/InvestimentosPage';
+import { InvestimentosConfigPage } from './components/InvestimentosConfigPage';
 import { OfflineModal } from './components/OfflineModal';
 
 import {
@@ -103,7 +104,14 @@ export default function App() {
 
   // Auto collapse submenus whenever navigating away from their pages
   useEffect(() => {
-    const isConfigPage = ['Plano anual', 'Tipo de pagamento', 'Situação de pagamento', 'Cadastro tipos de Receitas', 'Cadastro categoria Despesas'].includes(currentPage);
+    const isConfigPage = [
+      'Plano anual',
+      'Tipo de pagamento',
+      'Situação de pagamento',
+      'Cadastro tipos de Receitas',
+      'Cadastro categoria Despesas',
+      'Tipos e Status Investimentos'
+    ].includes(currentPage);
     if (!isConfigPage) {
       setSettingsExpanded(false);
     }
@@ -652,6 +660,19 @@ export default function App() {
             }}
           />
         );
+      case 'Tipos e Status Investimentos':
+      case 'Tipos e status investimentos':
+        if (!userData) return null;
+        return (
+          <InvestimentosConfigPage
+            userData={userData}
+            onUpdateUserData={handleUpdateUserData}
+            onNavigate={(page) => {
+              setCurrentPage(page);
+              setSidebarOpen(false);
+            }}
+          />
+        );
       case 'Dados pessoais':
         return (
           <DadosPessoaisPage
@@ -720,6 +741,7 @@ export default function App() {
     { name: 'Situação de pagamento', icon: CheckCircle },
     { name: 'Cadastro tipos de Receitas', icon: TrendingUp },
     { name: 'Cadastro categoria Despesas', icon: TrendingDown },
+    { name: 'Tipos e Status Investimentos', icon: PiggyBank },
   ];
 
   const dadosSubmenus = [
