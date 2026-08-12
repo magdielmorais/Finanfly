@@ -618,6 +618,9 @@ async function getUserByEmail(email: string): Promise<any> {
           state: profileData ? profileData.state : (userData.state || ''),
           phone: profileData ? profileData.phone : (userData.phone || ''),
           cpf: cpfValue || '',
+          userMessage: profileData ? (profileData.user_message || profileData.userMessage || localUser?.userMessage || localUser?.mensagemUsuario || '') : (localUser?.userMessage || localUser?.mensagemUsuario || ''),
+          mensagemUsuario: profileData ? (profileData.user_message || profileData.userMessage || localUser?.userMessage || localUser?.mensagemUsuario || '') : (localUser?.userMessage || localUser?.mensagemUsuario || ''),
+          isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked),
           subscription: subData ? {
             plan: subData.plan || 'none',
             validUntil: subData.valid_until,
@@ -669,9 +672,18 @@ async function getUserByEmail(email: string): Promise<any> {
   return localUser || null;
 }
 
-// Save/Update user profile across users, profiles, and subscriptions tables exclusively in Supabase
+// Save/Update user profile across users, profiles, and subscriptions tables
 async function saveUser(user: any): Promise<boolean> {
   const lowerEmail = user.email.toLowerCase().trim();
+
+  // Keep local JSON DB updated
+  const db = getDb();
+  if (!db.users[lowerEmail]) {
+    db.users[lowerEmail] = { ...user };
+  } else {
+    db.users[lowerEmail] = { ...db.users[lowerEmail], ...user };
+  }
+  saveDb(db);
 
   if (user.subscription && (user.subscription.freePlanUsed || user.subscription.plan === 'gratis')) {
     recordTrialHistory(lowerEmail, user.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
@@ -687,7 +699,8 @@ async function saveUser(user: any): Promise<boolean> {
           email: lowerEmail,
           password: user.password,
           role: user.role || 'user',
-          created_at: user.createdAt || user.created_at || new Date().toISOString()
+          created_at: user.createdAt || user.created_at || new Date().toISOString(),
+          is_blocked: !!user.isBlocked
         });
       
       if (userErr) {
@@ -702,18 +715,24 @@ async function saveUser(user: any): Promise<boolean> {
       }
 
       // 2. Upsert profiles table (for personal details)
+      const msgVal = user.userMessage !== undefined ? user.userMessage : user.mensagemUsuario;
+      const profilePayload: any = {
+        email: lowerEmail,
+        name: user.name || '',
+        address: user.address || '',
+        city: user.city || '',
+        state: user.state || '',
+        phone: user.phone || '',
+        cpf: user.cpf || '',
+        updated_at: new Date().toISOString()
+      };
+      if (msgVal !== undefined) {
+        profilePayload.user_message = msgVal;
+      }
+
       const { error: profErr } = await supabase
         .from('profiles')
-        .upsert({
-          email: lowerEmail,
-          name: user.name || '',
-          address: user.address || '',
-          city: user.city || '',
-          state: user.state || '',
-          phone: user.phone || '',
-          cpf: user.cpf || '',
-          updated_at: new Date().toISOString()
-        });
+        .upsert(profilePayload);
 
       if (profErr && (profErr.message?.includes("Invalid API key") || profErr.hint?.includes("API key"))) {
         markSupabaseKeyAsInvalid("Invalid API key");
@@ -1207,6 +1226,7 @@ async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
 
 // Get all users (Admin only) by merging users, profiles, and subscriptions
 async function getAllUsersList(): Promise<any[]> {
+  const localDb = getDb();
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
@@ -1227,6 +1247,8 @@ async function getAllUsersList(): Promise<any[]> {
         return usersData.map((u: any) => {
           const prof: any = profilesMap.get(u.email);
           const sub: any = subsMap.get(u.email);
+          const localU = localDb.users[u.email.toLowerCase().trim()];
+          const userMsg = prof ? (prof.user_message || prof.userMessage || localU?.userMessage || localU?.mensagemUsuario || '') : (localU?.userMessage || localU?.mensagemUsuario || '');
 
           return {
             email: u.email,
@@ -1235,6 +1257,10 @@ async function getAllUsersList(): Promise<any[]> {
             city: prof ? prof.city : '',
             state: prof ? prof.state : '',
             phone: prof ? prof.phone : '',
+            cpf: prof ? prof.cpf : (localU?.cpf || ''),
+            userMessage: userMsg,
+            mensagemUsuario: userMsg,
+            isBlocked: !!(u.is_blocked || u.isBlocked || prof?.is_blocked || prof?.isBlocked || localU?.isBlocked || localU?.blocked),
             role: u.role || 'user',
             subscription: sub ? {
               plan: sub.plan || 'none',
@@ -1259,8 +1285,7 @@ async function getAllUsersList(): Promise<any[]> {
   }
 
   // Fallback to local
-  const db = getDb();
-  return Object.values(db.users).map((user: any) => {
+  return Object.values(localDb.users).map((user: any) => {
     const { password: _, ...rest } = user;
     return rest;
   });
@@ -1748,6 +1773,16 @@ app.post("/api/auth/login", async (req, res) => {
     const user = await getUserByEmail(email);
     if (!user || user.password !== password) {
       return res.status(401).json({ error: "E-mail ou senha incorretos." });
+    }
+
+    if (user.isBlocked) {
+      const reason = user.userMessage || user.mensagemUsuario || 'Acesso suspenso pelo administrador.';
+      return res.status(403).json({
+        isBlocked: true,
+        title: "Usuário bloqueado, entrar em contato com administrador",
+        reason: reason,
+        error: `Usuário bloqueado, entrar em contato com administrador\nMotivo: ${reason}`
+      });
     }
 
     user.lastAccess = new Date().toISOString();
@@ -2663,7 +2698,7 @@ app.post("/api/admin/edit-user", async (req, res) => {
       return res.status(403).json({ error: "Acesso restrito ao administrador." });
     }
 
-    const { targetEmail, name, role, plan, password, address, phone, city, state } = req.body;
+    const { targetEmail, name, role, plan, password, address, phone, city, state, userMessage, mensagemUsuario } = req.body;
     const lowerTargetEmail = targetEmail.toLowerCase().trim();
 
     const user = await getUserByEmail(lowerTargetEmail);
@@ -2678,6 +2713,13 @@ app.post("/api/admin/edit-user", async (req, res) => {
     if (phone !== undefined) user.phone = phone;
     if (city !== undefined) user.city = city;
     if (state !== undefined) user.state = state;
+    if (userMessage !== undefined) {
+      user.userMessage = userMessage;
+      user.mensagemUsuario = userMessage;
+    } else if (mensagemUsuario !== undefined) {
+      user.userMessage = mensagemUsuario;
+      user.mensagemUsuario = mensagemUsuario;
+    }
 
     if (plan !== undefined) {
       if (!user.subscription) {
@@ -2761,6 +2803,7 @@ app.get("/api/admin/user-details/:userEmail", async (req, res) => {
 
     res.json({
       userData: targetUserData,
+      userProfile: targetUser,
       lastAccess: targetUser?.lastAccess || targetUserData?.lastUpdated || targetUser?.createdAt || null,
       createdAt: targetUser?.createdAt || null
     });

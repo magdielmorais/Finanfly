@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -176,6 +176,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [selectedUserForAudit, setSelectedUserForAudit] = useState<UserProfile | null>(null);
   const [auditData, setAuditData] = useState<any>(null);
   const [loadingAudit, setLoadingAudit] = useState(false);
+  const [auditUserMessage, setAuditUserMessage] = useState('');
+  const [savingAuditMessage, setSavingAuditMessage] = useState(false);
+  const [auditSaveSuccess, setAuditSaveSuccess] = useState('');
+  const [auditSaveError, setAuditSaveError] = useState('');
 
   // Helper memo to compute audit statistics and last 30 entries (without values)
   const auditAnalysis = useMemo(() => {
@@ -652,6 +656,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   // Inspect user data
   const handleInspectUser = async (user: UserProfile) => {
     setSelectedUserForAudit(user);
+    setAuditUserMessage(user.userMessage || user.mensagemUsuario || '');
+    setAuditSaveSuccess('');
+    setAuditSaveError('');
     setAuditData(null);
     setLoadingAudit(true);
 
@@ -662,10 +669,54 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao buscar dados.');
       setAuditData(data);
+      if (data.userProfile) {
+        const msg = data.userProfile.userMessage || data.userProfile.mensagemUsuario || '';
+        setAuditUserMessage(msg);
+        setSelectedUserForAudit(prev => prev ? { ...prev, ...data.userProfile, userMessage: msg, mensagemUsuario: msg } : data.userProfile);
+      }
     } catch (err: any) {
       alert(err.message || 'Erro ao obter registros financeiros.');
     } finally {
       setLoadingAudit(false);
+    }
+  };
+
+  const handleSaveAuditMessage = async () => {
+    if (!selectedUserForAudit) return;
+    setSavingAuditMessage(true);
+    setAuditSaveSuccess('');
+    setAuditSaveError('');
+
+    try {
+      const res = await fetch('/api/admin/edit-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify({
+          targetEmail: selectedUserForAudit.email,
+          userMessage: auditUserMessage,
+          mensagemUsuario: auditUserMessage
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar mensagem.');
+
+      const updatedUser = {
+        ...selectedUserForAudit,
+        userMessage: auditUserMessage,
+        mensagemUsuario: auditUserMessage
+      };
+
+      setSelectedUserForAudit(updatedUser);
+      setUsers(prev => prev.map(u => u.email.toLowerCase() === selectedUserForAudit.email.toLowerCase() ? updatedUser : u));
+      setAuditSaveSuccess('Mensagem salva com sucesso!');
+      setTimeout(() => setAuditSaveSuccess(''), 4000);
+    } catch (err: any) {
+      setAuditSaveError(err.message || 'Erro ao salvar.');
+    } finally {
+      setSavingAuditMessage(false);
     }
   };
 
@@ -1559,6 +1610,57 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Campo Mensagem Usuário (Atribuído aos dados pessoais do usuário, visível e editável exclusivamente pelo administrador na auditoria) */}
+          <div className="mb-6 rounded-xl border border-blue-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                  mensagem usuário
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-400 italic">
+                Anotação interna de dados pessoais (visível apenas no painel do administrador)
+              </span>
+            </div>
+
+            <div>
+              <textarea
+                rows={3}
+                value={auditUserMessage}
+                onChange={(e) => setAuditUserMessage(e.target.value)}
+                placeholder="Escreva aqui a mensagem do usuário ou anotações internas..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              {auditSaveSuccess && (
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  {auditSaveSuccess}
+                </span>
+              )}
+              {auditSaveError && (
+                <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <XCircle className="h-3.5 w-3.5 text-rose-600" />
+                  {auditSaveError}
+                </span>
+              )}
+              {!auditSaveSuccess && !auditSaveError && <div />}
+
+              <button
+                type="button"
+                onClick={handleSaveAuditMessage}
+                disabled={savingAuditMessage}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50 ml-auto"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {savingAuditMessage ? 'Salvando...' : 'Salvar tudo'}
+              </button>
             </div>
           </div>
 

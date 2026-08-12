@@ -20,6 +20,9 @@ export interface UserProfile {
   city?: string;
   state?: string;
   cpf?: string;
+  userMessage?: string;
+  mensagemUsuario?: string;
+  isBlocked?: boolean;
 }
 
 export interface Income {
