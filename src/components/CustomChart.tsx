@@ -841,3 +841,556 @@ export const ExpenseClassificationPieChart: React.FC<{
   );
 };
 
+// --- Investment Charts ---
+
+export const TYPE_COLOR_MAP: Record<string, { color: string; bgClass: string }> = {
+  'Ações': { color: '#3b82f6', bgClass: 'bg-blue-500' },
+  'FIIs': { color: '#10b981', bgClass: 'bg-emerald-500' },
+  'Renda Fixa': { color: '#f59e0b', bgClass: 'bg-amber-500' },
+  'Tesouro Direto': { color: '#8b5cf6', bgClass: 'bg-purple-500' },
+  'CDB / RDB': { color: '#ec4899', bgClass: 'bg-pink-500' },
+  'Criptomoedas': { color: '#06b6d4', bgClass: 'bg-cyan-500' },
+  'Fundos': { color: '#6366f1', bgClass: 'bg-indigo-500' },
+  'Outros': { color: '#64748b', bgClass: 'bg-slate-500' },
+};
+
+export const STATUS_COLOR_MAP: Record<string, { color: string; bgClass: string }> = {
+  'Ativo': { color: '#10b981', bgClass: 'bg-emerald-500' },
+  'Resgatado': { color: '#3b82f6', bgClass: 'bg-blue-500' },
+  'Em Andamento': { color: '#f59e0b', bgClass: 'bg-amber-500' },
+  'Pendente': { color: '#ef4444', bgClass: 'bg-red-500' },
+};
+
+export const Investment5YearTotalChart: React.FC<{
+  data: { year: number; total: number }[];
+}> = ({ data }) => {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-xl bg-slate-50 border border-slate-100 dark:bg-slate-900/50 dark:border-slate-800">
+        <p className="text-slate-400 text-sm">Nenhum dado de investimento disponível.</p>
+      </div>
+    );
+  }
+
+  const margin = { top: 25, right: 25, bottom: 45, left: 85 };
+  const width = 650;
+  const height = 300;
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+
+  const maxVal = Math.max(...data.map(d => d.total), 1000);
+  const roundedMax = Math.ceil(maxVal / 1000) * 1000;
+
+  const getY = (val: number) => margin.top + chartHeight - (val / roundedMax) * chartHeight;
+  const yBaseline = margin.top + chartHeight;
+
+  const yTicks = 4;
+  const ticks = Array.from({ length: yTicks + 1 }, (_, i) => (roundedMax * i) / yTicks);
+
+  const groupWidth = chartWidth / data.length;
+  const barWidth = Math.min(groupWidth * 0.45, 36);
+
+  return (
+    <div className="w-full min-w-0">
+      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ minWidth: '650px' }}
+          className="w-full h-auto font-sans overflow-visible"
+        >
+          <defs>
+            <linearGradient id="invTotalGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
+              <stop offset="100%" stopColor="#5b21b6" stopOpacity="0.9" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid lines */}
+          {ticks.map((tick, i) => {
+            const y = getY(tick);
+            return (
+              <g key={i}>
+                <line
+                  x1={margin.left}
+                  y1={y}
+                  x2={width - margin.right}
+                  y2={y}
+                  stroke="#cbd5e1"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  className="opacity-30"
+                />
+                <text
+                  x={margin.left - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
+                >
+                  R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Bars */}
+          {data.map((d, i) => {
+            const groupCenter = margin.left + (i + 0.5) * groupWidth;
+            const x = groupCenter - barWidth / 2;
+            const y = getY(d.total);
+            const h = Math.max(yBaseline - y, d.total > 0 ? 3 : 0);
+            const isHovered = hoveredIndex === i;
+
+            return (
+              <g key={i}>
+                <rect
+                  x={margin.left + i * groupWidth}
+                  y={margin.top}
+                  width={groupWidth}
+                  height={chartHeight}
+                  fill={isHovered ? '#f1f5f9' : 'transparent'}
+                  className="transition-colors duration-150 dark:fill-slate-800/20"
+                  style={{ opacity: isHovered ? 0.4 : 0 }}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+
+                <rect
+                  x={x}
+                  y={y}
+                  width={barWidth}
+                  height={h}
+                  fill="url(#invTotalGrad)"
+                  rx="4"
+                  ry="4"
+                  className="transition-all duration-300 cursor-pointer"
+                  style={{
+                    filter: isHovered ? 'brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none',
+                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1
+                  }}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+
+                {d.total > 0 && (
+                  <text
+                    x={groupCenter}
+                    y={y - 6}
+                    textAnchor="middle"
+                    className="fill-purple-700 dark:fill-purple-300 text-[10px] font-bold font-mono"
+                  >
+                    R$ {d.total >= 1000000 ? `${(d.total / 1000000).toFixed(1)}M` : d.total >= 1000 ? `${(d.total / 1000).toFixed(1)}k` : d.total.toFixed(0)}
+                  </text>
+                )}
+
+                <text
+                  x={groupCenter}
+                  y={height - margin.bottom + 20}
+                  textAnchor="middle"
+                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                    isHovered ? 'fill-purple-600 dark:fill-purple-400' : 'fill-slate-700 dark:fill-slate-200'
+                  }`}
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                >
+                  {d.year}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {hoveredIndex !== null && data[hoveredIndex] && (
+        <div className="mt-2 flex items-center justify-between rounded-lg bg-purple-50 p-2.5 text-xs border border-purple-100 dark:bg-purple-950/40 dark:border-purple-800">
+          <span className="font-bold text-purple-900 dark:text-purple-200">Ano: {data[hoveredIndex].year}</span>
+          <span className="font-mono font-bold text-purple-700 dark:text-purple-300">
+            Total Investido: R$ {data[hoveredIndex].total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const Investment5YearStackedChart: React.FC<{
+  data: { year: number; totalsMap: Record<string, number>; grandTotal: number }[];
+  categories: string[];
+  colorMap: Record<string, { color: string; bgClass: string }>;
+}> = ({ data, categories, colorMap }) => {
+  const [hoveredYearIndex, setHoveredYearIndex] = useState<number | null>(null);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-xl bg-slate-50 border border-slate-100 dark:bg-slate-900/50 dark:border-slate-800">
+        <p className="text-slate-400 text-sm">Nenhum dado disponível.</p>
+      </div>
+    );
+  }
+
+  const margin = { top: 25, right: 25, bottom: 45, left: 85 };
+  const width = 650;
+  const height = 320;
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+
+  const maxVal = Math.max(...data.map(d => d.grandTotal), 1000);
+  const roundedMax = Math.ceil(maxVal / 1000) * 1000;
+
+  const getY = (val: number) => margin.top + chartHeight - (val / roundedMax) * chartHeight;
+  const yBaseline = margin.top + chartHeight;
+
+  const yTicks = 4;
+  const ticks = Array.from({ length: yTicks + 1 }, (_, i) => (roundedMax * i) / yTicks);
+
+  const groupWidth = chartWidth / data.length;
+  const barWidth = Math.min(groupWidth * 0.45, 36);
+
+  return (
+    <div className="w-full min-w-0">
+      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ minWidth: '650px' }}
+          className="w-full h-auto font-sans overflow-visible"
+        >
+          {/* Grid lines */}
+          {ticks.map((tick, i) => {
+            const y = getY(tick);
+            return (
+              <g key={i}>
+                <line
+                  x1={margin.left}
+                  y1={y}
+                  x2={width - margin.right}
+                  y2={y}
+                  stroke="#cbd5e1"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  className="opacity-30"
+                />
+                <text
+                  x={margin.left - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
+                >
+                  R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Stacked Bars */}
+          {data.map((d, i) => {
+            const groupCenter = margin.left + (i + 0.5) * groupWidth;
+            const x = groupCenter - barWidth / 2;
+            const isHovered = hoveredYearIndex === i;
+
+            let currentStackY = yBaseline;
+
+            return (
+              <g key={i} onMouseEnter={() => setHoveredYearIndex(i)} onMouseLeave={() => setHoveredYearIndex(null)}>
+                <rect
+                  x={margin.left + i * groupWidth}
+                  y={margin.top}
+                  width={groupWidth}
+                  height={chartHeight}
+                  fill={isHovered ? '#f1f5f9' : 'transparent'}
+                  className="transition-colors duration-150 dark:fill-slate-800/20"
+                  style={{ opacity: isHovered ? 0.4 : 0 }}
+                />
+
+                {categories.map((cat) => {
+                  const val = d.totalsMap[cat] || 0;
+                  if (val <= 0) return null;
+
+                  const segHeight = (val / roundedMax) * chartHeight;
+                  const segY = currentStackY - segHeight;
+                  currentStackY = segY;
+
+                  const itemColor = colorMap[cat]?.color || '#64748b';
+
+                  return (
+                    <rect
+                      key={cat}
+                      x={x}
+                      y={segY}
+                      width={barWidth}
+                      height={segHeight}
+                      fill={itemColor}
+                      rx="1"
+                      ry="1"
+                      className="transition-all duration-200 cursor-pointer"
+                      style={{
+                        filter: isHovered ? 'brightness(1.1)' : 'none',
+                        opacity: hoveredYearIndex !== null && !isHovered ? 0.6 : 1
+                      }}
+                    />
+                  );
+                })}
+
+                <text
+                  x={groupCenter}
+                  y={height - margin.bottom + 20}
+                  textAnchor="middle"
+                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
+                  }`}
+                >
+                  {d.year}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Legend below chart */}
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
+        {categories.map(cat => {
+          const c = colorMap[cat]?.color || '#64748b';
+          return (
+            <div key={cat} className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded inline-block" style={{ backgroundColor: c }} />
+              <span>{cat}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tooltip Overlay */}
+      {hoveredYearIndex !== null && data[hoveredYearIndex] && (
+        <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs border border-slate-200 dark:bg-slate-800 dark:border-slate-700 space-y-1.5">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1 font-bold text-slate-800 dark:text-white">
+            <span>Ano: {data[hoveredYearIndex].year}</span>
+            <span className="font-mono">Total: R$ {data[hoveredYearIndex].grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+            {categories.map(cat => {
+              const val = data[hoveredYearIndex].totalsMap[cat] || 0;
+              if (val <= 0) return null;
+              const c = colorMap[cat]?.color || '#64748b';
+              return (
+                <div key={cat} className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: c }} />
+                  <span className="text-slate-600 dark:text-slate-300 truncate">{cat}:</span>
+                  <span className="font-mono font-semibold text-slate-800 dark:text-white">R$ {val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const InvestmentMonthlyDonutChart: React.FC<{
+  data: { name: string; value: number; color: string; bgClass: string }[];
+  totalValue: number;
+  emptyLabel?: string;
+}> = ({ data, totalValue, emptyLabel = 'Sem investimentos' }) => {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const width = 240;
+  const height = 240;
+  const cx = width / 2;
+  const cy = height / 2;
+  const rOuter = 95;
+  const rInner = 60;
+
+  const activeSlices = data.filter(d => d.value > 0);
+
+  if (totalValue === 0 || activeSlices.length === 0) {
+    return (
+      <div className="w-full min-w-0">
+        <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4 min-w-[280px]">
+            <div className="relative flex items-center justify-center shrink-0">
+              <svg viewBox={`0 0 ${width} ${height}`} className="w-48 h-48">
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={(rOuter + rInner) / 2}
+                  fill="none"
+                  stroke="#e2e8f0"
+                  strokeWidth={rOuter - rInner}
+                  className="dark:stroke-slate-800"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
+                <span className="text-xs text-slate-400 font-medium">{emptyLabel}</span>
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-300 font-mono">R$ 0,00</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 min-w-[180px]">
+              {data.slice(0, 5).map((item, i) => (
+                <div key={i} className="flex items-center justify-between text-xs font-semibold text-slate-400 dark:text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-3 w-3 rounded-full ${item.bgClass} opacity-40`} />
+                    <span>{item.name}</span>
+                  </div>
+                  <span>0%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  let currentAngle = -Math.PI / 2;
+  const totalAngle = 2 * Math.PI;
+
+  const slices = data.map((item, idx) => {
+    if (item.value <= 0) return null;
+
+    const angleVal = (item.value / totalValue) * totalAngle;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + angleVal;
+    currentAngle = endAngle;
+
+    if (activeSlices.length === 1) {
+      const midR = (rOuter + rInner) / 2;
+      const strokeW = rOuter - rInner;
+      return {
+        ...item,
+        idx,
+        isFullCircle: true,
+        midR,
+        strokeW
+      };
+    }
+
+    const gapAngle = 0.02;
+    const actualStart = startAngle + gapAngle / 2;
+    const actualEnd = endAngle - gapAngle / 2;
+
+    const x1 = cx + rOuter * Math.cos(actualStart);
+    const y1 = cy + rOuter * Math.sin(actualStart);
+    const x2 = cx + rOuter * Math.cos(actualEnd);
+    const y2 = cy + rOuter * Math.sin(actualEnd);
+    const x3 = cx + rInner * Math.cos(actualEnd);
+    const y3 = cy + rInner * Math.sin(actualEnd);
+    const x4 = cx + rInner * Math.cos(actualStart);
+    const y4 = cy + rInner * Math.sin(actualStart);
+
+    const largeArc = (actualEnd - actualStart) > Math.PI ? 1 : 0;
+    const pathD = `M ${x1} ${y1} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+
+    return {
+      ...item,
+      idx,
+      pathD,
+      isFullCircle: false
+    };
+  }).filter(Boolean);
+
+  const hoveredItem = hoveredIndex !== null ? data[hoveredIndex] : null;
+
+  return (
+    <div className="w-full min-w-0">
+      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+        <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2 min-w-[300px]">
+          <div className="relative flex items-center justify-center shrink-0">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-52 h-52 overflow-visible">
+            {slices.map((slice) => {
+              if (!slice) return null;
+              const isHovered = hoveredIndex === slice.idx;
+
+              if (slice.isFullCircle) {
+                return (
+                  <circle
+                    key={slice.idx}
+                    cx={cx}
+                    cy={cy}
+                    r={slice.midR}
+                    fill="none"
+                    stroke={slice.color}
+                    strokeWidth={slice.strokeW}
+                    className="transition-all duration-200 cursor-pointer"
+                    style={{
+                      filter: isHovered ? 'brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none',
+                      opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1
+                    }}
+                    onMouseEnter={() => setHoveredIndex(slice.idx)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                  />
+                );
+              }
+
+              return (
+                <path
+                  key={slice.idx}
+                  d={slice.pathD}
+                  fill={slice.color}
+                  className="transition-all duration-200 cursor-pointer"
+                  style={{
+                    transform: isHovered ? 'scale(1.04)' : 'scale(1)',
+                    transformOrigin: `${cx}px ${cy}px`,
+                    filter: isHovered ? 'brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none',
+                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1
+                  }}
+                  onMouseEnter={() => setHoveredIndex(slice.idx)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+              );
+            })}
+          </svg>
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2 pointer-events-none">
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              {hoveredItem ? hoveredItem.name : 'Total Mês'}
+            </span>
+            <span className="text-sm font-bold text-slate-800 dark:text-white font-mono">
+              R$ {(hoveredItem ? hoveredItem.value : totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+              {hoveredItem && totalValue > 0
+                ? `${((hoveredItem.value / totalValue) * 100).toFixed(1)}%`
+                : ''}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[220px] max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+          {data.map((item, idx) => {
+            if (item.value <= 0) return null;
+            const pct = totalValue > 0 ? ((item.value / totalValue) * 100).toFixed(1) : '0.0';
+            const isHovered = hoveredIndex === idx;
+
+            return (
+              <div
+                key={idx}
+                onMouseEnter={() => setHoveredIndex(idx)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
+                  isHovered
+                    ? 'bg-slate-100/90 border-slate-300 dark:bg-slate-800 dark:border-slate-700 shadow-sm scale-[1.01]'
+                    : 'bg-slate-50 border-slate-200/80 dark:bg-slate-900/60 dark:border-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className={`h-3.5 w-3.5 rounded ${item.bgClass} shadow-xs shrink-0`} />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-800 dark:text-white">{item.name}</span>
+                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">{pct}%</span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-slate-900 dark:text-white font-mono bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                  R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+};
+
+

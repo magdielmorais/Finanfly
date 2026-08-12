@@ -1,7 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { UserData } from '../types';
-import { AnnualComparisonChart, TopItemsBarChart, ExpenseBudgetComparisonChart, ExpenseClassificationPieChart } from './CustomChart';
-import { ArrowUpRight, ArrowDownRight, Wallet, Filter, Calendar, Activity, PieChart } from 'lucide-react';
+import {
+  AnnualComparisonChart,
+  TopItemsBarChart,
+  ExpenseBudgetComparisonChart,
+  ExpenseClassificationPieChart,
+  Investment5YearTotalChart,
+  Investment5YearStackedChart,
+  InvestmentMonthlyDonutChart,
+  TYPE_COLOR_MAP,
+  STATUS_COLOR_MAP
+} from './CustomChart';
+import { ArrowUpRight, ArrowDownRight, Wallet, Filter, Calendar, Activity, PieChart, TrendingUp, Layers, Tag } from 'lucide-react';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -22,6 +32,149 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   const [recentFilter, setRecentFilter] = useState<'Todos' | 'Receitas' | 'Despesas'>('Todos');
   const [classificationMonth, setClassificationMonth] = useState<number>(new Date().getMonth());
   const [classificationYear, setClassificationYear] = useState<number>(new Date().getFullYear());
+
+  // Investment filters state
+  const [investmentMonth, setInvestmentMonth] = useState<number>(new Date().getMonth());
+  const [investmentYear, setInvestmentYear] = useState<number>(new Date().getFullYear());
+
+  const fiveYears = useMemo(() => [2022, 2023, 2024, 2025, 2026], []);
+
+  // Investments list from userData
+  const investments = useMemo(() => userData.investments || [], [userData.investments]);
+
+  // 5-Year total investments data
+  const investment5YearTotals = useMemo(() => {
+    return fiveYears.map(year => {
+      const total = investments
+        .filter(inv => inv.date && new Date(inv.date).getFullYear() === year)
+        .reduce((sum, inv) => sum + (inv.value || 0), 0);
+      return { year, total };
+    });
+  }, [investments, fiveYears]);
+
+  // All investment types available
+  const allInvestmentTypes = useMemo(() => {
+    const typesSet = new Set<string>();
+    investments.forEach(inv => { if (inv.type) typesSet.add(inv.type); });
+    if (userData.investmentTypes) {
+      userData.investmentTypes.forEach(t => typesSet.add(t));
+    }
+    if (typesSet.size === 0) {
+      ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'CDB / RDB', 'Criptomoedas', 'Fundos', 'Outros'].forEach(t => typesSet.add(t));
+    }
+    return Array.from(typesSet);
+  }, [investments, userData.investmentTypes]);
+
+  // 5-Year investment breakdown by type
+  const investment5YearTypesData = useMemo(() => {
+    return fiveYears.map(year => {
+      const yearInvs = investments.filter(inv => inv.date && new Date(inv.date).getFullYear() === year);
+      const totalsMap: Record<string, number> = {};
+      let grandTotal = 0;
+      yearInvs.forEach(inv => {
+        const t = inv.type || 'Outros';
+        totalsMap[t] = (totalsMap[t] || 0) + (inv.value || 0);
+        grandTotal += (inv.value || 0);
+      });
+      return { year, totalsMap, grandTotal };
+    });
+  }, [investments, fiveYears]);
+
+  // All investment statuses available
+  const allInvestmentStatuses = useMemo(() => {
+    const statusesSet = new Set<string>();
+    investments.forEach(inv => { if (inv.status) statusesSet.add(inv.status); });
+    if (userData.investmentStatuses) {
+      userData.investmentStatuses.forEach(s => statusesSet.add(s));
+    }
+    if (statusesSet.size === 0) {
+      ['Ativo', 'Resgatado', 'Em Andamento', 'Pendente'].forEach(s => statusesSet.add(s));
+    }
+    return Array.from(statusesSet);
+  }, [investments, userData.investmentStatuses]);
+
+  // 5-Year investment breakdown by status
+  const investment5YearStatusesData = useMemo(() => {
+    return fiveYears.map(year => {
+      const yearInvs = investments.filter(inv => inv.date && new Date(inv.date).getFullYear() === year);
+      const totalsMap: Record<string, number> = {};
+      let grandTotal = 0;
+      yearInvs.forEach(inv => {
+        const s = inv.status || 'Ativo';
+        totalsMap[s] = (totalsMap[s] || 0) + (inv.value || 0);
+        grandTotal += (inv.value || 0);
+      });
+      return { year, totalsMap, grandTotal };
+    });
+  }, [investments, fiveYears]);
+
+  // Selected month/year investment breakdown by Type
+  const monthlyInvestmentTypesData = useMemo(() => {
+    const filtered = investments.filter(inv => {
+      if (!inv.date) return false;
+      const parts = inv.date.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        return y === investmentYear && m === investmentMonth;
+      }
+      return false;
+    });
+
+    const totalsMap: Record<string, number> = {};
+    let totalVal = 0;
+    filtered.forEach(inv => {
+      const t = inv.type || 'Outros';
+      totalsMap[t] = (totalsMap[t] || 0) + (inv.value || 0);
+      totalVal += (inv.value || 0);
+    });
+
+    const list = Object.keys(totalsMap).map((typeKey) => {
+      const info = TYPE_COLOR_MAP[typeKey] || { color: '#64748b', bgClass: 'bg-slate-500' };
+      return {
+        name: typeKey,
+        value: totalsMap[typeKey],
+        color: info.color,
+        bgClass: info.bgClass
+      };
+    });
+
+    return { list, totalVal };
+  }, [investments, investmentMonth, investmentYear]);
+
+  // Selected month/year investment breakdown by Status
+  const monthlyInvestmentStatusesData = useMemo(() => {
+    const filtered = investments.filter(inv => {
+      if (!inv.date) return false;
+      const parts = inv.date.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        return y === investmentYear && m === investmentMonth;
+      }
+      return false;
+    });
+
+    const totalsMap: Record<string, number> = {};
+    let totalVal = 0;
+    filtered.forEach(inv => {
+      const s = inv.status || 'Ativo';
+      totalsMap[s] = (totalsMap[s] || 0) + (inv.value || 0);
+      totalVal += (inv.value || 0);
+    });
+
+    const list = Object.keys(totalsMap).map((statusKey) => {
+      const info = STATUS_COLOR_MAP[statusKey] || { color: '#8b5cf6', bgClass: 'bg-purple-500' };
+      return {
+        name: statusKey,
+        value: totalsMap[statusKey],
+        color: info.color,
+        bgClass: info.bgClass
+      };
+    });
+
+    return { list, totalVal };
+  }, [investments, investmentMonth, investmentYear]);
 
   // Extract available years dynamically
   const availableYears = useMemo(() => {
@@ -235,6 +388,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Title above filter bar: Resumo Financeiro */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+          Resumo Financeiro
+        </h2>
+      </div>
+
       {/* KPI Year Filter Bar */}
       <div className="flex flex-wrap items-center justify-between bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs sm:text-sm gap-3">
         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-bold uppercase text-xs">
@@ -254,6 +414,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               <option key={y} value={y.toString()}>{y}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {/* Line with text: RECEITAS VS DESPESAS GERAL */}
+      <div className="relative my-6 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t-2 border-slate-200 dark:border-slate-800" />
+        </div>
+        <div className="relative bg-slate-50 px-4 py-1 rounded-full border border-slate-200 dark:border-slate-800 dark:bg-slate-950 text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+          RECEITAS VS DESPESAS GERAL
         </div>
       </div>
 
@@ -386,6 +556,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         </div>
       </div>
 
+      {/* Line with text: GRÁFICOS FINANCEIROS */}
+      <div className="relative my-6 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t-2 border-slate-200 dark:border-slate-800" />
+        </div>
+        <div className="relative bg-slate-50 px-4 py-1 rounded-full border border-slate-200 dark:border-slate-800 dark:bg-slate-950 text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+          GRÁFICOS FINANCEIROS
+        </div>
+      </div>
+
       {/* Main Charts Area */}
       <div className="grid gap-6 lg:grid-cols-2 min-w-0">
         {/* Left Column: Annual comparison and new expense comparison */}
@@ -492,112 +672,204 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         </div>
       </div>
 
-      {/* Recent Activity List & CTA Row */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Recent activity card */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:col-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3.5 dark:border-slate-800/60">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-              <Activity className="h-4 w-4 text-blue-500" />
-              Lançamentos Recentes
-            </h3>
-            {/* Recent transaction filter buttons */}
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg dark:bg-slate-800">
-              {(['Todos', 'Receitas', 'Despesas'] as const).map(type => (
-                <button
-                  key={type}
-                  onClick={() => setRecentFilter(type)}
-                  className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
-                    recentFilter === type
-                      ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
-                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+      {/* Recent Activity List (Full width, Ações Rápidas card removed) */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 w-full">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3.5 dark:border-slate-800/60">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <Activity className="h-4 w-4 text-blue-500" />
+            Lançamentos Recentes
+          </h3>
+          {/* Recent transaction filter buttons */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg dark:bg-slate-800">
+            {(['Todos', 'Receitas', 'Despesas'] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => setRecentFilter(type)}
+                className={`px-3 py-1.5 text-xs md:text-sm font-semibold rounded-md transition-all ${
+                  recentFilter === type
+                    ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
           </div>
-          
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {recentTransactions.length === 0 ? (
-              <p className="text-slate-400 text-xs py-4 text-center">Nenhum lançamento recente registrado.</p>
-            ) : (
-              recentTransactions.map((item, idx) => {
-                const isIncome = item.type === 'receita';
-                return (
-                  <div key={idx} className="flex items-center justify-between py-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        isIncome ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40' : 'bg-red-50 text-red-500 dark:bg-red-950/40'
-                      }`}>
-                        <span className="text-lg font-bold">{isIncome ? '＋' : '－'}</span>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.description}</p>
-                        <p className="text-[10px] text-slate-400">{item.category} • {item.paymentType}</p>
-                      </div>
+        </div>
+        
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {recentTransactions.length === 0 ? (
+            <p className="text-slate-400 text-xs py-4 text-center">Nenhum lançamento recente registrado.</p>
+          ) : (
+            recentTransactions.map((item, idx) => {
+              const isIncome = item.type === 'receita';
+              return (
+                <div key={idx} className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                      isIncome ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40' : 'bg-red-50 text-red-500 dark:bg-red-950/40'
+                    }`}>
+                      <span className="text-lg font-bold">{isIncome ? '＋' : '－'}</span>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-xs font-bold font-mono ${isIncome ? 'text-blue-600' : 'text-red-500'}`}>
-                        {isIncome ? '+' : '-'} R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-[9px] text-slate-400 font-mono">
-                        {item.date.split('-').reverse().join('/')}
-                      </p>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.description}</p>
+                      <p className="text-[10px] text-slate-400">{item.category} • {item.paymentType}</p>
                     </div>
                   </div>
-                );
-              })
-            )}
+                  <div className="text-right">
+                    <p className={`text-xs font-bold font-mono ${isIncome ? 'text-blue-600' : 'text-red-500'}`}>
+                      {isIncome ? '+' : '-'} R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-mono">
+                      {item.date.split('-').reverse().join('/')}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Divider line: GRÁFICO DE INVESTIMENTO */}
+      <div className="relative my-8 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t-2 border-purple-200 dark:border-purple-900/60" />
+        </div>
+        <div className="relative bg-purple-100 px-5 py-1.5 rounded-full border border-purple-300 dark:border-purple-800 dark:bg-purple-950 text-xs font-black uppercase tracking-widest text-purple-900 dark:text-purple-200 shadow-xs">
+          GRÁFICO DE INVESTIMENTO
+        </div>
+      </div>
+
+      {/* 5-Year Investment Charts Section */}
+      <div className="space-y-6">
+        <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          Investimentos: Visão Geral dos Últimos 5 Anos (2022 - 2026)
+        </h3>
+
+        <div className="grid gap-6 lg:grid-cols-3 min-w-0">
+          {/* Chart 1: Total Investments (Last 5 Years) */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+            <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
+                <Wallet className="h-4 w-4 text-purple-600" />
+                Total por Ano
+              </h4>
+            </div>
+            <Investment5YearTotalChart data={investment5YearTotals} />
+          </div>
+
+          {/* Chart 2: Types of Investments (Last 5 Years) */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+            <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
+                <Layers className="h-4 w-4 text-purple-600" />
+                Tipos de Investimentos
+              </h4>
+            </div>
+            <Investment5YearStackedChart
+              data={investment5YearTypesData}
+              categories={allInvestmentTypes}
+              colorMap={TYPE_COLOR_MAP}
+            />
+          </div>
+
+          {/* Chart 3: Status of Investments (Last 5 Years) */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+            <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
+                <Tag className="h-4 w-4 text-purple-600" />
+                Status dos Investimentos
+              </h4>
+            </div>
+            <Investment5YearStackedChart
+              data={investment5YearStatusesData}
+              categories={allInvestmentStatuses}
+              colorMap={STATUS_COLOR_MAP}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Investment Filter & Charts Section */}
+      <div className="space-y-6 pt-2">
+        {/* Month / Year Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between bg-purple-50/80 p-4 rounded-xl dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 text-xs sm:text-sm gap-3">
+          <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-extrabold uppercase text-xs">
+            <Filter className="h-4 w-4 text-purple-600 shrink-0" />
+            Filtro Mensal de Investimentos ({MONTH_NAMES[investmentMonth]}/{investmentYear})
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-700 dark:text-slate-300 font-bold text-xs">Mês:</span>
+              <select
+                value={investmentMonth}
+                onChange={(e) => setInvestmentMonth(parseInt(e.target.value, 10))}
+                className="rounded-lg border border-purple-200 bg-white px-3 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-purple-800 dark:bg-slate-950 dark:text-white text-xs"
+              >
+                {MONTH_NAMES.map((mName, idx) => (
+                  <option key={idx} value={idx}>{mName}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-700 dark:text-slate-300 font-bold text-xs">Ano:</span>
+              <select
+                value={investmentYear}
+                onChange={(e) => setInvestmentYear(parseInt(e.target.value, 10))}
+                className="rounded-lg border border-purple-200 bg-white px-3 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-purple-800 dark:bg-slate-950 dark:text-white text-xs"
+              >
+                {fiveYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Quick actions box */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-900/40 flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-2">Ações Rápidas</h3>
-            <p className="text-xs text-slate-400 mb-4">Adicione registros ou planeje sua semana imediatamente.</p>
+        {/* Monthly Investment Charts Grid */}
+        <div className="grid gap-6 md:grid-cols-2 min-w-0">
+          {/* Chart 4: Monthly Investments by Type */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+            <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800 flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
+                <Layers className="h-4 w-4 text-purple-600" />
+                Tipos de Investimento ({MONTH_NAMES[investmentMonth]}/{investmentYear})
+              </h4>
+              <span className="text-xs font-mono font-bold text-purple-700 dark:text-purple-300">
+                R$ {monthlyInvestmentTypesData.totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <InvestmentMonthlyDonutChart
+              data={monthlyInvestmentTypesData.list}
+              totalValue={monthlyInvestmentTypesData.totalVal}
+              emptyLabel="Sem dados neste mês"
+            />
           </div>
-          <div className="space-y-2.5">
-            <button
-              onClick={() => onNavigate('Receitas (Ganhos)')}
-              className="flex w-full items-center justify-between rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2.5 text-xs font-bold transition-all shadow-sm"
-            >
-              <span>Nova Receita</span>
-              <span className="text-sm">＋</span>
-            </button>
-            <button
-              onClick={() => onNavigate('Despesas (Gastos)')}
-              className="flex w-full items-center justify-between rounded-lg bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 text-xs font-bold transition-all border border-slate-700/50"
-            >
-              <span>Nova Despesa</span>
-              <span className="text-sm">＋</span>
-            </button>
-            <button
-              onClick={() => onNavigate('Lista de compras')}
-              className="flex w-full items-center justify-between rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3.5 py-2.5 text-xs font-bold transition-all dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <span>Ir para Lista de Compras</span>
-              <span className="text-sm">🛒</span>
-            </button>
-            <button
-              onClick={() => onNavigate('Objetivos')}
-              className="flex w-full items-center justify-between rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3.5 py-2.5 text-xs font-bold transition-all dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <span>Ir para Objetivos</span>
-              <span className="text-sm">🎯</span>
-            </button>
-            <button
-              onClick={() => onNavigate('Plano anual')}
-              className="flex w-full items-center justify-between rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3.5 py-2.5 text-xs font-bold transition-all dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <span>Configurar Plano Anual</span>
-              <span className="text-sm">📅</span>
-            </button>
+
+          {/* Chart 5: Monthly Investments by Status */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+            <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800 flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
+                <Tag className="h-4 w-4 text-purple-600" />
+                Status dos Investimentos ({MONTH_NAMES[investmentMonth]}/{investmentYear})
+              </h4>
+              <span className="text-xs font-mono font-bold text-purple-700 dark:text-purple-300">
+                R$ {monthlyInvestmentStatusesData.totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <InvestmentMonthlyDonutChart
+              data={monthlyInvestmentStatusesData.list}
+              totalValue={monthlyInvestmentStatusesData.totalVal}
+              emptyLabel="Sem dados neste mês"
+            />
           </div>
         </div>
       </div>
     </div>
   );
 };
+
