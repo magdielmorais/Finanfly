@@ -479,11 +479,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         </div>
 
         {/* Beta Disclaimer Message */}
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3.5 text-center text-xs text-sky-200/90 shadow-sm leading-relaxed">
-          <p className="font-bold text-sky-300 mb-1 tracking-wide">
+        <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/10 p-3.5 text-center text-xs text-yellow-100 shadow-sm leading-relaxed">
+          <p className="font-bold text-yellow-200 mb-1 tracking-wide">
             versão Beta 1.1
           </p>
-          <p>
+          <p className="text-yellow-100/90">
             Atenção! Versão liberada somente para testes de funcionalidades, o app poderá sofrer instabilidades ou perda de dados na migração do banco de dados. Assim que for liberado o usuário receberá uma mensagem.
           </p>
         </div>
