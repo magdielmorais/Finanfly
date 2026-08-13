@@ -229,8 +229,27 @@ export default function App() {
           'x-auth-token': token
         }
       });
-      const data = await res.json();
-      if (res.ok && data.user) {
+      
+      let data: any = null;
+      try {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const rawText = await res.text();
+          data = JSON.parse(rawText);
+        }
+      } catch {
+        data = null;
+      }
+
+      if (res.status === 403 || data?.isBlocked) {
+        // User has been blocked
+        handleLogout();
+        return;
+      }
+
+      if (res.ok && data?.user) {
         setCurrentUser(data.user);
         localStorage.setItem('finanfly_user', JSON.stringify(data.user));
       }
@@ -248,8 +267,26 @@ export default function App() {
           'x-auth-token': token
         }
       });
-      const data = await res.json();
-      if (res.ok) {
+
+      let data: any = null;
+      try {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const rawText = await res.text();
+          data = JSON.parse(rawText);
+        }
+      } catch {
+        data = null;
+      }
+
+      if (res.status === 403 || data?.isBlocked) {
+        handleLogout();
+        return;
+      }
+
+      if (res.ok && data) {
         setUserData(data);
       }
     } catch (err) {
@@ -274,8 +311,26 @@ export default function App() {
         },
         body: JSON.stringify(newData),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+
+      let data: any = null;
+      try {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const rawText = await res.text();
+          data = JSON.parse(rawText);
+        }
+      } catch {
+        data = null;
+      }
+
+      if (res.status === 403 || data?.isBlocked) {
+        handleLogout();
+        return;
+      }
+
+      if (!res.ok) throw new Error(data?.error || 'Erro ao salvar dados.');
     } catch (err: any) {
       console.error('Error saving user data:', err);
     }

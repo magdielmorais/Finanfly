@@ -349,6 +349,30 @@ function initDb() {
       const data = fs.readFileSync(DB_FILE, "utf-8");
       const currentDb = JSON.parse(data);
       let updated = false;
+      if (!currentDb.users['admin@finanfly.com.br']) {
+        currentDb.users['admin@finanfly.com.br'] = {
+          email: 'admin@finanfly.com.br',
+          password: 'administrator',
+          role: 'admin',
+          name: 'ADMINISTRADOR',
+          createdAt: '2026-08-08T01:44:04.727+00:00',
+          lastAccess: new Date().toISOString(),
+          address: '',
+          city: '',
+          state: '',
+          phone: '',
+          cpf: '99099099099',
+          isBlocked: false,
+          subscription: {
+            plan: 'livre',
+            validUntil: null,
+            selectedAt: '2026-08-08T01:46:56.818+00:00',
+            freePlanUsed: false,
+            approved: true
+          }
+        };
+        updated = true;
+      }
       if (!currentDb.planPrices) {
         currentDb.planPrices = defaultDb.planPrices;
         updated = true;
@@ -567,6 +591,7 @@ async function getUserByEmail(email: string): Promise<any> {
   const supabase = getSupabaseClient();
   const db = getDb();
   const localUser = db.users[lowerEmail];
+  const localUserData = db.userData ? db.userData[lowerEmail] : undefined;
 
   if (supabase) {
     try {
@@ -606,6 +631,14 @@ async function getUserByEmail(email: string): Promise<any> {
         const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
         const blacklistCheck = await checkIsBlacklisted(lowerEmail, cpfValue);
 
+        const profMsg = (profileData?.user_message || profileData?.userMessage || profileData?.mensagem_usuario || profileData?.mensagemUsuario || '');
+        const localMsg = (localUser?.userMessage || localUser?.mensagemUsuario || '');
+        const localDataMsg = (localUserData?.userMessage || localUserData?.mensagemUsuario || '');
+        const resolvedUserMessage = (typeof profMsg === 'string' && profMsg.trim().length > 0 ? profMsg.trim() : '') || 
+          (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') || 
+          (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') || 
+          '';
+
         return {
           email: userData.email,
           password: userData.password,
@@ -618,8 +651,8 @@ async function getUserByEmail(email: string): Promise<any> {
           state: profileData ? profileData.state : (userData.state || ''),
           phone: profileData ? profileData.phone : (userData.phone || ''),
           cpf: cpfValue || '',
-          userMessage: profileData ? (profileData.user_message || profileData.userMessage || localUser?.userMessage || localUser?.mensagemUsuario || '') : (localUser?.userMessage || localUser?.mensagemUsuario || ''),
-          mensagemUsuario: profileData ? (profileData.user_message || profileData.userMessage || localUser?.userMessage || localUser?.mensagemUsuario || '') : (localUser?.userMessage || localUser?.mensagemUsuario || ''),
+          userMessage: resolvedUserMessage,
+          mensagemUsuario: resolvedUserMessage,
           isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked),
           subscription: subData ? {
             plan: subData.plan || 'none',
@@ -678,10 +711,22 @@ async function saveUser(user: any): Promise<boolean> {
 
   // Keep local JSON DB updated
   const db = getDb();
+  const msgVal = user.userMessage !== undefined ? user.userMessage : (user.mensagemUsuario !== undefined ? user.mensagemUsuario : undefined);
+
   if (!db.users[lowerEmail]) {
     db.users[lowerEmail] = { ...user };
   } else {
     db.users[lowerEmail] = { ...db.users[lowerEmail], ...user };
+  }
+
+  if (msgVal !== undefined) {
+    db.users[lowerEmail].userMessage = msgVal;
+    db.users[lowerEmail].mensagemUsuario = msgVal;
+    if (!db.userData) db.userData = {};
+    if (db.userData[lowerEmail]) {
+      db.userData[lowerEmail].userMessage = msgVal;
+      db.userData[lowerEmail].mensagemUsuario = msgVal;
+    }
   }
   saveDb(db);
 
@@ -693,7 +738,7 @@ async function saveUser(user: any): Promise<boolean> {
   if (supabase) {
     try {
       // 1. Upsert users table (for credential validation)
-      const { error: userErr } = await supabase
+      let { error: userErr } = await supabase
         .from('users')
         .upsert({
           email: lowerEmail,
@@ -703,6 +748,19 @@ async function saveUser(user: any): Promise<boolean> {
           is_blocked: !!user.isBlocked
         });
       
+      if (userErr && (userErr.code === '42703' || userErr.message?.includes('is_blocked'))) {
+        // Fallback if is_blocked column does not exist on Supabase users table
+        const fallbackRes = await supabase
+          .from('users')
+          .upsert({
+            email: lowerEmail,
+            password: user.password,
+            role: user.role || 'user',
+            created_at: user.createdAt || user.created_at || new Date().toISOString()
+          });
+        userErr = fallbackRes.error;
+      }
+      
       if (userErr) {
         if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
           markSupabaseKeyAsInvalid("Invalid API key");
@@ -711,11 +769,9 @@ async function saveUser(user: any): Promise<boolean> {
         } else {
           console.error("Erro ao salvar login do usuário no Supabase:", userErr.message || userErr);
         }
-        return false;
       }
 
       // 2. Upsert profiles table (for personal details)
-      const msgVal = user.userMessage !== undefined ? user.userMessage : user.mensagemUsuario;
       const profilePayload: any = {
         email: lowerEmail,
         name: user.name || '',
@@ -730,9 +786,18 @@ async function saveUser(user: any): Promise<boolean> {
         profilePayload.user_message = msgVal;
       }
 
-      const { error: profErr } = await supabase
+      let { error: profErr } = await supabase
         .from('profiles')
         .upsert(profilePayload);
+
+      if (profErr && (profErr.code === '42703' || profErr.message?.includes('user_message'))) {
+        // Fallback if user_message column does not exist in profiles table
+        delete profilePayload.user_message;
+        const retryProf = await supabase
+          .from('profiles')
+          .upsert(profilePayload);
+        profErr = retryProf.error;
+      }
 
       if (profErr && (profErr.message?.includes("Invalid API key") || profErr.hint?.includes("API key"))) {
         markSupabaseKeyAsInvalid("Invalid API key");
@@ -1241,22 +1306,33 @@ async function getAllUsersList(): Promise<any[]> {
           supabase.from('subscriptions').select('*')
         ]);
 
-        const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.email, p]));
-        const subsMap = new Map((subsRes.data || []).map((s: any) => [s.email, s]));
+        const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.email.toLowerCase().trim(), p]));
+        const subsMap = new Map((subsRes.data || []).map((s: any) => [s.email.toLowerCase().trim(), s]));
+        const usersMap = new Map<string, any>();
 
-        return usersData.map((u: any) => {
-          const prof: any = profilesMap.get(u.email);
-          const sub: any = subsMap.get(u.email);
-          const localU = localDb.users[u.email.toLowerCase().trim()];
-          const userMsg = prof ? (prof.user_message || prof.userMessage || localU?.userMessage || localU?.mensagemUsuario || '') : (localU?.userMessage || localU?.mensagemUsuario || '');
+        // 1. Process Supabase users
+        for (const u of usersData) {
+          const lowerU = u.email.toLowerCase().trim();
+          const prof: any = profilesMap.get(lowerU);
+          const sub: any = subsMap.get(lowerU);
+          const localU = localDb.users[lowerU];
+          const localUD = localDb.userData ? localDb.userData[lowerU] : undefined;
 
-          return {
+          const profMsg = (prof?.user_message || prof?.userMessage || prof?.mensagem_usuario || prof?.mensagemUsuario || '');
+          const localMsg = (localU?.userMessage || localU?.mensagemUsuario || '');
+          const localDataMsg = (localUD?.userMessage || localUD?.mensagemUsuario || '');
+          const userMsg = (typeof profMsg === 'string' && profMsg.trim().length > 0 ? profMsg.trim() : '') ||
+            (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') ||
+            (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') ||
+            '';
+
+          usersMap.set(lowerU, {
             email: u.email,
-            name: prof ? prof.name : '',
-            address: prof ? prof.address : '',
-            city: prof ? prof.city : '',
-            state: prof ? prof.state : '',
-            phone: prof ? prof.phone : '',
+            name: prof ? prof.name : (localU?.name || ''),
+            address: prof ? prof.address : (localU?.address || ''),
+            city: prof ? prof.city : (localU?.city || ''),
+            state: prof ? prof.state : (localU?.state || ''),
+            phone: prof ? prof.phone : (localU?.phone || ''),
             cpf: prof ? prof.cpf : (localU?.cpf || ''),
             userMessage: userMsg,
             mensagemUsuario: userMsg,
@@ -1276,8 +1352,31 @@ async function getAllUsersList(): Promise<any[]> {
               approved: false
             },
             createdAt: u.created_at || u.createdAt || new Date().toISOString()
-          };
-        });
+          });
+        }
+
+        // 2. Merge local-only users
+        for (const [key, localU] of Object.entries<any>(localDb.users)) {
+          const lowerKey = key.toLowerCase().trim();
+          if (!usersMap.has(lowerKey)) {
+            const localUD = localDb.userData ? localDb.userData[lowerKey] : undefined;
+            const localMsg = (localU.userMessage || localU.mensagemUsuario || '');
+            const localDataMsg = (localUD?.userMessage || localUD?.mensagemUsuario || '');
+            const userMsg = (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') ||
+              (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') ||
+              '';
+
+            const { password: _, ...rest } = localU;
+            usersMap.set(lowerKey, {
+              ...rest,
+              userMessage: userMsg,
+              mensagemUsuario: userMsg,
+              isBlocked: !!(localU.isBlocked || localU.blocked)
+            });
+          }
+        }
+
+        return Array.from(usersMap.values());
       }
     } catch (err) {
       console.error("Falha ao buscar todos os usuários no Supabase:", err);
@@ -1748,6 +1847,33 @@ app.get("/api/auth/verify-session", async (req, res) => {
       return res.status(401).json({ valid: false, error: "Sessão expirada ou usuário não encontrado." });
     }
 
+    if (user.isBlocked) {
+      const lowerE = verifiedEmail.toLowerCase().trim();
+      const localDb = getDb();
+      const localU = localDb.users[lowerE];
+      const localUD = localDb.userData ? localDb.userData[lowerE] : undefined;
+      const rawReason = user.userMessage || 
+        user.mensagemUsuario || 
+        localU?.userMessage || 
+        localU?.mensagemUsuario || 
+        localUD?.userMessage || 
+        localUD?.mensagemUsuario || 
+        '';
+      const reason = typeof rawReason === 'string' && rawReason.trim().length > 0
+        ? rawReason.trim()
+        : 'Acesso suspenso pelo administrador.';
+
+      return res.status(403).json({
+        valid: false,
+        isBlocked: true,
+        title: "Usuário bloqueado",
+        reason: reason,
+        userMessage: reason,
+        mensagemUsuario: reason,
+        error: `Usuário bloqueado\nMotivo: ${reason}`
+      });
+    }
+
     const { password: _, ...userProfile } = user;
     const newToken = generateAuthToken({ email: user.email, role: user.role });
 
@@ -1776,12 +1902,28 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     if (user.isBlocked) {
-      const reason = user.userMessage || user.mensagemUsuario || 'Acesso suspenso pelo administrador.';
+      const lowerE = email.toLowerCase().trim();
+      const localDb = getDb();
+      const localU = localDb.users[lowerE];
+      const localUD = localDb.userData ? localDb.userData[lowerE] : undefined;
+      const rawReason = user.userMessage || 
+        user.mensagemUsuario || 
+        localU?.userMessage || 
+        localU?.mensagemUsuario || 
+        localUD?.userMessage || 
+        localUD?.mensagemUsuario || 
+        '';
+      const reason = typeof rawReason === 'string' && rawReason.trim().length > 0
+        ? rawReason.trim()
+        : 'Acesso suspenso pelo administrador.';
+
       return res.status(403).json({
         isBlocked: true,
-        title: "Usuário bloqueado, entrar em contato com administrador",
+        title: "Usuário bloqueado",
         reason: reason,
-        error: `Usuário bloqueado, entrar em contato com administrador\nMotivo: ${reason}`
+        userMessage: reason,
+        mensagemUsuario: reason,
+        error: `Usuário bloqueado\nMotivo: ${reason}`
       });
     }
 
@@ -2049,7 +2191,7 @@ app.post("/api/user/profile", async (req, res) => {
   }
 
   try {
-    const { name, address, phone, city, state, cpf } = req.body;
+    const { name, address, phone, city, state, cpf, userMessage, mensagemUsuario } = req.body;
     const user = await getUserByEmail(email);
 
     if (!user) {
@@ -2062,6 +2204,13 @@ app.post("/api/user/profile", async (req, res) => {
     user.city = city !== undefined ? city : user.city;
     user.state = state !== undefined ? state : user.state;
     user.cpf = cpf !== undefined ? cpf : user.cpf;
+    if (userMessage !== undefined) {
+      user.userMessage = userMessage;
+      user.mensagemUsuario = userMessage;
+    } else if (mensagemUsuario !== undefined) {
+      user.userMessage = mensagemUsuario;
+      user.mensagemUsuario = mensagemUsuario;
+    }
 
     const checkHistory = await checkIsBlacklisted(email, user.cpf);
     if (checkHistory.blacklisted) {
@@ -2698,7 +2847,7 @@ app.post("/api/admin/edit-user", async (req, res) => {
       return res.status(403).json({ error: "Acesso restrito ao administrador." });
     }
 
-    const { targetEmail, name, role, plan, password, address, phone, city, state, userMessage, mensagemUsuario } = req.body;
+    const { targetEmail, name, role, plan, password, address, phone, city, state, userMessage, mensagemUsuario, isBlocked } = req.body;
     const lowerTargetEmail = targetEmail.toLowerCase().trim();
 
     const user = await getUserByEmail(lowerTargetEmail);
@@ -2706,6 +2855,9 @@ app.post("/api/admin/edit-user", async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
+    if (isBlocked !== undefined) {
+      user.isBlocked = !!isBlocked;
+    }
     if (name !== undefined) user.name = name;
     if (role !== undefined) user.role = role;
     if (password !== undefined && password.trim() !== "") user.password = password;

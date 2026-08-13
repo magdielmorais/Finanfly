@@ -17,6 +17,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   const [name, setName] = useState('');
   const [cpf, setCpf] = useState('');
   const [error, setError] = useState('');
+  const [blockedDetails, setBlockedDetails] = useState<{ title: string; reason: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Modals state for "Relembrar senha" and "Mudar senha"
@@ -51,16 +52,28 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         body: JSON.stringify({ email: rememberEmail }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'O e-mail digitado é diferente do e-mail cadastrado.');
+      let data: any = null;
+      try {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          const rawText = await response.text();
+          data = JSON.parse(rawText);
+        }
+      } catch {
+        data = null;
       }
 
-      setRememberSuccess(data.message || 'E-mail enviado com sucesso!');
+      if (!response.ok) {
+        throw new Error(data?.error || 'O e-mail digitado é diferente do e-mail cadastrado.');
+      }
+
+      setRememberSuccess(data?.message || 'E-mail enviado com sucesso!');
       setRememberEmailDetails({
-        subject: data.emailSubject,
-        name: data.user?.name,
-        email: data.user?.email || rememberEmail
+        subject: data?.emailSubject,
+        name: data?.user?.name,
+        email: data?.user?.email || rememberEmail
       });
     } catch (err: any) {
       setRememberError(err.message || 'Erro ao processar solicitação.');
@@ -76,7 +89,27 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
     e.preventDefault();
     setError('');
 
+    setError('');
+    setBlockedDetails(null);
+
     try {
+      const parseSafeJson = async (res: Response) => {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          try {
+            return await res.json();
+          } catch {
+            // fall through
+          }
+        }
+        try {
+          const rawText = await res.text();
+          return JSON.parse(rawText);
+        } catch {
+          return null;
+        }
+      };
+
       if (isRegister) {
         if (password !== confirmPassword) {
           setError('As senhas digitadas não coincidem!');
@@ -90,18 +123,19 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           body: JSON.stringify({ email, password, name, cpf }),
         });
 
-        const data = await response.json();
+        const data = await parseSafeJson(response);
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao registrar.');
+          throw new Error(data?.error || 'Erro ao registrar.');
         }
 
-        if (data.token) {
+        if (data?.token) {
           localStorage.setItem('finanfly_token', data.token);
         }
 
         // New users default to 'none' subscription, must configure on subscription page
         onRedirectToSubscription(data.user);
       } else {
+        setLoading(true);
         // Login flow
         const response = await fetch('/api/auth/login', {
           method: 'POST',
@@ -109,16 +143,51 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           body: JSON.stringify({ email, password }),
         });
 
-        const data = await response.json();
+        const data = await parseSafeJson(response);
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao fazer login.');
+          if (
+            data?.isBlocked || 
+            response.status === 403 || 
+            (typeof data?.error === 'string' && data.error.toLowerCase().includes('bloqueado'))
+          ) {
+            setError('');
+            const rawReason = data?.reason || data?.userMessage || data?.mensagemUsuario || (
+              typeof data?.error === 'string' && data.error.includes('Motivo:')
+                ? data.error.split('Motivo:')[1]?.trim()
+                : ''
+            );
+            const blockReason = typeof rawReason === 'string' && rawReason.trim().length > 0
+              ? rawReason.trim()
+              : 'Acesso suspenso pelo administrador.';
+
+            setBlockedDetails({
+              title: data?.title || "Usuário bloqueado",
+              reason: blockReason
+            });
+            return;
+          }
+          setBlockedDetails(null);
+          throw new Error(data?.error || (response.status === 401 ? 'E-mail ou senha incorretos.' : 'Erro ao fazer login.'));
         }
 
-        if (data.token) {
+        if (data?.token) {
           localStorage.setItem('finanfly_token', data.token);
         }
 
         const user: UserProfile = data.user;
+
+        if (user.isBlocked) {
+          setError('');
+          const rawReason = user.userMessage || user.mensagemUsuario || '';
+          const blockReason = typeof rawReason === 'string' && rawReason.trim().length > 0
+            ? rawReason.trim()
+            : 'Acesso suspenso pelo administrador.';
+          setBlockedDetails({
+            title: "Usuário bloqueado",
+            reason: blockReason
+          });
+          return;
+        }
 
         if (user.role === 'admin') {
           // Admins go directly to admin dashboard
@@ -131,6 +200,16 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           if (hasPlan && isValid) {
             onLoginSuccess(user);
           } else {
+            const customUserMessage = (user.userMessage || user.mensagemUsuario || '').trim();
+            if (customUserMessage) {
+              setError('');
+              setBlockedDetails({
+                title: "Usuário bloqueado",
+                reason: customUserMessage
+              });
+              return;
+            }
+
             // Subscription expired or none. Show nice modal notification first, then redirect to subscription
             setError('Sua assinatura está expirada ou não ativa! É necessário escolher um plano para continuar.');
             setTimeout(() => {
@@ -150,6 +229,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
     setEmail(demoEmail);
     setPassword(demoPass);
     setIsRegister(false);
+    setBlockedDetails(null);
   };
 
   return (
@@ -181,6 +261,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
               onClick={() => {
                 setIsRegister(false);
                 setError('');
+                setBlockedDetails(null);
               }}
               className={`flex-1 pb-3 text-center text-sm font-semibold transition-all ${
                 !isRegister ? 'border-b-2 border-blue-500 text-blue-500' : 'text-slate-500 hover:text-slate-400'
@@ -192,6 +273,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
               onClick={() => {
                 setIsRegister(true);
                 setError('');
+                setBlockedDetails(null);
               }}
               className={`flex-1 pb-3 text-center text-sm font-semibold transition-all ${
                 isRegister ? 'border-b-2 border-blue-500 text-blue-500' : 'text-slate-500 hover:text-slate-400'
@@ -205,6 +287,25 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
             <div className="mb-4 flex items-start gap-2.5 rounded-lg p-3 text-xs bg-amber-950/50 border border-amber-800 text-amber-200">
               <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
               <div>{inactivityNotice}</div>
+            </div>
+          )}
+
+          {blockedDetails && (
+            <div className="mb-4 rounded-xl border border-red-500/40 bg-red-950/50 p-4 text-xs text-red-200 shadow-xl shadow-red-950/30 space-y-2 animate-fade-in">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-500/20 text-red-400 border border-red-500/30">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-red-200 text-xs sm:text-sm leading-tight">
+                    {blockedDetails.title}
+                  </h4>
+                  <div className="mt-2.5 rounded-lg bg-red-950/70 p-3 border border-red-800/50 text-xs">
+                    <span className="font-bold text-red-300">Motivo: </span>
+                    <span className="text-red-100 font-medium whitespace-pre-wrap">{blockedDetails.reason}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

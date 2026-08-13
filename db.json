@@ -1,5 +1,51 @@
 {
-  "users": {},
+  "users": {
+    "user@finanfly.com.br": {
+      "email": "user@finanfly.com.br",
+      "password": "user",
+      "role": "user",
+      "createdAt": "2026-08-08T01:50:22.578+00:00",
+      "lastAccess": "2026-08-08T10:14:50.463+00:00",
+      "name": "User Beta",
+      "address": "",
+      "city": "",
+      "state": "",
+      "phone": "",
+      "cpf": "99999999999",
+      "userMessage": "Prezado cliente, seu acesso está suspenso por análise cadastral. Contate suporte@finanfly.com.br",
+      "mensagemUsuario": "Prezado cliente, seu acesso está suspenso por análise cadastral. Contate suporte@finanfly.com.br",
+      "isBlocked": true,
+      "subscription": {
+        "plan": "gratis",
+        "validUntil": "2026-10-07T01:51:19.283+00:00",
+        "selectedAt": "2026-08-08T01:51:19.283+00:00",
+        "freePlanUsed": true,
+        "freePlanUsedReason": "O e-mail user@finanfly.com.br já utilizou o período de experiência grátis.",
+        "approved": true
+      }
+    },
+    "admin@finanfly.com.br": {
+      "email": "admin@finanfly.com.br",
+      "password": "administrator",
+      "role": "admin",
+      "name": "ADMINISTRADOR",
+      "createdAt": "2026-08-08T01:44:04.727+00:00",
+      "lastAccess": "2026-08-13T21:49:08.531Z",
+      "address": "",
+      "city": "",
+      "state": "",
+      "phone": "",
+      "cpf": "99099099099",
+      "isBlocked": false,
+      "subscription": {
+        "plan": "livre",
+        "validUntil": null,
+        "selectedAt": "2026-08-08T01:46:56.818+00:00",
+        "freePlanUsed": false,
+        "approved": true
+      }
+    }
+  },
   "userData": {},
   "planPrices": {
     "mensal_de": "29,90",

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -167,6 +167,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [editPhone, setEditPhone] = useState('');
   const [editCity, setEditCity] = useState('');
   const [editState, setEditState] = useState('');
+  const [editUserMessage, setEditUserMessage] = useState('');
+
+  // User block modal state
+  const [selectedUserForBlock, setSelectedUserForBlock] = useState<UserProfile | null>(null);
+  const [blockModalIsBlocked, setBlockModalIsBlocked] = useState(false);
+  const [blockModalMessage, setBlockModalMessage] = useState('');
+  const [blockSaving, setBlockSaving] = useState(false);
+  const [blockSuccess, setBlockSuccess] = useState('');
+  const [blockError, setBlockError] = useState('');
 
   // Filtering state
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -467,6 +476,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     setEditPhone(user.phone || '');
     setEditCity(user.city || '');
     setEditState(user.state || '');
+    setEditUserMessage(user.userMessage || user.mensagemUsuario || '');
     setError('');
     setSuccessMsg('');
     setShowCreateForm(false);
@@ -496,7 +506,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           address: editAddress,
           phone: editPhone,
           city: editCity,
-          state: editState
+          state: editState,
+          userMessage: editUserMessage,
+          mensagemUsuario: editUserMessage
         }),
       });
       const data = await res.json();
@@ -565,6 +577,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
       if (statusFilter === 'admin') {
         return user.role === 'admin';
+      }
+
+      if (statusFilter === 'blocked') {
+        return !!user.isBlocked;
       }
 
       if (user.role === 'admin') {
@@ -717,6 +733,67 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       setAuditSaveError(err.message || 'Erro ao salvar.');
     } finally {
       setSavingAuditMessage(false);
+    }
+  };
+
+  const handleOpenBlockModal = (user: UserProfile) => {
+    setSelectedUserForBlock(user);
+    // If not already blocked, default toggle to true so admin can block with one click; if already blocked, keep true
+    setBlockModalIsBlocked(user.isBlocked !== undefined ? user.isBlocked : true);
+    const existingMsg = (user.userMessage || user.mensagemUsuario || '').trim();
+    setBlockModalMessage(existingMsg);
+    setBlockSuccess('');
+    setBlockError('');
+  };
+
+  const handleSaveBlockStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserForBlock) return;
+
+    setBlockSaving(true);
+    setBlockSuccess('');
+    setBlockError('');
+
+    try {
+      const res = await fetch('/api/admin/edit-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify({
+          targetEmail: selectedUserForBlock.email,
+          isBlocked: blockModalIsBlocked,
+          userMessage: blockModalMessage,
+          mensagemUsuario: blockModalMessage
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao atualizar status de bloqueio.');
+
+      const updatedUser: UserProfile = {
+        ...selectedUserForBlock,
+        isBlocked: blockModalIsBlocked,
+        userMessage: blockModalMessage,
+        mensagemUsuario: blockModalMessage
+      };
+
+      setUsers(prev => prev.map(u => u.email.toLowerCase() === selectedUserForBlock.email.toLowerCase() ? { ...u, ...updatedUser } : u));
+      if (selectedUserForAudit && selectedUserForAudit.email.toLowerCase() === selectedUserForBlock.email.toLowerCase()) {
+        setSelectedUserForAudit(prev => prev ? { ...prev, ...updatedUser } : prev);
+        setAuditUserMessage(blockModalMessage);
+      }
+
+      setBlockSuccess(blockModalIsBlocked ? 'Usuário bloqueado e motivo registrado com sucesso!' : 'Usuário desbloqueado com sucesso!');
+      setTimeout(() => {
+        setSelectedUserForBlock(null);
+        setBlockSuccess('');
+      }, 1200);
+    } catch (err: any) {
+      setBlockError(err.message || 'Erro ao processar bloqueio.');
+    } finally {
+      setBlockSaving(false);
     }
   };
 
@@ -1355,6 +1432,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Mensagem Usuário (Dados Pessoais / Motivo Exibido no Login se Bloqueado)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Escreva a mensagem personalizada para o usuário..."
+                  value={editUserMessage}
+                  onChange={(e) => setEditUserMessage(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -1408,6 +1498,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 <option value="approved">Aprovados / Ativos ✅</option>
                 <option value="pending">Pendentes de Aprovação ⏳</option>
                 <option value="expired">Inativos / Expirados ❌</option>
+                <option value="blocked">Bloqueados 🚫</option>
                 <option value="admin">Administradores 🛡️</option>
               </select>
 
@@ -1456,7 +1547,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     return (
                       <tr key={user.email} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                         <td className="py-3">
-                          <div className="font-bold text-slate-800 dark:text-slate-200">{user.name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{user.name}</span>
+                            {user.isBlocked && (
+                              <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm">
+                                <Lock className="h-2.5 w-2.5" /> Bloqueado
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
                         </td>
                         <td className="py-3">
@@ -1505,7 +1603,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                               onClick={() => handleToggleApproval(user.email, isApproved)}
                               className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
                                 isApproved
-                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40'
+                                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40'
                                   : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40'
                               }`}
                             >
@@ -1515,6 +1613,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                         </td>
                         <td className="py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenBlockModal(user)}
+                              title={user.isBlocked ? "Usuário Bloqueado - Clique para gerenciar bloqueio e motivo" : "Bloquear Usuário / Definir Motivo"}
+                              aria-label={user.isBlocked ? "Usuário Bloqueado" : "Bloquear Usuário"}
+                              className={`p-1.5 rounded-lg transition-all ${
+                                user.isBlocked
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-800 shadow-sm'
+                                  : 'text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40'
+                              }`}
+                            >
+                              <Lock className="h-4 w-4" />
+                            </button>
                             <button
                               onClick={() => handleInspectUser(user)}
                               title="Auditar dados do usuário"
@@ -1561,12 +1671,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <h3 className="text-sm font-bold text-blue-900 dark:text-blue-200">
               Auditoria de Dados: {selectedUserForAudit.name}
             </h3>
-            <button
-              onClick={() => setSelectedUserForAudit(null)}
-              className="text-blue-500 hover:text-blue-700 text-xs font-bold"
-            >
-              Fechar Visualização ✕
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenBlockModal(selectedUserForAudit)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                  selectedUserForAudit.isBlocked
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
+                }`}
+              >
+                <Lock className="h-3.5 w-3.5" />
+                <span>{selectedUserForAudit.isBlocked ? 'Usuário Bloqueado' : 'Bloquear / Gerenciar'}</span>
+              </button>
+              <button
+                onClick={() => setSelectedUserForAudit(null)}
+                className="text-blue-500 hover:text-blue-700 text-xs font-bold"
+              >
+                Fechar Visualização ✕
+              </button>
+            </div>
           </div>
 
           {/* User profile details layout */}
@@ -2350,6 +2474,160 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 Cancelar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup para Bloqueio de Usuário e Registro de Motivo (Mensagem Usuário) */}
+      {selectedUserForBlock && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5">
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${
+                  blockModalIsBlocked 
+                    ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400' 
+                    : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                }`}>
+                  <Lock className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">
+                    Bloqueio de Acesso e Mensagem ao Usuário
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {selectedUserForBlock.name || 'Usuário'} ({selectedUserForBlock.email})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForBlock(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {blockSuccess && (
+              <div className="p-3 text-xs font-semibold text-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-300 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>{blockSuccess}</span>
+              </div>
+            )}
+
+            {blockError && (
+              <div className="p-3 text-xs font-semibold text-rose-800 bg-rose-50 dark:bg-rose-950/20 dark:text-rose-300 rounded-xl border border-rose-100 dark:border-rose-900/30 flex items-center gap-2">
+                <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{blockError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveBlockStatus} className="space-y-4 text-xs">
+              {/* Status selector */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Status da Conta do Usuário
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBlockModalIsBlocked(true)}
+                    className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all text-xs ${
+                      blockModalIsBlocked
+                        ? 'bg-rose-50 border-rose-400 text-rose-700 dark:bg-rose-950/50 dark:border-rose-700 dark:text-rose-300 shadow-sm ring-1 ring-rose-400'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Lock className="h-4 w-4" />
+                    <span>Bloquear Acesso</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBlockModalIsBlocked(false)}
+                    className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all text-xs ${
+                      !blockModalIsBlocked
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-700 dark:text-emerald-300 shadow-sm ring-1 ring-emerald-400'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Unlock className="h-4 w-4" />
+                    <span>Liberar / Desbloquear</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Motivo do bloqueio / Mensagem Usuário */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Mensagem Usuário (Motivo do Bloqueio)
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">Dados Pessoais</span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
+                  Este texto fica registrado no campo <strong>mensagem usuário</strong> dos dados pessoais e é exibido como o <strong>Motivo</strong> na tela de login.
+                </p>
+                <textarea
+                  rows={3}
+                  value={blockModalMessage}
+                  onChange={(e) => setBlockModalMessage(e.target.value)}
+                  placeholder="Ex: Entre em contato com a administração para regularizar o acesso..."
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white text-xs focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-none placeholder-slate-400 font-medium"
+                />
+              </div>
+
+              {/* Live Preview of Login page notification */}
+              {blockModalIsBlocked && (
+                <div className="rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 p-3 space-y-1.5 animate-fade-in">
+                  <span className="text-[10px] font-bold uppercase text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                    <Eye className="h-3 w-3" /> Visualização do aviso na tela de Login:
+                  </span>
+                  <div className="rounded-xl bg-slate-950 p-3 text-xs text-red-200 border border-red-900/60 shadow-inner">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1 rounded bg-red-900/50 text-red-400">
+                        <Lock className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="space-y-1.5 flex-1">
+                        <div className="font-extrabold text-red-200 text-xs">
+                          Usuário bloqueado
+                        </div>
+                        <div className="text-[11px] text-red-100 bg-red-950/90 p-2 rounded-lg border border-red-800/40">
+                          <span className="font-bold text-red-300">Motivo: </span>
+                          <span>{blockModalMessage.trim() || 'Acesso suspenso pelo administrador.'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="submit"
+                  disabled={blockSaving}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-md disabled:opacity-50 ${
+                    blockModalIsBlocked
+                      ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
+                      : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                  }`}
+                >
+                  {blockSaving
+                    ? 'Salvando...'
+                    : blockModalIsBlocked
+                    ? 'Confirmar Bloqueio de Usuário'
+                    : 'Salvar e Desbloquear'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForBlock(null)}
+                  disabled={blockSaving}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
