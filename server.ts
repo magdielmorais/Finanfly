@@ -532,6 +532,31 @@ async function recordTrialHistory(email: string, cpf?: string): Promise<void> {
   }
 }
 
+// High-performance in-memory cache for fast lookups
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+const userCache = new Map<string, CacheEntry<any>>();
+const userDataCache = new Map<string, CacheEntry<any>>();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+function invalidateUserCache(email?: string) {
+  if (email) {
+    userCache.delete(email.toLowerCase().trim());
+  } else {
+    userCache.clear();
+  }
+}
+
+function invalidateUserDataCache(email?: string) {
+  if (email) {
+    userDataCache.delete(email.toLowerCase().trim());
+  } else {
+    userDataCache.clear();
+  }
+}
+
 // Check if an email or CPF already used a free trial in history
 async function checkIsBlacklisted(email: string, cpf?: string): Promise<{ blacklisted: boolean; reason?: string }> {
   const lowerEmail = email.toLowerCase().trim();
@@ -586,8 +611,16 @@ async function checkIsBlacklisted(email: string, cpf?: string): Promise<{ blackl
 }
 
 // Get user by email with auto-migration from local JSON DB to relational Supabase tables
-async function getUserByEmail(email: string): Promise<any> {
+async function getUserByEmail(email: string, bypassCache = false): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
+
+  if (!bypassCache) {
+    const cached = userCache.get(lowerEmail);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.data;
+    }
+  }
+
   const supabase = getSupabaseClient();
   const db = getDb();
   const localUser = db.users[lowerEmail];
@@ -595,41 +628,35 @@ async function getUserByEmail(email: string): Promise<any> {
 
   if (supabase) {
     try {
-      // Query relational 'users' table
-      const { data: userData, error: userErr } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', lowerEmail)
-        .maybeSingle();
+      // Query relational 'users', 'profiles', and 'subscriptions' in parallel for maximum speed
+      const [userRes, profileRes, subRes] = await Promise.all([
+        supabase.from('users').select('*').eq('email', lowerEmail).maybeSingle(),
+        supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
+        supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
+      ]);
       
-      if (userErr) {
-        if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
+      if (userRes.error) {
+        if (userRes.error.message?.includes("Invalid API key") || userRes.error.hint?.includes("API key")) {
           markSupabaseKeyAsInvalid("Invalid API key");
           return localUser || null;
         }
-        if (userErr.code === '42P01') {
+        if (userRes.error.code === '42P01') {
           // Table not created yet - fall back
           throw new Error("Tabela 'users' não existe no Supabase.");
         }
       }
 
+      if (profileRes.error?.message?.includes("Invalid API key") || subRes.error?.message?.includes("Invalid API key")) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+        return localUser || null;
+      }
+
+      const userData = userRes.data;
+
       if (userData) {
-        // Query profiles and subscriptions in parallel for full user model
-        const [profileRes, subRes] = await Promise.all([
-          supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
-          supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
-        ]);
-
-        if (profileRes.error?.message?.includes("Invalid API key") || subRes.error?.message?.includes("Invalid API key")) {
-          markSupabaseKeyAsInvalid("Invalid API key");
-          return localUser || null;
-        }
-
         const profileData = profileRes.data;
         const subData = subRes.data;
-
         const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
-        const blacklistCheck = await checkIsBlacklisted(lowerEmail, cpfValue);
 
         const profMsg = (profileData?.user_message || profileData?.userMessage || profileData?.mensagem_usuario || profileData?.mensagemUsuario || '');
         const localMsg = (localUser?.userMessage || localUser?.mensagemUsuario || '');
@@ -639,7 +666,7 @@ async function getUserByEmail(email: string): Promise<any> {
           (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') || 
           '';
 
-        return {
+        const compiledUser = {
           email: userData.email,
           password: userData.password,
           role: userData.role || 'user',
@@ -658,28 +685,32 @@ async function getUserByEmail(email: string): Promise<any> {
             plan: subData.plan || 'none',
             validUntil: subData.valid_until,
             selectedAt: subData.selected_at,
-            freePlanUsed: !!subData.free_plan_used || blacklistCheck.blacklisted,
-            freePlanUsedReason: blacklistCheck.blacklisted ? blacklistCheck.reason : undefined,
+            freePlanUsed: !!subData.free_plan_used,
+            freePlanUsedReason: undefined,
             approved: !!subData.approved
           } : {
             plan: 'none',
             validUntil: null,
             selectedAt: null,
-            freePlanUsed: blacklistCheck.blacklisted,
-            freePlanUsedReason: blacklistCheck.blacklisted ? blacklistCheck.reason : undefined,
+            freePlanUsed: false,
+            freePlanUsedReason: undefined,
             approved: false
           }
         };
+
+        userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
+        return compiledUser;
       }
 
       // If user exists locally but not in Supabase, migrate them automatically
       if (!userData && localUser) {
         console.log(`Migrando usuário ${lowerEmail} para tabelas relacionais do Supabase...`);
         await saveUser(localUser);
-        const localData = db.userData[lowerEmail];
+        const localData = db.userData ? db.userData[lowerEmail] : undefined;
         if (localData) {
           await saveUserDataByEmail(lowerEmail, localData);
         }
+        userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
         return localUser;
       }
     } catch (err: any) {
@@ -692,14 +723,7 @@ async function getUserByEmail(email: string): Promise<any> {
   }
 
   if (localUser) {
-    const blacklistCheck = await checkIsBlacklisted(lowerEmail, localUser.cpf);
-    if (blacklistCheck.blacklisted) {
-      if (!localUser.subscription) {
-        localUser.subscription = {};
-      }
-      localUser.subscription.freePlanUsed = true;
-      localUser.subscription.freePlanUsedReason = blacklistCheck.reason;
-    }
+    userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
   }
 
   return localUser || null;
@@ -708,6 +732,9 @@ async function getUserByEmail(email: string): Promise<any> {
 // Save/Update user profile across users, profiles, and subscriptions tables
 async function saveUser(user: any): Promise<boolean> {
   const lowerEmail = user.email.toLowerCase().trim();
+
+  // Invalidate and update user cache immediately
+  userCache.set(lowerEmail, { data: { ...user }, timestamp: Date.now() });
 
   // Keep local JSON DB updated
   const db = getDb();
@@ -834,16 +861,24 @@ async function saveUser(user: any): Promise<boolean> {
   return true;
 }
 
-// Get user workspace data from all 10 relational tables in parallel
-async function getUserDataByEmail(email: string): Promise<any> {
+// Get user workspace data from relational tables in parallel with memory caching
+async function getUserDataByEmail(email: string, bypassCache = false): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
+
+  if (!bypassCache) {
+    const cached = userDataCache.get(lowerEmail);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.data;
+    }
+  }
+
   const supabase = getSupabaseClient();
   const db = getDb();
-  const localData = db.userData[lowerEmail];
+  const localData = db.userData ? db.userData[lowerEmail] : undefined;
 
   if (supabase) {
     try {
-      // Fetch relational tables in parallel
+      // Fetch relational tables in parallel for existing tables
       const [
         pTypesRes,
         pStatusesRes,
@@ -854,12 +889,7 @@ async function getUserDataByEmail(email: string): Promise<any> {
         annualRes,
         shopRes,
         actPlansRes,
-        defActionsRes,
-        tripsRes,
-        wishesRes,
-        investmentsRes,
-        invTypesRes,
-        invStatusesRes
+        defActionsRes
       ] = await Promise.all([
         supabase.from('payment_types').select('name').eq('email', lowerEmail),
         supabase.from('payment_statuses').select('name').eq('email', lowerEmail),
@@ -870,12 +900,7 @@ async function getUserDataByEmail(email: string): Promise<any> {
         supabase.from('annual_planning').select('*').eq('email', lowerEmail),
         supabase.from('shopping_list').select('*').eq('email', lowerEmail),
         supabase.from('action_plans').select('*').eq('email', lowerEmail).order('target_date', { ascending: true }),
-        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
-        supabase.from('trips').select('*').eq('email', lowerEmail),
-        supabase.from('wishes').select('*').eq('email', lowerEmail),
-        supabase.from('investments').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
-        supabase.from('investment_types').select('name').eq('email', lowerEmail),
-        supabase.from('investment_statuses').select('name').eq('email', lowerEmail)
+        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false })
       ]);
 
       // If database schema is missing, fall back to monolithic user_data table or local DB
@@ -890,9 +915,14 @@ async function getUserDataByEmail(email: string): Promise<any> {
           .maybeSingle();
         
         if (!error && data && data.data) {
+          userDataCache.set(lowerEmail, { data: data.data, timestamp: Date.now() });
           return data.data;
         }
-        return localData || null;
+        if (localData) {
+          userDataCache.set(lowerEmail, { data: localData, timestamp: Date.now() });
+          return localData;
+        }
+        return null;
       }
 
       // Check if user has no relational records but we have local backup to migrate
@@ -905,6 +935,7 @@ async function getUserDataByEmail(email: string): Promise<any> {
       if (!hasAnyRelationalData && localData) {
         console.log(`Migrando dados locais de ${lowerEmail} para as novas tabelas relacionais do Supabase...`);
         await saveUserDataByEmail(lowerEmail, localData);
+        userDataCache.set(lowerEmail, { data: localData, timestamp: Date.now() });
         return localData;
       }
 
@@ -962,53 +993,22 @@ async function getUserDataByEmail(email: string): Promise<any> {
           date: r.date,
           status: r.status
         })) : [],
-        trips: (tripsRes.data && tripsRes.data.length > 0) ? tripsRes.data.map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          expenses: r.expenses || []
-        })) : undefined,
-        wishes: (wishesRes.data && wishesRes.data.length > 0) ? wishesRes.data.map((r: any) => ({
-          id: r.id,
-          title: r.title,
-          description: r.description || '',
-          targetDate: r.target_date,
-          value: Number(r.value),
-          status: r.status
-        })) : undefined,
-        investments: (investmentsRes.data && investmentsRes.data.length > 0) ? investmentsRes.data.map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          type: r.type,
-          date: r.date,
-          value: Number(r.value),
-          status: r.status,
-          notes: r.notes || undefined
-        })) : undefined,
-        investmentTypes: (invTypesRes.data && invTypesRes.data.length > 0) ? invTypesRes.data.map((r: any) => r.name) : undefined,
-        investmentStatuses: (invStatusesRes.data && invStatusesRes.data.length > 0) ? invStatusesRes.data.map((r: any) => r.name) : undefined
+        trips: localData?.trips || [],
+        wishes: localData?.wishes || [],
+        investments: localData?.investments || [],
+        investmentTypes: localData?.investmentTypes || ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'CDB / RDB', 'Criptomoedas', 'Fundos', 'Outros'],
+        investmentStatuses: localData?.investmentStatuses || ['Ativo', 'Resgatado', 'Em Andamento', 'Pendente']
       };
 
-      // Extract trips, wishes, investments, investmentTypes, investmentStatuses from localData or legacy monolithic backup if missing
-      let legacyData: any = null;
-      try {
-        const legacyRes = await supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
-        if (legacyRes.data?.data) {
-          legacyData = legacyRes.data.data;
-        }
-      } catch (e) {
-        console.error("Error retrieving legacy user_data:", e);
-      }
-
-      responseData.trips = responseData.trips || localData?.trips || legacyData?.trips || [];
-      responseData.wishes = responseData.wishes || localData?.wishes || legacyData?.wishes || [];
-      responseData.investments = responseData.investments || localData?.investments || legacyData?.investments || [];
-      responseData.investmentTypes = responseData.investmentTypes || localData?.investmentTypes || legacyData?.investmentTypes || ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'CDB / RDB', 'Criptomoedas', 'Fundos', 'Outros'];
-      responseData.investmentStatuses = responseData.investmentStatuses || localData?.investmentStatuses || legacyData?.investmentStatuses || ['Ativo', 'Resgatado', 'Em Andamento', 'Pendente'];
-
+      userDataCache.set(lowerEmail, { data: responseData, timestamp: Date.now() });
       return responseData;
     } catch (err) {
       console.error("Falha ao ler dados relacionais no Supabase:", err);
     }
+  }
+
+  if (localData) {
+    userDataCache.set(lowerEmail, { data: localData, timestamp: Date.now() });
   }
 
   return localData || null;
@@ -1017,6 +1017,15 @@ async function getUserDataByEmail(email: string): Promise<any> {
 // Save/Update user workspace data by syncing modified lists to their relational tables in Supabase
 async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
   const lowerEmail = email.toLowerCase().trim();
+
+  // Update in-memory cache immediately
+  userDataCache.set(lowerEmail, { data: { ...data }, timestamp: Date.now() });
+
+  // 1. Always update local fallback DB
+  const db = getDb();
+  if (!db.userData) db.userData = {};
+  db.userData[lowerEmail] = data;
+  saveDb(db);
 
   const supabase = getSupabaseClient();
   if (supabase) {
@@ -1934,10 +1943,19 @@ app.post("/api/auth/login", async (req, res) => {
       db.users[lowerE].lastAccess = user.lastAccess;
       saveDb(db);
     }
+    userCache.set(lowerE, { data: user, timestamp: Date.now() });
+
+    // Pre-load user workspace data so client gets it with 0 additional roundtrips
+    let userData: any = null;
+    try {
+      userData = await getUserDataByEmail(lowerE);
+    } catch {
+      // ignore
+    }
 
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
-    res.json({ user: userProfile, token });
+    res.json({ user: userProfile, token, userData });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });

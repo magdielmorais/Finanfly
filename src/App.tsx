@@ -419,7 +419,10 @@ export default function App() {
     };
   }, [currentUser]);
 
-  const handleLoginSuccess = (user: UserProfile) => {
+  const handleLoginSuccess = (user: UserProfile, initialUserData?: UserData) => {
+    if (initialUserData) {
+      setUserData(initialUserData);
+    }
     setCurrentUser(user);
     localStorage.setItem('finanfly_user', JSON.stringify(user));
     localStorage.setItem('finanfly_last_activity', Date.now().toString());

@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 interface LoginProps {
-  onLoginSuccess: (user: UserProfile) => void;
+  onLoginSuccess: (user: UserProfile, initialUserData?: any) => void;
   onRedirectToSubscription: (user: UserProfile) => void;
   inactivityNotice?: string;
 }
@@ -191,14 +191,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
 
         if (user.role === 'admin') {
           // Admins go directly to admin dashboard
-          onLoginSuccess(user);
+          onLoginSuccess(user, data?.userData);
         } else {
           // Check subscription status
           const hasPlan = user.subscription && user.subscription.plan !== 'none';
           const isValid = user.subscription && user.subscription.validUntil && new Date(user.subscription.validUntil) > new Date();
 
           if (hasPlan && isValid) {
-            onLoginSuccess(user);
+            onLoginSuccess(user, data?.userData);
           } else {
             const customUserMessage = (user.userMessage || user.mensagemUsuario || '').trim();
             if (customUserMessage) {
