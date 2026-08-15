@@ -30,7 +30,7 @@
       "role": "admin",
       "name": "ADMINISTRADOR",
       "createdAt": "2026-08-08T01:44:04.727+00:00",
-      "lastAccess": "2026-08-14T22:21:36.651Z",
+      "lastAccess": "2026-08-15T01:26:35.801Z",
       "address": "",
       "city": "",
       "state": "",
@@ -42,6 +42,29 @@
         "validUntil": null,
         "selectedAt": "2026-08-08T01:46:56.818+00:00",
         "freePlanUsed": false,
+        "approved": true
+      }
+    },
+    "elizardo.josa@gmail.com": {
+      "email": "elizardo.josa@gmail.com",
+      "password": "381844",
+      "role": "user",
+      "createdAt": "2026-08-11T22:52:44.343+00:00",
+      "lastAccess": "2026-08-15T01:26:35.805Z",
+      "name": "Elizardo Esperança Nunes ",
+      "address": "",
+      "city": "",
+      "state": "",
+      "phone": "",
+      "cpf": "08551009745",
+      "userMessage": "",
+      "mensagemUsuario": "",
+      "isBlocked": false,
+      "subscription": {
+        "plan": "gratis",
+        "validUntil": "2026-10-10T22:53:16.31+00:00",
+        "selectedAt": "2026-08-11T22:53:16.31+00:00",
+        "freePlanUsed": true,
         "approved": true
       }
     }

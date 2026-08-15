@@ -539,7 +539,7 @@ interface CacheEntry<T> {
 }
 const userCache = new Map<string, CacheEntry<any>>();
 const userDataCache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const CACHE_TTL_MS = 300 * 1000; // 5 minutes
 
 function invalidateUserCache(email?: string) {
   if (email) {
@@ -555,6 +555,72 @@ function invalidateUserDataCache(email?: string) {
   } else {
     userDataCache.clear();
   }
+}
+
+// Background sync function to keep a single user record fresh from Supabase
+function refreshUserInBackground(lowerEmail: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  Promise.all([
+    supabase.from('users').select('*').eq('email', lowerEmail).maybeSingle(),
+    supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
+    supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
+  ]).then(([userRes, profileRes, subRes]) => {
+    const userData = userRes.data;
+    if (userData) {
+      const profileData = profileRes.data;
+      const subData = subRes.data;
+      const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
+      const profMsg = (profileData?.user_message || profileData?.userMessage || profileData?.mensagem_usuario || profileData?.mensagemUsuario || '');
+      const localDb = getDb();
+      const localUser = localDb.users[lowerEmail];
+      const localUD = localDb.userData ? localDb.userData[lowerEmail] : undefined;
+      const localMsg = (localUser?.userMessage || localUser?.mensagemUsuario || '');
+      const localDataMsg = (localUD?.userMessage || localUD?.mensagemUsuario || '');
+      const resolvedUserMessage = (typeof profMsg === 'string' && profMsg.trim().length > 0 ? profMsg.trim() : '') || 
+        (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') || 
+        (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') || 
+        '';
+
+      const compiledUser = {
+        email: userData.email,
+        password: userData.password,
+        role: userData.role || 'user',
+        createdAt: userData.created_at || userData.createdAt || new Date().toISOString(),
+        lastAccess: localUser?.lastAccess || profileData?.updated_at || userData?.created_at || new Date().toISOString(),
+        name: profileData ? profileData.name : (userData.name || ''),
+        address: profileData ? profileData.address : (userData.address || ''),
+        city: profileData ? profileData.city : (userData.city || ''),
+        state: profileData ? profileData.state : (userData.state || ''),
+        phone: profileData ? profileData.phone : (userData.phone || ''),
+        cpf: cpfValue || '',
+        userMessage: resolvedUserMessage,
+        mensagemUsuario: resolvedUserMessage,
+        isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked),
+        subscription: subData ? {
+          plan: subData.plan || 'none',
+          validUntil: subData.valid_until,
+          selectedAt: subData.selected_at,
+          freePlanUsed: !!subData.free_plan_used,
+          freePlanUsedReason: undefined,
+          approved: !!subData.approved
+        } : {
+          plan: 'none',
+          validUntil: null,
+          selectedAt: null,
+          freePlanUsed: false,
+          freePlanUsedReason: undefined,
+          approved: false
+        }
+      };
+
+      userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
+      if (localDb.users[lowerEmail]) {
+        localDb.users[lowerEmail] = { ...localDb.users[lowerEmail], ...compiledUser };
+        saveDb(localDb);
+      }
+    }
+  }).catch(() => {});
 }
 
 // Check if an email or CPF already used a free trial in history
@@ -621,9 +687,17 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
     }
   }
 
-  const supabase = getSupabaseClient();
   const db = getDb();
   const localUser = db.users[lowerEmail];
+
+  // If user exists in local DB, return immediately and trigger background sync if needed
+  if (localUser && !bypassCache) {
+    userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
+    refreshUserInBackground(lowerEmail);
+    return localUser;
+  }
+
+  const supabase = getSupabaseClient();
   const localUserData = db.userData ? db.userData[lowerEmail] : undefined;
 
   if (supabase) {
@@ -699,6 +773,11 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
         };
 
         userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
+        // Also keep local DB updated
+        const curDb = getDb();
+        curDb.users[lowerEmail] = compiledUser;
+        saveDb(curDb);
+
         return compiledUser;
       }
 
@@ -1337,6 +1416,7 @@ async function getAllUsersList(): Promise<any[]> {
 
           usersMap.set(lowerU, {
             email: u.email,
+            password: u.password || localU?.password || '',
             name: prof ? prof.name : (localU?.name || ''),
             address: prof ? prof.address : (localU?.address || ''),
             city: prof ? prof.city : (localU?.city || ''),
@@ -1375,9 +1455,8 @@ async function getAllUsersList(): Promise<any[]> {
               (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') ||
               '';
 
-            const { password: _, ...rest } = localU;
             usersMap.set(lowerKey, {
-              ...rest,
+              ...localU,
               userMessage: userMsg,
               mensagemUsuario: userMsg,
               isBlocked: !!(localU.isBlocked || localU.blocked)
@@ -1937,25 +2016,27 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     user.lastAccess = new Date().toISOString();
-    const db = getDb();
     const lowerE = user.email.toLowerCase().trim();
-    if (db.users[lowerE]) {
-      db.users[lowerE].lastAccess = user.lastAccess;
-      saveDb(db);
-    }
     userCache.set(lowerE, { data: user, timestamp: Date.now() });
 
-    // Pre-load user workspace data so client gets it with 0 additional roundtrips
-    let userData: any = null;
-    try {
-      userData = await getUserDataByEmail(lowerE);
-    } catch {
-      // ignore
-    }
+    // Asynchronously update last access in background without blocking login response
+    setTimeout(() => {
+      try {
+        const curDb = getDb();
+        if (curDb.users[lowerE]) {
+          curDb.users[lowerE].lastAccess = user.lastAccess;
+          saveDb(curDb);
+        }
+      } catch (e) {}
+    }, 0);
+
+    // Instant user workspace data from memory / local DB (0ms response)
+    const localDb = getDb();
+    const cachedUserData = userDataCache.get(lowerE)?.data || localDb.userData?.[lowerE] || null;
 
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
-    res.json({ user: userProfile, token, userData });
+    res.json({ user: userProfile, token, userData: cachedUserData });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
@@ -2729,7 +2810,11 @@ app.get("/api/admin/users", async (req, res) => {
     }
 
     const list = await getAllUsersList();
-    res.json({ users: list });
+    const sanitized = list.map(u => {
+      const { password: _, ...rest } = u;
+      return rest;
+    });
+    res.json({ users: sanitized });
   } catch (err) {
     console.error("Admin users error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
@@ -3107,8 +3192,31 @@ Equipe Finanfly - Suporte ao Usuário
 });
 
 
+async function warmupUserCache() {
+  try {
+    const localDb = getDb();
+    if (localDb.users) {
+      for (const [email, u] of Object.entries<any>(localDb.users)) {
+        userCache.set(email.toLowerCase().trim(), { data: u, timestamp: Date.now() });
+      }
+    }
+    if (localDb.userData) {
+      for (const [email, ud] of Object.entries<any>(localDb.userData)) {
+        userDataCache.set(email.toLowerCase().trim(), { data: ud, timestamp: Date.now() });
+      }
+    }
+    // Quietly sync all users list from Supabase in background
+    getAllUsersList().then(users => {
+      for (const u of users) {
+        userCache.set(u.email.toLowerCase().trim(), { data: u, timestamp: Date.now() });
+      }
+    }).catch(() => {});
+  } catch (err) {}
+}
+
 // Serve static assets in production, hook Vite dev middleware in development
 async function startServer() {
+  warmupUserCache();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
