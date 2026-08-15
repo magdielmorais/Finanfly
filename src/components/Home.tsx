@@ -44,8 +44,8 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
             Sua saúde financeira, <br />
             <span className="text-blue-400">sob controle absoluto.</span>
           </h1>
-          <p className="text-slate-200 text-base max-w-md">
-            Acompanhe suas receitas, despesas, planeje seu ano e faça listas de compras. Tudo em um único lugar, adaptado para qualquer tela.
+          <p className="text-slate-200 text-base max-w-xl leading-relaxed">
+            Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações para melhoria contínua de finanças. Tudo em um único lugar, adaptado para qualquer tela.
           </p>
           <div className="pt-2 flex flex-wrap gap-3">
             <button
