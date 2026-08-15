@@ -571,20 +571,19 @@ function refreshUserInBackground(lowerEmail: string) {
       const profileData = profileRes.data;
       const subData = subRes.data;
       const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
-      const profMsg = (profileData?.user_message || profileData?.userMessage || profileData?.mensagem_usuario || profileData?.mensagemUsuario || '');
       const localDb = getDb();
       const localUser = localDb.users[lowerEmail];
-      const localUD = localDb.userData ? localDb.userData[lowerEmail] : undefined;
-      const localMsg = (localUser?.userMessage || localUser?.mensagemUsuario || '');
-      const localDataMsg = (localUD?.userMessage || localUD?.mensagemUsuario || '');
-      const resolvedUserMessage = (typeof profMsg === 'string' && profMsg.trim().length > 0 ? profMsg.trim() : '') || 
-        (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') || 
-        (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') || 
-        '';
+      
+      // Prioritize admin-saved message from local DB or profiles table
+      const resolvedUserMessage = localUser?.userMessage !== undefined
+        ? (typeof localUser.userMessage === 'string' ? localUser.userMessage.trim() : '')
+        : (profileData?.user_message !== undefined
+            ? (typeof profileData.user_message === 'string' ? profileData.user_message.trim() : '')
+            : '');
 
       const compiledUser = {
         email: userData.email,
-        password: userData.password,
+        password: userData.password || localUser?.password || '',
         role: userData.role || 'user',
         createdAt: userData.created_at || userData.createdAt || new Date().toISOString(),
         lastAccess: localUser?.lastAccess || profileData?.updated_at || userData?.created_at || new Date().toISOString(),
@@ -732,17 +731,15 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
         const subData = subRes.data;
         const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
 
-        const profMsg = (profileData?.user_message || profileData?.userMessage || profileData?.mensagem_usuario || profileData?.mensagemUsuario || '');
-        const localMsg = (localUser?.userMessage || localUser?.mensagemUsuario || '');
-        const localDataMsg = (localUserData?.userMessage || localUserData?.mensagemUsuario || '');
-        const resolvedUserMessage = (typeof profMsg === 'string' && profMsg.trim().length > 0 ? profMsg.trim() : '') || 
-          (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') || 
-          (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') || 
-          '';
+        const resolvedUserMessage = localUser?.userMessage !== undefined
+          ? (typeof localUser.userMessage === 'string' ? localUser.userMessage.trim() : '')
+          : (profileData?.user_message !== undefined
+              ? (typeof profileData.user_message === 'string' ? profileData.user_message.trim() : '')
+              : '');
 
         const compiledUser = {
           email: userData.email,
-          password: userData.password,
+          password: userData.password || localUser?.password || '',
           role: userData.role || 'user',
           createdAt: userData.created_at || userData.createdAt || new Date().toISOString(),
           lastAccess: localUser?.lastAccess || profileData?.updated_at || userData?.created_at || new Date().toISOString(),
@@ -1406,13 +1403,11 @@ async function getAllUsersList(): Promise<any[]> {
           const localU = localDb.users[lowerU];
           const localUD = localDb.userData ? localDb.userData[lowerU] : undefined;
 
-          const profMsg = (prof?.user_message || prof?.userMessage || prof?.mensagem_usuario || prof?.mensagemUsuario || '');
-          const localMsg = (localU?.userMessage || localU?.mensagemUsuario || '');
-          const localDataMsg = (localUD?.userMessage || localUD?.mensagemUsuario || '');
-          const userMsg = (typeof profMsg === 'string' && profMsg.trim().length > 0 ? profMsg.trim() : '') ||
-            (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') ||
-            (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') ||
-            '';
+          const userMsg = localU?.userMessage !== undefined
+            ? (typeof localU.userMessage === 'string' ? localU.userMessage.trim() : '')
+            : (prof?.user_message !== undefined
+                ? (typeof prof.user_message === 'string' ? prof.user_message.trim() : '')
+                : '');
 
           usersMap.set(lowerU, {
             email: u.email,
@@ -1939,26 +1934,22 @@ app.get("/api/auth/verify-session", async (req, res) => {
       const lowerE = verifiedEmail.toLowerCase().trim();
       const localDb = getDb();
       const localU = localDb.users[lowerE];
-      const localUD = localDb.userData ? localDb.userData[lowerE] : undefined;
-      const rawReason = user.userMessage || 
-        user.mensagemUsuario || 
-        localU?.userMessage || 
-        localU?.mensagemUsuario || 
-        localUD?.userMessage || 
-        localUD?.mensagemUsuario || 
-        '';
-      const reason = typeof rawReason === 'string' && rawReason.trim().length > 0
-        ? rawReason.trim()
-        : 'Acesso suspenso pelo administrador.';
+      const rawReason = (
+        (user.userMessage !== undefined ? user.userMessage : '') ||
+        (user.mensagemUsuario !== undefined ? user.mensagemUsuario : '') ||
+        (localU?.userMessage !== undefined ? localU.userMessage : '') ||
+        (localU?.mensagemUsuario !== undefined ? localU.mensagemUsuario : '') ||
+        ''
+      ).trim();
 
       return res.status(403).json({
         valid: false,
         isBlocked: true,
         title: "Usuário bloqueado",
-        reason: reason,
-        userMessage: reason,
-        mensagemUsuario: reason,
-        error: `Usuário bloqueado\nMotivo: ${reason}`
+        reason: rawReason,
+        userMessage: rawReason,
+        mensagemUsuario: rawReason,
+        error: rawReason ? `Usuário bloqueado\nMotivo: ${rawReason}` : "Acesso suspenso pelo administrador."
       });
     }
 
@@ -1993,25 +1984,21 @@ app.post("/api/auth/login", async (req, res) => {
       const lowerE = email.toLowerCase().trim();
       const localDb = getDb();
       const localU = localDb.users[lowerE];
-      const localUD = localDb.userData ? localDb.userData[lowerE] : undefined;
-      const rawReason = user.userMessage || 
-        user.mensagemUsuario || 
-        localU?.userMessage || 
-        localU?.mensagemUsuario || 
-        localUD?.userMessage || 
-        localUD?.mensagemUsuario || 
-        '';
-      const reason = typeof rawReason === 'string' && rawReason.trim().length > 0
-        ? rawReason.trim()
-        : 'Acesso suspenso pelo administrador.';
+      const rawReason = (
+        (user.userMessage !== undefined ? user.userMessage : '') ||
+        (user.mensagemUsuario !== undefined ? user.mensagemUsuario : '') ||
+        (localU?.userMessage !== undefined ? localU.userMessage : '') ||
+        (localU?.mensagemUsuario !== undefined ? localU.mensagemUsuario : '') ||
+        ''
+      ).trim();
 
       return res.status(403).json({
         isBlocked: true,
         title: "Usuário bloqueado",
-        reason: reason,
-        userMessage: reason,
-        mensagemUsuario: reason,
-        error: `Usuário bloqueado\nMotivo: ${reason}`
+        reason: rawReason,
+        userMessage: rawReason,
+        mensagemUsuario: rawReason,
+        error: rawReason ? `Usuário bloqueado\nMotivo: ${rawReason}` : "Acesso suspenso pelo administrador."
       });
     }
 
@@ -2290,7 +2277,7 @@ app.post("/api/user/profile", async (req, res) => {
   }
 
   try {
-    const { name, address, phone, city, state, cpf, userMessage, mensagemUsuario } = req.body;
+    const { name, address, phone, city, state, cpf } = req.body;
     const user = await getUserByEmail(email);
 
     if (!user) {
@@ -2303,13 +2290,7 @@ app.post("/api/user/profile", async (req, res) => {
     user.city = city !== undefined ? city : user.city;
     user.state = state !== undefined ? state : user.state;
     user.cpf = cpf !== undefined ? cpf : user.cpf;
-    if (userMessage !== undefined) {
-      user.userMessage = userMessage;
-      user.mensagemUsuario = userMessage;
-    } else if (mensagemUsuario !== undefined) {
-      user.userMessage = mensagemUsuario;
-      user.mensagemUsuario = mensagemUsuario;
-    }
+    // Note: userMessage and isBlocked are strictly restricted to admin modifications only
 
     const checkHistory = await checkIsBlacklisted(email, user.cpf);
     if (checkHistory.blacklisted) {
