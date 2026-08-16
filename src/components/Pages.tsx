@@ -18,24 +18,37 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
   const [category, setCategory] = useState(userData.incomeCategories[0] || 'Outros');
-  const [paymentType, setPaymentType] = useState(userData.paymentTypes[0] || 'Pix');
-  const [status, setStatus] = useState(userData.paymentStatuses[0] || 'Pago');
+
+  const receiptTypesList = useMemo(() => {
+    return (userData.receiptTypes && userData.receiptTypes.length > 0)
+      ? userData.receiptTypes
+      : (userData.paymentTypes && userData.paymentTypes.length > 0 ? userData.paymentTypes : ['Pix', 'Transferência Bancária', 'Dinheiro', 'Boleto', 'Cartão de Débito', 'Cartão de Crédito', 'Outros']);
+  }, [userData.receiptTypes, userData.paymentTypes]);
+
+  const receiptStatusesList = useMemo(() => {
+    return (userData.receiptStatuses && userData.receiptStatuses.length > 0)
+      ? userData.receiptStatuses
+      : (userData.paymentStatuses && userData.paymentStatuses.length > 0 ? userData.paymentStatuses : ['Recebido', 'Pendente', 'Cancelado']);
+  }, [userData.receiptStatuses, userData.paymentStatuses]);
+
+  const [paymentType, setPaymentType] = useState(receiptTypesList[0] || 'Pix');
+  const [status, setStatus] = useState(receiptStatusesList[0] || 'Recebido');
   const [search, setSearch] = useState('');
 
-  // Category, Payment Type and Payment Status Management States
+  // Category, Receipt Type and Receipt Status Management States
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [showManagePaymentTypes, setShowManagePaymentTypes] = useState(false);
-  const [newPaymentTypeName, setNewPaymentTypeName] = useState('');
-  const [showManagePaymentStatuses, setShowManagePaymentStatuses] = useState(false);
-  const [newPaymentStatusName, setNewPaymentStatusName] = useState('');
+  const [showManageReceiptTypes, setShowManageReceiptTypes] = useState(false);
+  const [newReceiptTypeName, setNewReceiptTypeName] = useState('');
+  const [showManageReceiptStatuses, setShowManageReceiptStatuses] = useState(false);
+  const [newReceiptStatusName, setNewReceiptStatusName] = useState('');
 
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editCategoryValue, setEditCategoryValue] = useState('');
-  const [editingPaymentType, setEditingPaymentType] = useState<string | null>(null);
-  const [editPaymentTypeValue, setEditPaymentTypeValue] = useState('');
-  const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null);
-  const [editPaymentStatusValue, setEditPaymentStatusValue] = useState('');
+  const [editingReceiptType, setEditingReceiptType] = useState<string | null>(null);
+  const [editReceiptTypeValue, setEditReceiptTypeValue] = useState('');
+  const [editingReceiptStatus, setEditingReceiptStatus] = useState<string | null>(null);
+  const [editReceiptStatusValue, setEditReceiptStatusValue] = useState('');
 
   const currentMonthYearStr = useMemo(() => {
     const today = new Date();
@@ -231,90 +244,88 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setEditCategoryValue('');
   };
 
-  const handleAddPaymentType = () => {
-    const trimmed = newPaymentTypeName.trim();
+  const handleAddReceiptType = () => {
+    const trimmed = newReceiptTypeName.trim();
     if (!trimmed) return;
-    if (userData.paymentTypes.includes(trimmed)) return;
-    const updated = [...userData.paymentTypes, trimmed];
+    if (receiptTypesList.includes(trimmed)) return;
+    const updated = [...receiptTypesList, trimmed];
     onUpdateUserData({
-      paymentTypes: updated
+      receiptTypes: updated
     });
-    setNewPaymentTypeName('');
-    setPaymentType(trimmed); // Select newly created payment type
+    setNewReceiptTypeName('');
+    setPaymentType(trimmed); // Select newly created receipt type
   };
 
-  const handleDeletePaymentType = (ptToDelete: string) => {
-    const updated = userData.paymentTypes.filter(pt => pt !== ptToDelete);
+  const handleDeleteReceiptType = (rtToDelete: string) => {
+    const updated = receiptTypesList.filter(rt => rt !== rtToDelete);
     onUpdateUserData({
-      paymentTypes: updated
+      receiptTypes: updated
     });
-    if (paymentType === ptToDelete) {
+    if (paymentType === rtToDelete) {
       setPaymentType(updated[0] || 'Pix');
     }
   };
 
-  const handleEditPaymentType = (oldPt: string) => {
-    const trimmed = editPaymentTypeValue.trim();
+  const handleEditReceiptType = (oldRt: string) => {
+    const trimmed = editReceiptTypeValue.trim();
     if (!trimmed) return;
-    if (userData.paymentTypes.includes(trimmed) && trimmed !== oldPt) return;
+    if (receiptTypesList.includes(trimmed) && trimmed !== oldRt) return;
 
-    const updatedPaymentTypes = userData.paymentTypes.map(pt => pt === oldPt ? trimmed : pt);
-    const updatedIncomes = userData.incomes.map(inc => inc.paymentType === oldPt ? { ...inc, paymentType: trimmed } : inc);
+    const updatedReceiptTypes = receiptTypesList.map(rt => rt === oldRt ? trimmed : rt);
+    const updatedIncomes = userData.incomes.map(inc => inc.paymentType === oldRt ? { ...inc, paymentType: trimmed } : inc);
 
     onUpdateUserData({
-      paymentTypes: updatedPaymentTypes,
+      receiptTypes: updatedReceiptTypes,
       incomes: updatedIncomes
     });
 
-    if (paymentType === oldPt) {
+    if (paymentType === oldRt) {
       setPaymentType(trimmed);
     }
-    setEditingPaymentType(null);
-    setEditPaymentTypeValue('');
+    setEditingReceiptType(null);
+    setEditReceiptTypeValue('');
   };
 
-  const handleAddPaymentStatus = () => {
-    const trimmed = newPaymentStatusName.trim();
+  const handleAddReceiptStatus = () => {
+    const trimmed = newReceiptStatusName.trim();
     if (!trimmed) return;
-    if (userData.paymentStatuses.includes(trimmed)) return;
-    const updated = [...userData.paymentStatuses, trimmed];
+    if (receiptStatusesList.includes(trimmed)) return;
+    const updated = [...receiptStatusesList, trimmed];
     onUpdateUserData({
-      paymentStatuses: updated
+      receiptStatuses: updated
     });
-    setNewPaymentStatusName('');
+    setNewReceiptStatusName('');
     setStatus(trimmed);
   };
 
-  const handleDeletePaymentStatus = (psToDelete: string) => {
-    const updated = userData.paymentStatuses.filter(ps => ps !== psToDelete);
+  const handleDeleteReceiptStatus = (rsToDelete: string) => {
+    const updated = receiptStatusesList.filter(rs => rs !== rsToDelete);
     onUpdateUserData({
-      paymentStatuses: updated
+      receiptStatuses: updated
     });
-    if (status === psToDelete) {
-      setStatus(updated[0] || 'Pago');
+    if (status === rsToDelete) {
+      setStatus(updated[0] || 'Recebido');
     }
   };
 
-  const handleEditPaymentStatus = (oldPs: string) => {
-    const trimmed = editPaymentStatusValue.trim();
+  const handleEditReceiptStatus = (oldRs: string) => {
+    const trimmed = editReceiptStatusValue.trim();
     if (!trimmed) return;
-    if (userData.paymentStatuses.includes(trimmed) && trimmed !== oldPs) return;
+    if (receiptStatusesList.includes(trimmed) && trimmed !== oldRs) return;
 
-    const updatedStatuses = userData.paymentStatuses.map(ps => ps === oldPs ? trimmed : ps);
-    const updatedIncomes = userData.incomes.map(inc => inc.status === oldPs ? { ...inc, status: trimmed } : inc);
-    const updatedExpenses = userData.expenses.map(exp => exp.status === oldPs ? { ...exp, status: trimmed } : exp);
+    const updatedStatuses = receiptStatusesList.map(rs => rs === oldRs ? trimmed : rs);
+    const updatedIncomes = userData.incomes.map(inc => inc.status === oldRs ? { ...inc, status: trimmed } : inc);
 
     onUpdateUserData({
-      paymentStatuses: updatedStatuses,
-      incomes: updatedIncomes,
-      expenses: updatedExpenses
+      receiptStatuses: updatedStatuses,
+      incomes: updatedIncomes
     });
 
-    if (status === oldPs) {
+    if (status === oldRs) {
       setStatus(trimmed);
     }
-    setEditingPaymentStatus(null);
-    setEditPaymentStatusValue('');
+    setEditingReceiptStatus(null);
+    setEditReceiptStatusValue('');
   };
 
   const filteredIncomes = useMemo(() => {
@@ -363,8 +374,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               setValue('');
               setDate(new Date().toISOString().split('T')[0]);
               setCategory(userData.incomeCategories[0] || 'Outros');
-              setPaymentType(userData.paymentTypes[0] || 'Pix');
-              setStatus(userData.paymentStatuses[0] || 'Pago');
+              setPaymentType(receiptTypesList[0] || 'Pix');
+              setStatus(receiptStatusesList[0] || 'Recebido');
             }
           }}
           className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/10 hover:bg-blue-500 transition-colors"
@@ -393,12 +404,12 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas receitas:</p>
             <ul className="list-decimal pl-4 space-y-1.5">
               <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Receita</strong> no canto superior direito.</li>
-              <li>Preencha os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Categoria</strong> e <strong className="text-slate-800 dark:text-white">Tipo de Pagamento</strong>.</li>
-              <li>Selecione o status da transação (<strong className="text-slate-800 dark:text-white">Pago</strong> para valores recebidos ou <strong className="text-slate-800 dark:text-white">Pendente</strong> para previsões).</li>
+              <li>Preencha os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Categoria</strong> e <strong className="text-slate-800 dark:text-white">Tipo de Recebimento</strong>.</li>
+              <li>Selecione a situação da transação (<strong className="text-slate-800 dark:text-white">Recebido</strong> para valores recebidos ou <strong className="text-slate-800 dark:text-white">Pendente</strong> para previsões).</li>
               <li>Clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Registro</strong> para gravar a entrada.</li>
             </ul>
             <p className="mt-2 text-[11px] bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 p-2.5 rounded-lg">
-              <strong>Dica Prática:</strong> Personalize suas categorias e meios de recebimento clicando nas opções <strong className="underline">Gerenciar Categorias</strong> e <strong className="underline">Gerenciar Tipos</strong> disponíveis no próprio formulário.
+              <strong>Dica Prática:</strong> Personalize suas categorias, meios de recebimento e situações de recebimento clicando nas opções <strong className="underline">Gerenciar</strong> disponíveis no próprio formulário.
             </p>
           </div>
         )}
@@ -436,8 +447,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 type="button"
                 onClick={() => {
                   setShowManageCategories(true);
-                  setShowManagePaymentTypes(false);
-                  setShowManagePaymentStatuses(false);
+                  setShowManageReceiptTypes(false);
+                  setShowManageReceiptStatuses(false);
                 }}
                 className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
@@ -452,13 +463,13 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </div>
           <div>
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo de Pagamento</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo de Recebimento</label>
               <button
                 type="button"
                 onClick={() => {
-                  setShowManagePaymentTypes(true);
+                  setShowManageReceiptTypes(true);
                   setShowManageCategories(false);
-                  setShowManagePaymentStatuses(false);
+                  setShowManageReceiptStatuses(false);
                 }}
                 className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
@@ -466,20 +477,20 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               </button>
             </div>
             <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-              {userData.paymentTypes.map(pt => (
+              {receiptTypesList.map(pt => (
                 <option key={pt} value={pt}>{pt}</option>
               ))}
             </select>
           </div>
           <div>
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-400">Situação de Recebimento</label>
               <button
                 type="button"
                 onClick={() => {
-                  setShowManagePaymentStatuses(true);
+                  setShowManageReceiptStatuses(true);
                   setShowManageCategories(false);
-                  setShowManagePaymentTypes(false);
+                  setShowManageReceiptTypes(false);
                 }}
                 className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
               >
@@ -487,7 +498,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               </button>
             </div>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-              {userData.paymentStatuses.map(ps => (
+              {receiptStatusesList.map(ps => (
                 <option key={ps} value={ps}>{ps}</option>
               ))}
             </select>
@@ -502,8 +513,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 setDescription('');
                 setValue('');
                 setShowManageCategories(false);
-                setShowManagePaymentTypes(false);
-                setShowManagePaymentStatuses(false);
+                setShowManageReceiptTypes(false);
+                setShowManageReceiptStatuses(false);
               }}
               className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
             >
@@ -633,15 +644,15 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       </div>
     )}
 
-    {/* Manage Payment Types Popup Modal */}
-    {showManagePaymentTypes && (
+    {/* Manage Receipt Types Popup Modal */}
+    {showManageReceiptTypes && (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Tipos de Pagamento</h3>
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Tipos de Recebimento</h3>
             <button
               type="button"
-              onClick={() => setShowManagePaymentTypes(false)}
+              onClick={() => setShowManageReceiptTypes(false)}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               <X className="h-5 w-5" />
@@ -650,14 +661,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <div className="flex flex-col sm:flex-row gap-2 w-full">
             <input
               type="text"
-              placeholder="Nome do novo tipo"
-              value={newPaymentTypeName}
-              onChange={(e) => setNewPaymentTypeName(e.target.value)}
+              placeholder="Nome do novo tipo de recebimento"
+              value={newReceiptTypeName}
+              onChange={(e) => setNewReceiptTypeName(e.target.value)}
               className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
             />
             <button
               type="button"
-              onClick={handleAddPaymentType}
+              onClick={handleAddReceiptType}
               className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
             >
               <Plus className="h-4 w-4" /> Adicionar
@@ -667,24 +678,24 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <div className="space-y-2 w-full">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tipos Existentes</span>
             <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
-              {userData.paymentTypes.map(pt => (
+              {receiptTypesList.map(pt => (
                 <div key={pt} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
-                  {editingPaymentType === pt ? (
+                  {editingReceiptType === pt ? (
                     <div className="flex-1 flex gap-1.5 items-center">
                       <input
                         type="text"
-                        value={editPaymentTypeValue}
-                        onChange={(e) => setEditPaymentTypeValue(e.target.value)}
+                        value={editReceiptTypeValue}
+                        onChange={(e) => setEditReceiptTypeValue(e.target.value)}
                         className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
                         autoFocus
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleEditPaymentType(pt);
-                          if (e.key === 'Escape') setEditingPaymentType(null);
+                          if (e.key === 'Enter') handleEditReceiptType(pt);
+                          if (e.key === 'Escape') setEditingReceiptType(null);
                         }}
                       />
                       <button
                         type="button"
-                        onClick={() => handleEditPaymentType(pt)}
+                        onClick={() => handleEditReceiptType(pt)}
                         className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
                         title="Salvar"
                       >
@@ -692,7 +703,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                       </button>
                       <button
                         type="button"
-                        onClick={() => setEditingPaymentType(null)}
+                        onClick={() => setEditingReceiptType(null)}
                         className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
                         title="Cancelar"
                       >
@@ -706,19 +717,19 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => {
-                            setEditingPaymentType(pt);
-                            setEditPaymentTypeValue(pt);
+                            setEditingReceiptType(pt);
+                            setEditReceiptTypeValue(pt);
                           }}
                           className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
-                          title="Editar Tipo de Pagamento"
+                          title="Editar Tipo de Recebimento"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeletePaymentType(pt)}
+                          onClick={() => handleDeleteReceiptType(pt)}
                           className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
-                          title="Excluir Tipo de Pagamento"
+                          title="Excluir Tipo de Recebimento"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -727,8 +738,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   )}
                 </div>
               ))}
-              {userData.paymentTypes.length === 0 && (
-                <p className="text-center text-slate-400 py-3 text-xs">Nenhum tipo cadastrado.</p>
+              {receiptTypesList.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhum tipo de recebimento cadastrado.</p>
               )}
             </div>
           </div>
@@ -736,7 +747,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
             <button
               type="button"
-              onClick={() => setShowManagePaymentTypes(false)}
+              onClick={() => setShowManageReceiptTypes(false)}
               className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               Concluir
@@ -746,15 +757,15 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       </div>
     )}
 
-    {/* Manage Payment Statuses Popup Modal */}
-    {showManagePaymentStatuses && (
+    {/* Manage Receipt Statuses Popup Modal */}
+    {showManageReceiptStatuses && (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Situações de Pagamento</h3>
+            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Situações de Recebimento</h3>
             <button
               type="button"
-              onClick={() => setShowManagePaymentStatuses(false)}
+              onClick={() => setShowManageReceiptStatuses(false)}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               <X className="h-5 w-5" />
@@ -763,14 +774,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <div className="flex flex-col sm:flex-row gap-2 w-full">
             <input
               type="text"
-              placeholder="Nome da nova situação de pagamento"
-              value={newPaymentStatusName}
-              onChange={(e) => setNewPaymentStatusName(e.target.value)}
+              placeholder="Nome da nova situação de recebimento"
+              value={newReceiptStatusName}
+              onChange={(e) => setNewReceiptStatusName(e.target.value)}
               className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white text-xs sm:text-sm w-full"
             />
             <button
               type="button"
-              onClick={handleAddPaymentStatus}
+              onClick={handleAddReceiptStatus}
               className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors text-xs sm:text-sm flex items-center justify-center gap-1 w-full sm:w-auto shrink-0"
             >
               <Plus className="h-4 w-4" /> Adicionar
@@ -778,26 +789,26 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </div>
           
           <div className="space-y-2 w-full">
-            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Situações de Pagamento Existentes</span>
+            <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Situações de Recebimento Existentes</span>
             <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
-              {userData.paymentStatuses.map(ps => (
+              {receiptStatusesList.map(ps => (
                 <div key={ps} className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-slate-200 transition-colors min-h-[44px] gap-2">
-                  {editingPaymentStatus === ps ? (
+                  {editingReceiptStatus === ps ? (
                     <div className="flex-1 flex gap-1.5 items-center">
                       <input
                         type="text"
-                        value={editPaymentStatusValue}
-                        onChange={(e) => setEditPaymentStatusValue(e.target.value)}
+                        value={editReceiptStatusValue}
+                        onChange={(e) => setEditReceiptStatusValue(e.target.value)}
                         className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-white focus:outline-none"
                         autoFocus
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleEditPaymentStatus(ps);
-                          if (e.key === 'Escape') setEditingPaymentStatus(null);
+                          if (e.key === 'Enter') handleEditReceiptStatus(ps);
+                          if (e.key === 'Escape') setEditingReceiptStatus(null);
                         }}
                       />
                       <button
                         type="button"
-                        onClick={() => handleEditPaymentStatus(ps)}
+                        onClick={() => handleEditReceiptStatus(ps)}
                         className="text-green-600 hover:text-green-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
                         title="Salvar"
                       >
@@ -805,7 +816,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                       </button>
                       <button
                         type="button"
-                        onClick={() => setEditingPaymentStatus(null)}
+                        onClick={() => setEditingReceiptStatus(null)}
                         className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
                         title="Cancelar"
                       >
@@ -819,19 +830,19 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => {
-                            setEditingPaymentStatus(ps);
-                            setEditPaymentStatusValue(ps);
+                            setEditingReceiptStatus(ps);
+                            setEditReceiptStatusValue(ps);
                           }}
                           className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
-                          title="Editar Situação de Pagamento"
+                          title="Editar Situação de Recebimento"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeletePaymentStatus(ps)}
+                          onClick={() => handleDeleteReceiptStatus(ps)}
                           className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
-                          title="Excluir Situação de Pagamento"
+                          title="Excluir Situação de Recebimento"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -840,8 +851,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   )}
                 </div>
               ))}
-              {userData.paymentStatuses.length === 0 && (
-                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma situação de pagamento cadastrada.</p>
+              {receiptStatusesList.length === 0 && (
+                <p className="text-center text-slate-400 py-3 text-xs">Nenhuma situação de recebimento cadastrada.</p>
               )}
             </div>
           </div>
@@ -849,7 +860,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
             <button
               type="button"
-              onClick={() => setShowManagePaymentStatuses(false)}
+              onClick={() => setShowManageReceiptStatuses(false)}
               className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               Concluir
@@ -953,7 +964,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todas as Situações</option>
-                  {userData.paymentStatuses.map((st) => (
+                  {receiptStatusesList.map((st) => (
                     <option key={st} value={st}>
                       {st}
                     </option>
@@ -999,8 +1010,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <th className="pb-3 font-semibold">Data</th>
                 <th className="pb-3 font-semibold">Descrição</th>
                 <th className="pb-3 font-semibold">Categoria</th>
-                <th className="pb-3 font-semibold">Tipo Pagamento</th>
-                <th className="pb-3 font-semibold">Situação</th>
+                <th className="pb-3 font-semibold">Tipo Recebimento</th>
+                <th className="pb-3 font-semibold">Situação de Recebimento</th>
                 <th className="pb-3 font-semibold text-right">Valor</th>
                 <th className="pb-3 font-semibold text-right">Ação</th>
               </tr>
@@ -1351,12 +1362,10 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     if (userData.paymentTypes.includes(trimmed) && trimmed !== oldPt) return;
 
     const updatedPaymentTypes = userData.paymentTypes.map(pt => pt === oldPt ? trimmed : pt);
-    const updatedIncomes = userData.incomes.map(inc => inc.paymentType === oldPt ? { ...inc, paymentType: trimmed } : inc);
     const updatedExpenses = userData.expenses.map(exp => exp.paymentType === oldPt ? { ...exp, paymentType: trimmed } : exp);
 
     onUpdateUserData({
       paymentTypes: updatedPaymentTypes,
-      incomes: updatedIncomes,
       expenses: updatedExpenses
     });
 
@@ -1395,12 +1404,10 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     if (userData.paymentStatuses.includes(trimmed) && trimmed !== oldPs) return;
 
     const updatedStatuses = userData.paymentStatuses.map(ps => ps === oldPs ? trimmed : ps);
-    const updatedIncomes = userData.incomes.map(inc => inc.status === oldPs ? { ...inc, status: trimmed } : inc);
     const updatedExpenses = userData.expenses.map(exp => exp.status === oldPs ? { ...exp, status: trimmed } : exp);
 
     onUpdateUserData({
       paymentStatuses: updatedStatuses,
-      incomes: updatedIncomes,
       expenses: updatedExpenses
     });
 
@@ -1467,7 +1474,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               setShowManagePaymentStatuses(false);
             }
           }}
-          className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-slate-800 transition-colors dark:bg-slate-800 dark:hover:bg-slate-700"
+          className="flex items-center gap-1.5 rounded-lg bg-red-800 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-red-950/20 hover:bg-red-900 transition-colors dark:bg-red-900 dark:hover:bg-red-800"
         >
           <Plus className="h-4 w-4" />
           Nova Despesa
@@ -4286,7 +4293,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Plano Anual</h2>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Planejamento Anual</h2>
         <p className="text-xs text-slate-400 mt-1">Defina suas metas de ganho e teto máximo de gastos para cada mês do ano.</p>
       </div>
 
@@ -4324,7 +4331,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         >
           <div className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-blue-500" />
-            <span>Como Configurar o Plano Anual</span>
+            <span>Como Configurar o Planejamento Anual</span>
           </div>
           <span className="text-slate-400">
             {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}

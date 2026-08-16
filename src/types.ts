@@ -126,7 +126,9 @@ export interface UserData {
   actionPlans: ActionPlan[];
   shoppingList: ShoppingItem[];
   annualPlanning: AnnualPlanning[];
+  receiptTypes?: string[];
   paymentTypes: string[];
+  receiptStatuses?: string[];
   paymentStatuses: string[];
   incomeCategories: string[];
   expenseCategories: string[];

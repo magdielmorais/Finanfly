@@ -388,21 +388,49 @@ function initDb() {
 
 initDb();
 
+let memoryDb: Database | null = null;
+
 function getDb(): Database {
+  if (memoryDb) {
+    return memoryDb;
+  }
   try {
-    const data = fs.readFileSync(DB_FILE, "utf-8");
-    return JSON.parse(data);
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, "utf-8");
+      memoryDb = JSON.parse(data);
+      return memoryDb!;
+    }
   } catch (error) {
     console.error("Error reading database file", error);
-    return { users: {}, userData: {} };
   }
+  memoryDb = { users: {}, userData: {} };
+  return memoryDb;
 }
 
-function saveDb(db: Database) {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-  } catch (err) {
-    console.error("Error saving database file:", err);
+let saveDbTimeout: NodeJS.Timeout | null = null;
+function saveDb(db: Database, immediate = false) {
+  memoryDb = db;
+  const doWrite = () => {
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    } catch (err) {
+      console.error("Error saving database file:", err);
+    }
+  };
+
+  if (immediate) {
+    if (saveDbTimeout) {
+      clearTimeout(saveDbTimeout);
+      saveDbTimeout = null;
+    }
+    doWrite();
+  } else {
+    if (!saveDbTimeout) {
+      saveDbTimeout = setTimeout(() => {
+        saveDbTimeout = null;
+        doWrite();
+      }, 50);
+    }
   }
 }
 
@@ -701,12 +729,14 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
 
   if (supabase) {
     try {
-      // Query relational 'users', 'profiles', and 'subscriptions' in parallel for maximum speed
-      const [userRes, profileRes, subRes] = await Promise.all([
+      // Query relational 'users', 'profiles', and 'subscriptions' in parallel for maximum speed with 2.5s timeout
+      const queryPromise = Promise.all([
         supabase.from('users').select('*').eq('email', lowerEmail).maybeSingle(),
         supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
         supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
       ]);
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 2500));
+      const [userRes, profileRes, subRes] = await Promise.race([queryPromise, timeoutPromise]);
       
       if (userRes.error) {
         if (userRes.error.message?.includes("Invalid API key") || userRes.error.hint?.includes("API key")) {
@@ -937,6 +967,153 @@ async function saveUser(user: any): Promise<boolean> {
   return true;
 }
 
+// ==========================================
+// Default Configuration Items per New User
+// ==========================================
+const DEFAULT_RECEIPT_TYPES = [
+  'Pix',
+  'Transferência Bancária',
+  'Dinheiro',
+  'Boleto',
+  'Cartão de Débito',
+  'Cartão de Crédito',
+  'Outros'
+];
+
+const DEFAULT_PAYMENT_TYPES = [
+  'Pix',
+  'Cartão de Crédito',
+  'Cartão de Débito',
+  'Boleto',
+  'Dinheiro',
+  'Transferência Bancária',
+  'Débito Automático',
+  'Outros'
+];
+
+const DEFAULT_RECEIPT_STATUSES = [
+  'Recebido',
+  'Pendente',
+  'Cancelado',
+  'Atrasado'
+];
+
+const DEFAULT_PAYMENT_STATUSES = [
+  'Pago',
+  'Pendente',
+  'Atrasado',
+  'Cancelado'
+];
+
+const DEFAULT_INCOME_CATEGORIES = [
+  'Salário',
+  'Investimentos',
+  'Freelance / Extra',
+  'Aluguel Recebido',
+  'Bônus / Comissões',
+  'Outros'
+];
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  'Alimentação',
+  'Limpeza',
+  'Frutas/Verduras',
+  'Açougue',
+  'Aluguel',
+  'Combustível',
+  'Educação',
+  'Lazer',
+  'Impostos',
+  'Manutenção casa',
+  'Ajuda pessoas',
+  'Reserva de emergência',
+  'Investimentos'
+];
+
+const DEFAULT_INVESTMENT_TYPES = [
+  'Ações',
+  'Fundos Imobiliários (FIIs)',
+  'Renda Fixa',
+  'CDB / LCI / LCA',
+  'Tesouro Direto',
+  'Criptomoedas',
+  'Previdência Privada',
+  'Outros'
+];
+
+const DEFAULT_INVESTMENT_STATUSES = [
+  'Ativo',
+  'Resgatado',
+  'Em Andamento',
+  'Pendente',
+  'Cancelado'
+];
+
+function getDefaultUserData() {
+  return {
+    receiptTypes: [...DEFAULT_RECEIPT_TYPES],
+    paymentTypes: [...DEFAULT_PAYMENT_TYPES],
+    receiptStatuses: [...DEFAULT_RECEIPT_STATUSES],
+    paymentStatuses: [...DEFAULT_PAYMENT_STATUSES],
+    incomeCategories: [...DEFAULT_INCOME_CATEGORIES],
+    expenseCategories: [...DEFAULT_EXPENSE_CATEGORIES],
+    investmentTypes: [...DEFAULT_INVESTMENT_TYPES],
+    investmentStatuses: [...DEFAULT_INVESTMENT_STATUSES],
+    incomes: [],
+    expenses: [],
+    investments: [],
+    trips: [],
+    wishes: [],
+    shoppingList: [],
+    actionPlans: [],
+    deficitActions: [],
+    annualPlanning: [
+      {
+        year: 2026,
+        monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
+          month: i,
+          incomeBudget: 0,
+          expenseBudget: 0
+        }))
+      }
+    ]
+  };
+}
+
+function ensureUserHasDefaults(data: any) {
+  if (!data) return getDefaultUserData();
+
+  return {
+    ...data,
+    receiptTypes: (data.receiptTypes && data.receiptTypes.length > 0) ? data.receiptTypes : [...DEFAULT_RECEIPT_TYPES],
+    paymentTypes: (data.paymentTypes && data.paymentTypes.length > 0) ? data.paymentTypes : [...DEFAULT_PAYMENT_TYPES],
+    receiptStatuses: (data.receiptStatuses && data.receiptStatuses.length > 0) ? data.receiptStatuses : [...DEFAULT_RECEIPT_STATUSES],
+    paymentStatuses: (data.paymentStatuses && data.paymentStatuses.length > 0) ? data.paymentStatuses : [...DEFAULT_PAYMENT_STATUSES],
+    incomeCategories: (data.incomeCategories && data.incomeCategories.length > 0) ? data.incomeCategories : [...DEFAULT_INCOME_CATEGORIES],
+    expenseCategories: (data.expenseCategories && data.expenseCategories.length > 0) ? data.expenseCategories : [...DEFAULT_EXPENSE_CATEGORIES],
+    investmentTypes: (data.investmentTypes && data.investmentTypes.length > 0) ? data.investmentTypes : [...DEFAULT_INVESTMENT_TYPES],
+    investmentStatuses: (data.investmentStatuses && data.investmentStatuses.length > 0) ? data.investmentStatuses : [...DEFAULT_INVESTMENT_STATUSES],
+    incomes: data.incomes || [],
+    expenses: data.expenses || [],
+    investments: data.investments || [],
+    trips: data.trips || [],
+    wishes: data.wishes || [],
+    shoppingList: data.shoppingList || [],
+    actionPlans: data.actionPlans || [],
+    deficitActions: data.deficitActions || [],
+    annualPlanning: (data.annualPlanning && data.annualPlanning.length > 0) ? data.annualPlanning : [
+      {
+        year: 2026,
+        monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
+          month: i,
+          incomeBudget: 0,
+          expenseBudget: 0
+        }))
+      }
+    ]
+  };
+}
+
 // Get user workspace data from relational tables in parallel with memory caching
 async function getUserDataByEmail(email: string, bypassCache = false): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
@@ -991,36 +1168,54 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
           .maybeSingle();
         
         if (!error && data && data.data) {
-          userDataCache.set(lowerEmail, { data: data.data, timestamp: Date.now() });
-          return data.data;
+          const completedData = ensureUserHasDefaults(data.data);
+          userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
+          return completedData;
         }
         if (localData) {
-          userDataCache.set(lowerEmail, { data: localData, timestamp: Date.now() });
-          return localData;
+          const completedLocal = ensureUserHasDefaults(localData);
+          userDataCache.set(lowerEmail, { data: completedLocal, timestamp: Date.now() });
+          return completedLocal;
         }
-        return null;
+        const freshDefault = getDefaultUserData();
+        userDataCache.set(lowerEmail, { data: freshDefault, timestamp: Date.now() });
+        return freshDefault;
       }
 
       // Check if user has no relational records but we have local backup to migrate
       const hasAnyRelationalData = 
         (pTypesRes.data && pTypesRes.data.length > 0) ||
+        (pStatusesRes.data && pStatusesRes.data.length > 0) ||
+        (incCatsRes.data && incCatsRes.data.length > 0) ||
+        (expCatsRes.data && expCatsRes.data.length > 0) ||
         (incomesRes.data && incomesRes.data.length > 0) ||
         (expensesRes.data && expensesRes.data.length > 0) ||
         (shopRes.data && shopRes.data.length > 0);
 
       if (!hasAnyRelationalData && localData) {
         console.log(`Migrando dados locais de ${lowerEmail} para as novas tabelas relacionais do Supabase...`);
-        await saveUserDataByEmail(lowerEmail, localData);
-        userDataCache.set(lowerEmail, { data: localData, timestamp: Date.now() });
-        return localData;
+        const readyLocal = ensureUserHasDefaults(localData);
+        await saveUserDataByEmail(lowerEmail, readyLocal);
+        userDataCache.set(lowerEmail, { data: readyLocal, timestamp: Date.now() });
+        return readyLocal;
       }
 
       // Map relational results to application structures
       const responseData: any = {
-        paymentTypes: pTypesRes.data ? pTypesRes.data.map((r: any) => r.name) : [],
-        paymentStatuses: pStatusesRes.data ? pStatusesRes.data.map((r: any) => r.name) : [],
-        incomeCategories: incCatsRes.data ? incCatsRes.data.map((r: any) => r.name) : [],
-        expenseCategories: expCatsRes.data ? expCatsRes.data.map((r: any) => r.name) : [],
+        receiptTypes: (localData?.receiptTypes && localData.receiptTypes.length > 0) ? localData.receiptTypes : [...DEFAULT_RECEIPT_TYPES],
+        receiptStatuses: (localData?.receiptStatuses && localData.receiptStatuses.length > 0) ? localData.receiptStatuses : [...DEFAULT_RECEIPT_STATUSES],
+        paymentTypes: (pTypesRes.data && pTypesRes.data.length > 0)
+          ? pTypesRes.data.map((r: any) => r.name)
+          : ((localData?.paymentTypes && localData.paymentTypes.length > 0) ? localData.paymentTypes : [...DEFAULT_PAYMENT_TYPES]),
+        paymentStatuses: (pStatusesRes.data && pStatusesRes.data.length > 0)
+          ? pStatusesRes.data.map((r: any) => r.name)
+          : ((localData?.paymentStatuses && localData.paymentStatuses.length > 0) ? localData.paymentStatuses : [...DEFAULT_PAYMENT_STATUSES]),
+        incomeCategories: (incCatsRes.data && incCatsRes.data.length > 0)
+          ? incCatsRes.data.map((r: any) => r.name)
+          : ((localData?.incomeCategories && localData.incomeCategories.length > 0) ? localData.incomeCategories : [...DEFAULT_INCOME_CATEGORIES]),
+        expenseCategories: (expCatsRes.data && expCatsRes.data.length > 0)
+          ? expCatsRes.data.map((r: any) => r.name)
+          : ((localData?.expenseCategories && localData.expenseCategories.length > 0) ? localData.expenseCategories : [...DEFAULT_EXPENSE_CATEGORIES]),
         incomes: incomesRes.data ? incomesRes.data.map((r: any) => ({
           id: r.id,
           date: r.date,
@@ -1039,10 +1234,19 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
           status: r.status,
           paymentType: r.payment_type
         })) : [],
-        annualPlanning: annualRes.data ? annualRes.data.map((r: any) => ({
+        annualPlanning: (annualRes.data && annualRes.data.length > 0) ? annualRes.data.map((r: any) => ({
           year: r.year,
           monthlyBudgets: r.monthly_budgets
-        })) : [],
+        })) : (localData?.annualPlanning || [
+          {
+            year: 2026,
+            monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
+              month: i,
+              incomeBudget: 0,
+              expenseBudget: 0
+            }))
+          }
+        ]),
         shoppingList: shopRes.data ? shopRes.data.map((r: any) => ({
           id: r.id,
           name: r.name,
@@ -1072,22 +1276,27 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         trips: localData?.trips || [],
         wishes: localData?.wishes || [],
         investments: localData?.investments || [],
-        investmentTypes: localData?.investmentTypes || ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'CDB / RDB', 'Criptomoedas', 'Fundos', 'Outros'],
-        investmentStatuses: localData?.investmentStatuses || ['Ativo', 'Resgatado', 'Em Andamento', 'Pendente']
+        investmentTypes: (localData?.investmentTypes && localData.investmentTypes.length > 0) ? localData.investmentTypes : [...DEFAULT_INVESTMENT_TYPES],
+        investmentStatuses: (localData?.investmentStatuses && localData.investmentStatuses.length > 0) ? localData.investmentStatuses : [...DEFAULT_INVESTMENT_STATUSES]
       };
 
-      userDataCache.set(lowerEmail, { data: responseData, timestamp: Date.now() });
-      return responseData;
+      const finalResponse = ensureUserHasDefaults(responseData);
+      userDataCache.set(lowerEmail, { data: finalResponse, timestamp: Date.now() });
+      return finalResponse;
     } catch (err) {
       console.error("Falha ao ler dados relacionais no Supabase:", err);
     }
   }
 
   if (localData) {
-    userDataCache.set(lowerEmail, { data: localData, timestamp: Date.now() });
+    const finalLocal = ensureUserHasDefaults(localData);
+    userDataCache.set(lowerEmail, { data: finalLocal, timestamp: Date.now() });
+    return finalLocal;
   }
 
-  return localData || null;
+  const defaultUserObj = getDefaultUserData();
+  userDataCache.set(lowerEmail, { data: defaultUserObj, timestamp: Date.now() });
+  return defaultUserObj;
 }
 
 // Save/Update user workspace data by syncing modified lists to their relational tables in Supabase
@@ -2069,26 +2278,7 @@ app.post("/api/auth/register", async (req, res) => {
 
     await saveUser(newUser);
 
-    const defaultData = {
-      paymentTypes: [],
-      paymentStatuses: [],
-      incomeCategories: [],
-      expenseCategories: [],
-      incomes: [],
-      expenses: [],
-      actionPlans: [],
-      shoppingList: [],
-      annualPlanning: [
-        {
-          year: 2026,
-          monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-            month: i,
-            incomeBudget: 0,
-            expenseBudget: 0
-          }))
-        }
-      ]
-    };
+    const defaultData = getDefaultUserData();
 
     await saveUserDataByEmail(lowerEmail, defaultData);
 
@@ -2596,21 +2786,12 @@ app.get("/api/user/data", async (req, res) => {
 
   try {
     const userData = await getUserDataByEmail(email);
-      if (!userData) {
-        return res.json({
-          paymentTypes: [],
-          paymentStatuses: [],
-          incomeCategories: [],
-          expenseCategories: [],
-          incomes: [],
-          expenses: [],
-          actionPlans: [],
-          shoppingList: [],
-          annualPlanning: []
-        });
-      }
+    if (!userData) {
+      const defaultUserObj = getDefaultUserData();
+      return res.json(defaultUserObj);
+    }
 
-    res.json(userData);
+    res.json(ensureUserHasDefaults(userData));
   } catch (err) {
     console.error("User data get error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
@@ -2898,17 +3079,7 @@ app.post("/api/admin/create-user", async (req, res) => {
 
     await saveUser(newUser);
 
-    const defaultData = {
-      paymentTypes: [],
-      paymentStatuses: [],
-      incomeCategories: [],
-      expenseCategories: [],
-      incomes: [],
-      expenses: [],
-      actionPlans: [],
-      shoppingList: [],
-      annualPlanning: []
-    };
+    const defaultData = getDefaultUserData();
 
     await saveUserDataByEmail(lowerTargetEmail, defaultData);
     res.json({ success: true });

@@ -40,11 +40,15 @@ import {
   LogOut,
   Menu,
   X,
+  Wallet,
   CreditCard,
   CheckCircle,
+  CheckCircle2,
   FileText,
   Sun,
   Moon,
+  Smartphone,
+  Monitor,
   AlertTriangle,
   HelpCircle,
   Plane,
@@ -61,6 +65,8 @@ export default function App() {
   const [subscriptionWarning, setSubscriptionWarning] = useState<string>('');
   const [inactivityNotice, setInactivityNotice] = useState<string>('');
 
+  // View mode switcher (computador vs celular)
+  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
   // Sidebar toggle for responsive mobile views
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Settings menu submenus expanded status
@@ -106,11 +112,20 @@ export default function App() {
   // Auto collapse submenus whenever navigating away from their pages
   useEffect(() => {
     const isConfigPage = [
+      'Planejamento anual',
       'Plano anual',
+      'Tipo de recebimento',
+      'Tipos de recebimento',
       'Tipo de pagamento',
+      'Tipos de pagamento',
+      'Situação de recebimento',
+      'Situações de recebimento',
       'Situação de pagamento',
+      'Situações de pagamento',
+      'Cadastro Categoria Receitas',
       'Cadastro categoria Receitas',
       'Cadastro tipos de Receitas',
+      'Cadastro Categoria Despesas',
       'Cadastro categoria Despesas',
       'Tipos e Status Investimentos'
     ].includes(currentPage);
@@ -639,60 +654,104 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
-      case 'Tipo de pagamento':
+      case 'Tipo de recebimento':
+      case 'Tipos de recebimento':
         if (!userData) return null;
         return (
           <ListManagerPage
-            title="Tipos de Pagamento"
-            description="Cadastre as opções que você utiliza para pagar despesas ou receber receitas (Pix, Cartão, Boleto, etc)."
-            items={userData.paymentTypes}
+            title="Tipo de Recebimento"
+            description="Cadastre as opções que você utiliza para receber suas receitas (Pix, Transferência Bancária, Boleto, Depósito, Dinheiro, etc)."
+            items={userData.receiptTypes && userData.receiptTypes.length > 0 ? userData.receiptTypes : ['Pix', 'Transferência Bancária', 'Dinheiro', 'Boleto', 'Cartão de Débito', 'Cartão de Crédito', 'Outros']}
+            placeholder="Ex: Transferência Bancária"
+            onUpdateItems={(items) => handleUpdateUserData({ receiptTypes: items })}
+            onRenameItem={(oldVal, newVal) => {
+              const currentList = userData.receiptTypes && userData.receiptTypes.length > 0 ? userData.receiptTypes : ['Pix', 'Transferência Bancária', 'Dinheiro', 'Boleto', 'Cartão de Débito', 'Cartão de Crédito', 'Outros'];
+              const updatedTypes = currentList.map(t => t === oldVal ? newVal : t);
+              const updatedIncomes = userData.incomes.map(i => i.paymentType === oldVal ? { ...i, paymentType: newVal } : i);
+              handleUpdateUserData({
+                receiptTypes: updatedTypes,
+                incomes: updatedIncomes
+              });
+            }}
+          />
+        );
+      case 'Tipo de pagamento':
+      case 'Tipos de pagamento':
+        if (!userData) return null;
+        return (
+          <ListManagerPage
+            title="Tipo de Pagamento"
+            description="Cadastre as opções que você utiliza para pagar despesas (Cartão de Crédito, Cartão de Débito, Pix, Boleto, etc)."
+            items={userData.paymentTypes && userData.paymentTypes.length > 0 ? userData.paymentTypes : ['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Boleto', 'Dinheiro', 'Transferência Bancária', 'Débito Automático', 'Outros']}
             placeholder="Ex: Cartão de Débito"
             onUpdateItems={(items) => handleUpdateUserData({ paymentTypes: items })}
             onRenameItem={(oldVal, newVal) => {
-              const updatedTypes = userData.paymentTypes.map(t => t === oldVal ? newVal : t);
-              const updatedIncomes = userData.incomes.map(i => i.paymentType === oldVal ? { ...i, paymentType: newVal } : i);
+              const currentList = userData.paymentTypes && userData.paymentTypes.length > 0 ? userData.paymentTypes : ['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Boleto', 'Dinheiro', 'Transferência Bancária', 'Débito Automático', 'Outros'];
+              const updatedTypes = currentList.map(t => t === oldVal ? newVal : t);
               const updatedExpenses = userData.expenses.map(e => e.paymentType === oldVal ? { ...e, paymentType: newVal } : e);
               handleUpdateUserData({
                 paymentTypes: updatedTypes,
-                incomes: updatedIncomes,
                 expenses: updatedExpenses
+              });
+            }}
+          />
+        );
+      case 'Situação de recebimento':
+      case 'Situações de recebimento':
+        if (!userData) return null;
+        return (
+          <ListManagerPage
+            title="Situação de Recebimento"
+            description="Defina as tags de situação para acompanhar o status de recebimento de suas receitas (Recebido, Pendente, Atrasado, etc)."
+            items={userData.receiptStatuses && userData.receiptStatuses.length > 0 ? userData.receiptStatuses : ['Recebido', 'Pendente', 'Cancelado', 'Atrasado']}
+            placeholder="Ex: Em Cobrança"
+            onUpdateItems={(items) => handleUpdateUserData({ receiptStatuses: items })}
+            onRenameItem={(oldVal, newVal) => {
+              const currentList = userData.receiptStatuses && userData.receiptStatuses.length > 0 ? userData.receiptStatuses : ['Recebido', 'Pendente', 'Cancelado', 'Atrasado'];
+              const updatedStatuses = currentList.map(s => s === oldVal ? newVal : s);
+              const updatedIncomes = userData.incomes.map(i => i.status === oldVal ? { ...i, status: newVal } : i);
+              handleUpdateUserData({
+                receiptStatuses: updatedStatuses,
+                incomes: updatedIncomes
               });
             }}
           />
         );
       case 'Situação de pagamento':
+      case 'Situações de pagamento':
         if (!userData) return null;
         return (
           <ListManagerPage
             title="Situação de Pagamento"
             description="Defina as tags de situação para acompanhar contas em aberto ou já quitadas (Pago, Pendente, Atrasado, etc)."
-            items={userData.paymentStatuses}
+            items={userData.paymentStatuses && userData.paymentStatuses.length > 0 ? userData.paymentStatuses : ['Pago', 'Pendente', 'Atrasado', 'Cancelado']}
             placeholder="Ex: Em Análise"
             onUpdateItems={(items) => handleUpdateUserData({ paymentStatuses: items })}
             onRenameItem={(oldVal, newVal) => {
-              const updatedStatuses = userData.paymentStatuses.map(s => s === oldVal ? newVal : s);
-              const updatedIncomes = userData.incomes.map(i => i.status === oldVal ? { ...i, status: newVal } : i);
+              const currentList = userData.paymentStatuses && userData.paymentStatuses.length > 0 ? userData.paymentStatuses : ['Pago', 'Pendente', 'Atrasado', 'Cancelado'];
+              const updatedStatuses = currentList.map(s => s === oldVal ? newVal : s);
               const updatedExpenses = userData.expenses.map(e => e.status === oldVal ? { ...e, status: newVal } : e);
               handleUpdateUserData({
                 paymentStatuses: updatedStatuses,
-                incomes: updatedIncomes,
                 expenses: updatedExpenses
               });
             }}
           />
         );
+      case 'Cadastro Categoria Receitas':
       case 'Cadastro categoria Receitas':
       case 'Cadastro tipos de Receitas':
         if (!userData) return null;
         return (
           <ListManagerPage
-            title="Categorias de Receitas"
+            title="Cadastro Categoria Receitas"
             description="Organize suas fontes de renda por categoria (Salário, Investimentos, Freelance, Bônus, etc)."
-            items={userData.incomeCategories}
+            items={userData.incomeCategories && userData.incomeCategories.length > 0 ? userData.incomeCategories : ['Salário', 'Investimentos', 'Freelance / Extra', 'Aluguel Recebido', 'Bônus / Comissões', 'Outros']}
             placeholder="Ex: Aluguel Recebido"
             onUpdateItems={(items) => handleUpdateUserData({ incomeCategories: items })}
             onRenameItem={(oldVal, newVal) => {
-              const updatedCategories = userData.incomeCategories.map(c => c === oldVal ? newVal : c);
+              const currentList = userData.incomeCategories && userData.incomeCategories.length > 0 ? userData.incomeCategories : ['Salário', 'Investimentos', 'Freelance / Extra', 'Aluguel Recebido', 'Bônus / Comissões', 'Outros'];
+              const updatedCategories = currentList.map(c => c === oldVal ? newVal : c);
               const updatedIncomes = userData.incomes.map(i => i.category === oldVal ? { ...i, category: newVal } : i);
               handleUpdateUserData({
                 incomeCategories: updatedCategories,
@@ -701,18 +760,48 @@ export default function App() {
             }}
           />
         );
+      case 'Cadastro Categoria Despesas':
       case 'Cadastro categoria Despesas':
       case 'Cadastro tipos de Despesas':
         if (!userData) return null;
         return (
           <ListManagerPage
-            title="Categoria de Despesas"
+            title="Cadastro Categoria Despesas"
             description="Agrupe seus custos mensais para entender onde você gasta mais (Moradia, Alimentação, Saúde, Transporte, etc)."
-            items={userData.expenseCategories}
+            items={userData.expenseCategories && userData.expenseCategories.length > 0 ? userData.expenseCategories : [
+              'Alimentação',
+              'Limpeza',
+              'Frutas/Verduras',
+              'Açougue',
+              'Aluguel',
+              'Combustível',
+              'Educação',
+              'Lazer',
+              'Impostos',
+              'Manutenção casa',
+              'Ajuda pessoas',
+              'Reserva de emergência',
+              'Investimentos'
+            ]}
             placeholder="Ex: Serviços de Streaming"
             onUpdateItems={(items) => handleUpdateUserData({ expenseCategories: items })}
             onRenameItem={(oldVal, newVal) => {
-              const updatedCategories = userData.expenseCategories.map(c => c === oldVal ? newVal : c);
+              const currentList = userData.expenseCategories && userData.expenseCategories.length > 0 ? userData.expenseCategories : [
+                'Alimentação',
+                'Limpeza',
+                'Frutas/Verduras',
+                'Açougue',
+                'Aluguel',
+                'Combustível',
+                'Educação',
+                'Lazer',
+                'Impostos',
+                'Manutenção casa',
+                'Ajuda pessoas',
+                'Reserva de emergência',
+                'Investimentos'
+              ];
+              const updatedCategories = currentList.map(c => c === oldVal ? newVal : c);
               const updatedExpenses = userData.expenses.map(e => e.category === oldVal ? { ...e, category: newVal } : e);
               handleUpdateUserData({
                 expenseCategories: updatedCategories,
@@ -797,11 +886,13 @@ export default function App() {
   ];
 
   const configSubmenus = [
-    { name: 'Plano anual', icon: FileText },
+    { name: 'Planejamento anual', icon: FileText },
+    { name: 'Tipo de recebimento', icon: Wallet },
     { name: 'Tipo de pagamento', icon: CreditCard },
+    { name: 'Situação de recebimento', icon: CheckCircle2 },
     { name: 'Situação de pagamento', icon: CheckCircle },
-    { name: 'Cadastro categoria Receitas', icon: TrendingUp },
-    { name: 'Cadastro categoria Despesas', icon: TrendingDown },
+    { name: 'Cadastro Categoria Receitas', icon: TrendingUp },
+    { name: 'Cadastro Categoria Despesas', icon: TrendingDown },
     { name: 'Tipos e Status Investimentos', icon: Vault },
   ];
 
@@ -888,10 +979,10 @@ export default function App() {
                     scrollToSection(settingsSectionRef);
                   }
                 }}
-                className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-3 tracking-wide text-sky-300 hover:text-sky-200 transition-colors cursor-pointer"
               >
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Configurações</span>
-                <Settings className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Configurações</span>
+                <Settings className="h-3.5 w-3.5 text-sky-300" />
               </button>
             </div>
 
@@ -910,11 +1001,11 @@ export default function App() {
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold transition-all ${
                         active
                           ? 'bg-slate-800 text-white font-bold'
-                          : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                          : 'text-white/90 hover:bg-slate-800/50 hover:text-white'
                       }`}
                     >
-                      <Icon className="h-4.5 w-4.5 shrink-0 opacity-80" />
-                      <span className="truncate">{sub.name}</span>
+                      <Icon className="h-4.5 w-4.5 shrink-0 text-white opacity-90" />
+                      <span className="truncate text-white">{sub.name}</span>
                     </button>
                   );
                 })}
@@ -933,10 +1024,10 @@ export default function App() {
                     scrollToSection(dadosSectionRef);
                   }
                 }}
-                className="w-full flex items-center justify-between px-3 tracking-wide text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-3 tracking-wide text-sky-300 hover:text-sky-200 transition-colors cursor-pointer"
               >
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Dados</span>
-                <Database className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Dados</span>
+                <Database className="h-3.5 w-3.5 text-sky-300" />
               </button>
             </div>
 
@@ -945,7 +1036,6 @@ export default function App() {
                 {dadosSubmenus.map((sub) => {
                   const Icon = sub.icon;
                   const active = currentPage === sub.name;
-                  const isLightBlue = sub.name === 'Dados pessoais' || sub.name === 'Assinatura';
                   return (
                     <button
                       key={sub.name}
@@ -955,16 +1045,12 @@ export default function App() {
                       }}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold transition-all ${
                         active
-                          ? isLightBlue
-                            ? 'bg-slate-800 text-sky-300 font-bold'
-                            : 'bg-slate-800 text-white font-bold'
-                          : isLightBlue
-                          ? 'text-sky-300 font-bold hover:bg-slate-800/50 hover:text-sky-200'
-                          : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                          ? 'bg-slate-800 text-white font-bold'
+                          : 'text-white/90 hover:bg-slate-800/50 hover:text-white'
                       }`}
                     >
-                      <Icon className={`h-4.5 w-4.5 shrink-0 ${isLightBlue ? 'text-sky-300 opacity-100' : 'opacity-80'}`} />
-                      <span className="truncate">{sub.name}</span>
+                      <Icon className="h-4.5 w-4.5 shrink-0 text-white opacity-90" />
+                      <span className="truncate text-white">{sub.name}</span>
                     </button>
                   );
                 })}
@@ -1055,10 +1141,45 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-sm font-semibold">
+          <div className="flex items-center gap-2 sm:gap-4 text-sm font-semibold">
+            {/* Responsivo: Alternador de visualização Celular / Computador */}
+            <div
+              id="viewmode-toggle-group"
+              className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 gap-1"
+            >
+              <button
+                id="viewmode-mobile-btn"
+                onClick={() => setViewMode('mobile')}
+                className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                  viewMode === 'mobile'
+                    ? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100 shadow-xs font-bold ring-1 ring-slate-300 dark:ring-slate-600'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                }`}
+                title="Modo Tela de Celular (Mobile)"
+                aria-label="Modo Tela de Celular"
+              >
+                <Smartphone className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+              </button>
+
+              <button
+                id="viewmode-desktop-btn"
+                onClick={() => setViewMode('desktop')}
+                className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                  viewMode === 'desktop'
+                    ? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100 shadow-xs font-bold ring-1 ring-slate-300 dark:ring-slate-600'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                }`}
+                title="Modo Tela de Computador (Desktop)"
+                aria-label="Modo Tela de Computador"
+              >
+                <Monitor className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
+              </button>
+            </div>
+
+            {/* Modo Claro / Escuro */}
             <button
               onClick={() => setIsDark(!isDark)}
-              className="p-2.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 transition-colors"
+              className="p-2.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
               title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
             >
               {isDark ? <Sun className="h-6 w-6 text-amber-400" /> : <Moon className="h-6 w-6 text-slate-700 dark:text-slate-200" />}
@@ -1080,9 +1201,29 @@ export default function App() {
           </div>
         </header>
 
-        {/* Scrollable contents frame */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
-          {renderPageContent()}
+        {/* Scrollable contents frame with responsive mode support */}
+        <div
+          className={`flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ${
+            viewMode === 'mobile'
+              ? 'flex justify-center bg-slate-200/60 dark:bg-slate-950/70 p-2 sm:p-4'
+              : 'p-4 sm:p-6 md:p-8'
+          }`}
+        >
+          {viewMode === 'mobile' ? (
+            <div className="w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border-4 border-slate-300 dark:border-slate-700 overflow-hidden flex flex-col my-auto min-h-[720px] transition-all">
+              {/* Smartphone simulated top indicator */}
+              <div className="bg-slate-100 dark:bg-slate-800/90 px-4 py-2 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 select-none">
+                <span className="font-semibold text-[11px]">9:41</span>
+                <div className="w-16 h-3.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto" />
+                <span className="text-[10px] font-bold">100% 🔋</span>
+              </div>
+              <div className="p-3 sm:p-4 overflow-y-auto flex-1 custom-scrollbar">
+                {renderPageContent()}
+              </div>
+            </div>
+          ) : (
+            renderPageContent()
+          )}
         </div>
       </main>
     </div>

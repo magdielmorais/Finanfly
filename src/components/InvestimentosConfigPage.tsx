@@ -21,12 +21,12 @@ interface Props {
 
 const DEFAULT_TYPES = [
   'Ações',
-  'FIIs',
+  'Fundos Imobiliários (FIIs)',
   'Renda Fixa',
+  'CDB / LCI / LCA',
   'Tesouro Direto',
-  'CDB / RDB',
   'Criptomoedas',
-  'Fundos',
+  'Previdência Privada',
   'Outros'
 ];
 
@@ -34,7 +34,8 @@ const DEFAULT_STATUSES = [
   'Ativo',
   'Resgatado',
   'Em Andamento',
-  'Pendente'
+  'Pendente',
+  'Cancelado'
 ];
 
 export const InvestimentosConfigPage: React.FC<Props> = ({
