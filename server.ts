@@ -309,8 +309,11 @@ interface Database {
   };
   freeTrialDays?: number;
   notices?: {
-    rule50_30_20: { title: string; message: string };
-    weeklyCheck: { title: string; message: string };
+    fluxoCaixa?: { title: string; message: string };
+    resumosInteligentes?: { title: string; message: string };
+    planejamentoObjetivos?: { title: string; message: string };
+    rule50_30_20?: { title: string; message: string };
+    weeklyCheck?: { title: string; message: string };
   };
   trialHistory?: { [key: string]: boolean };
 }
@@ -327,6 +330,18 @@ function initDb() {
     },
     freeTrialDays: 60,
     notices: {
+      fluxoCaixa: {
+        title: "Fluxo de Caixa Simplificado",
+        message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
+      },
+      resumosInteligentes: {
+        title: "Resumos Inteligentes",
+        message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
+      },
+      planejamentoObjetivos: {
+        title: "Planejamento e Objetivos",
+        message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
+      },
       rule50_30_20: {
         title: "Regra 50-30-20",
         message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
@@ -2904,6 +2919,18 @@ app.post("/api/admin/free-trial-days", async (req, res) => {
 app.get("/api/notices", (req, res) => {
   const db = getDb();
   const defaultNotices = {
+    fluxoCaixa: {
+      title: "Fluxo de Caixa Simplificado",
+      message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
+    },
+    resumosInteligentes: {
+      title: "Resumos Inteligentes",
+      message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
+    },
+    planejamentoObjetivos: {
+      title: "Planejamento e Objetivos",
+      message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
+    },
     rule50_30_20: {
       title: "Regra 50-30-20",
       message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
@@ -2913,7 +2940,29 @@ app.get("/api/notices", (req, res) => {
       message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
     }
   };
-  const notices = db.notices || defaultNotices;
+
+  const notices = {
+    fluxoCaixa: {
+      title: db.notices?.fluxoCaixa?.title || defaultNotices.fluxoCaixa.title,
+      message: db.notices?.fluxoCaixa?.message || defaultNotices.fluxoCaixa.message
+    },
+    resumosInteligentes: {
+      title: db.notices?.resumosInteligentes?.title || defaultNotices.resumosInteligentes.title,
+      message: db.notices?.resumosInteligentes?.message || defaultNotices.resumosInteligentes.message
+    },
+    planejamentoObjetivos: {
+      title: db.notices?.planejamentoObjetivos?.title || defaultNotices.planejamentoObjetivos.title,
+      message: db.notices?.planejamentoObjetivos?.message || defaultNotices.planejamentoObjetivos.message
+    },
+    rule50_30_20: {
+      title: db.notices?.rule50_30_20?.title || defaultNotices.rule50_30_20.title,
+      message: db.notices?.rule50_30_20?.message || defaultNotices.rule50_30_20.message
+    },
+    weeklyCheck: {
+      title: db.notices?.weeklyCheck?.title || defaultNotices.weeklyCheck.title,
+      message: db.notices?.weeklyCheck?.message || defaultNotices.weeklyCheck.message
+    }
+  };
   res.json(notices);
 });
 
@@ -2930,26 +2979,59 @@ app.post("/api/admin/notices", async (req, res) => {
       return res.status(403).json({ error: "Acesso restrito ao administrador." });
     }
 
-    const { rule50_30_20, weeklyCheck } = req.body;
-    if (!rule50_30_20 || !rule50_30_20.title || !rule50_30_20.message ||
-        !weeklyCheck || !weeklyCheck.title || !weeklyCheck.message) {
-      return res.status(400).json({ error: "Títulos e mensagens são obrigatórios." });
-    }
-
-    const db = getDb();
-    db.notices = {
+    const defaultNotices = {
+      fluxoCaixa: {
+        title: "Fluxo de Caixa Simplificado",
+        message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
+      },
+      resumosInteligentes: {
+        title: "Resumos Inteligentes",
+        message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
+      },
+      planejamentoObjetivos: {
+        title: "Planejamento e Objetivos",
+        message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
+      },
       rule50_30_20: {
-        title: String(rule50_30_20.title),
-        message: String(rule50_30_20.message)
+        title: "Regra 50-30-20",
+        message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
       },
       weeklyCheck: {
-        title: String(weeklyCheck.title),
-        message: String(weeklyCheck.message)
+        title: "Acompanhamento Semanal",
+        message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
+      }
+    };
+
+    const { fluxoCaixa, resumosInteligentes, planejamentoObjetivos, rule50_30_20, weeklyCheck } = req.body;
+
+    const db = getDb();
+    const currentNotices = db.notices || defaultNotices;
+
+    db.notices = {
+      fluxoCaixa: {
+        title: String(fluxoCaixa?.title || currentNotices.fluxoCaixa?.title || defaultNotices.fluxoCaixa.title).trim(),
+        message: String(fluxoCaixa?.message || currentNotices.fluxoCaixa?.message || defaultNotices.fluxoCaixa.message).trim()
+      },
+      resumosInteligentes: {
+        title: String(resumosInteligentes?.title || currentNotices.resumosInteligentes?.title || defaultNotices.resumosInteligentes.title).trim(),
+        message: String(resumosInteligentes?.message || currentNotices.resumosInteligentes?.message || defaultNotices.resumosInteligentes.message).trim()
+      },
+      planejamentoObjetivos: {
+        title: String(planejamentoObjetivos?.title || currentNotices.planejamentoObjetivos?.title || defaultNotices.planejamentoObjetivos.title).trim(),
+        message: String(planejamentoObjetivos?.message || currentNotices.planejamentoObjetivos?.message || defaultNotices.planejamentoObjetivos.message).trim()
+      },
+      rule50_30_20: {
+        title: String(rule50_30_20?.title || currentNotices.rule50_30_20?.title || defaultNotices.rule50_30_20.title).trim(),
+        message: String(rule50_30_20?.message || currentNotices.rule50_30_20?.message || defaultNotices.rule50_30_20.message).trim()
+      },
+      weeklyCheck: {
+        title: String(weeklyCheck?.title || currentNotices.weeklyCheck?.title || defaultNotices.weeklyCheck.title).trim(),
+        message: String(weeklyCheck?.message || currentNotices.weeklyCheck?.message || defaultNotices.weeklyCheck.message).trim()
       }
     };
     saveDb(db);
 
-    res.json({ message: "Avisos atualizados com sucesso!", notices: db.notices });
+    res.json({ message: "Avisos e cards atualizados com sucesso!", notices: db.notices });
   } catch (err) {
     console.error("Error updating notices:", err);
     res.status(500).json({ error: "Erro interno ao atualizar avisos." });

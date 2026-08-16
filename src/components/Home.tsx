@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info, Smartphone } from 'lucide-react';
 
 interface HomeProps {
   userName: string;
@@ -10,6 +10,18 @@ interface HomeProps {
 export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => {
   const [isComoComecarOpen, setIsComoComecarOpen] = useState(false);
   const [notices, setNotices] = useState({
+    fluxoCaixa: {
+      title: 'Fluxo de Caixa Simplificado',
+      message: 'Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), tipos de pagamento e status de recebimento.'
+    },
+    resumosInteligentes: {
+      title: 'Resumos Inteligentes',
+      message: 'Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo.'
+    },
+    planejamentoObjetivos: {
+      title: 'Planejamento e Objetivos',
+      message: 'Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos.'
+    },
     rule50_30_20: {
       title: 'Regra 50-30-20',
       message: 'Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos.'
@@ -24,8 +36,14 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
     fetch('/api/notices')
       .then(res => res.json())
       .then(data => {
-        if (data && data.rule50_30_20 && data.weeklyCheck) {
-          setNotices(data);
+        if (data) {
+          setNotices(prev => ({
+            fluxoCaixa: data.fluxoCaixa || prev.fluxoCaixa,
+            resumosInteligentes: data.resumosInteligentes || prev.resumosInteligentes,
+            planejamentoObjetivos: data.planejamentoObjetivos || prev.planejamentoObjetivos,
+            rule50_30_20: data.rule50_30_20 || prev.rule50_30_20,
+            weeklyCheck: data.weeklyCheck || prev.weeklyCheck,
+          }));
         }
       })
       .catch(err => console.error('Erro ao carregar avisos na Home:', err));
@@ -47,27 +65,39 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           <p className="text-slate-200 text-base max-w-xl leading-relaxed">
             Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações para melhoria contínua de finanças. Tudo em um único lugar, adaptado para qualquer tela.
           </p>
-          <div className="pt-2 flex flex-wrap gap-3">
+          <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Painel')}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all cursor-pointer"
             >
               Ir para o {isAdmin ? 'Painel Admin' : 'Painel'}
               <ArrowRight className="h-4 w-4" />
             </button>
             <button
               onClick={() => onNavigate('Receitas (Ganhos)')}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
             >
               <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse" />
               Adicionar Receitas
             </button>
             <button
               onClick={() => onNavigate('Despesas (Gastos)')}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
             >
               <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse" />
               Adicionar Despesas
+            </button>
+          </div>
+
+          {/* Botão Modo Celular abaixo de Adicionar Despesas linkado para Modo App Web */}
+          <div className="pt-1">
+            <button
+              id="btn-home-modo-celular"
+              onClick={() => onNavigate('Modo app Web')}
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-bold shadow-md shadow-emerald-950/30 transition-all hover:scale-[1.02] active:scale-100 border border-emerald-400/40 cursor-pointer"
+            >
+              <Smartphone className="h-4 w-4 text-emerald-100" />
+              Modo Celular
             </button>
           </div>
         </div>
@@ -75,36 +105,36 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
 
       {/* Feature Bento Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Card 1 */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+        {/* Card 1: Fluxo de Caixa */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-start">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 shrink-0">
             <TrendingUp className="h-5 w-5" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Fluxo de Caixa Simplificado</h3>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), tipos de pagamento e status de recebimento.
+          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">{notices.fluxoCaixa.title}</h3>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+            {notices.fluxoCaixa.message}
           </p>
         </div>
 
-        {/* Card 2 */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        {/* Card 2: Resumos Inteligentes */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-start">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 shrink-0">
             <BarChart3 className="h-5 w-5" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Resumos Inteligentes</h3>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo.
+          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">{notices.resumosInteligentes.title}</h3>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+            {notices.resumosInteligentes.message}
           </p>
         </div>
 
-        {/* Card 3 */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+        {/* Card 3: Planejamento e Objetivos */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-start">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 shrink-0">
             <BookOpen className="h-5 w-5" />
           </div>
-          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">Planejamento e Objetivos</h3>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos.
+          <h3 className="mt-4 text-base font-bold text-slate-800 dark:text-white">{notices.planejamentoObjetivos.title}</h3>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+            {notices.planejamentoObjetivos.message}
           </p>
         </div>
       </div>

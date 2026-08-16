@@ -22,6 +22,7 @@ import { SuportePage } from './components/SuportePage';
 import { ViagemPage } from './components/ViagemPage';
 import { InvestimentosPage } from './components/InvestimentosPage';
 import { InvestimentosConfigPage } from './components/InvestimentosConfigPage';
+import { ModoAppWebPage } from './components/ModoAppWebPage';
 import { OfflineModal } from './components/OfflineModal';
 
 import {
@@ -53,7 +54,8 @@ import {
   Heart,
   Database,
   PiggyBank,
-  Vault
+  Vault,
+  Globe
 } from 'lucide-react';
 
 export default function App() {
@@ -123,7 +125,10 @@ export default function App() {
       'Cadastro tipos de Receitas',
       'Cadastro Categoria Despesas',
       'Cadastro categoria Despesas',
-      'Tipos e Status Investimentos'
+      'Tipos e Status Investimentos',
+      'Modo app Web',
+      'Modo App Web',
+      'Modo app web'
     ].includes(currentPage);
     if (!isConfigPage) {
       setSettingsExpanded(false);
@@ -813,6 +818,17 @@ export default function App() {
           <InvestimentosConfigPage
             userData={userData}
             onUpdateUserData={handleUpdateUserData}
+            onNavigate={(page) => {
+              setCurrentPage(page);
+              setSidebarOpen(false);
+            }}
+          />
+        );
+      case 'Modo app Web':
+      case 'Modo App Web':
+      case 'Modo app web':
+        return (
+          <ModoAppWebPage
             onNavigate={(page) => {
               setCurrentPage(page);
               setSidebarOpen(false);

@@ -89,6 +89,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [freeTrialError, setFreeTrialError] = useState('');
 
   // Notices state
+  const [fluxoCaixaTitle, setFluxoCaixaTitle] = useState('Fluxo de Caixa Simplificado');
+  const [fluxoCaixaMessage, setFluxoCaixaMessage] = useState('Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), tipos de pagamento e status de recebimento.');
+  const [resumosInteligentesTitle, setResumosInteligentesTitle] = useState('Resumos Inteligentes');
+  const [resumosInteligentesMessage, setResumosInteligentesMessage] = useState('Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo.');
+  const [planejamentoObjetivosTitle, setPlanejamentoObjetivosTitle] = useState('Planejamento e Objetivos');
+  const [planejamentoObjetivosMessage, setPlanejamentoObjetivosMessage] = useState('Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos.');
   const [rule50_30_20Title, setRule50_30_20Title] = useState('Regra 50-30-20');
   const [rule50_30_20Message, setRule50_30_20Message] = useState('Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos.');
   const [weeklyCheckTitle, setWeeklyCheckTitle] = useState('Acompanhamento Semanal');
@@ -120,11 +126,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     fetch('/api/notices')
       .then(res => res.json())
       .then(data => {
-        if (data && data.rule50_30_20) {
-          setRule50_30_20Title(data.rule50_30_20.title || '');
-          setRule50_30_20Message(data.rule50_30_20.message || '');
-          setWeeklyCheckTitle(data.weeklyCheck.title || '');
-          setWeeklyCheckMessage(data.weeklyCheck.message || '');
+        if (data) {
+          if (data.fluxoCaixa) {
+            setFluxoCaixaTitle(data.fluxoCaixa.title || '');
+            setFluxoCaixaMessage(data.fluxoCaixa.message || '');
+          }
+          if (data.resumosInteligentes) {
+            setResumosInteligentesTitle(data.resumosInteligentes.title || '');
+            setResumosInteligentesMessage(data.resumosInteligentes.message || '');
+          }
+          if (data.planejamentoObjetivos) {
+            setPlanejamentoObjetivosTitle(data.planejamentoObjetivos.title || '');
+            setPlanejamentoObjetivosMessage(data.planejamentoObjetivos.message || '');
+          }
+          if (data.rule50_30_20) {
+            setRule50_30_20Title(data.rule50_30_20.title || '');
+            setRule50_30_20Message(data.rule50_30_20.message || '');
+          }
+          if (data.weeklyCheck) {
+            setWeeklyCheckTitle(data.weeklyCheck.title || '');
+            setWeeklyCheckMessage(data.weeklyCheck.message || '');
+          }
         }
       })
       .catch(err => console.error('Erro ao carregar avisos no admin:', err));
@@ -867,6 +889,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           'x-user-email': adminUser.email
         },
         body: JSON.stringify({
+          fluxoCaixa: { title: fluxoCaixaTitle, message: fluxoCaixaMessage },
+          resumosInteligentes: { title: resumosInteligentesTitle, message: resumosInteligentesMessage },
+          planejamentoObjetivos: { title: planejamentoObjetivosTitle, message: planejamentoObjetivosMessage },
           rule50_30_20: { title: rule50_30_20Title, message: rule50_30_20Message },
           weeklyCheck: { title: weeklyCheckTitle, message: weeklyCheckMessage }
         })
@@ -2095,10 +2120,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
               <Bell className="h-5 w-5 text-amber-500" />
-              Configuração de Avisos (Dicas de Saúde Financeira)
+              Configuração de Avisos e Cards da Página Inicial
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Personalize o título e as mensagens explicativas exibidas na página principal de todos os usuários do sistema.
+              Personalize o título e as mensagens explicativas dos cards e avisos exibidos na página inicial para todos os usuários do sistema.
             </p>
           </div>
 
@@ -2114,86 +2139,223 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </div>
           )}
 
-          <form onSubmit={handleSaveNotices} className="space-y-6 text-xs">
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Card Regra 50-30-20 */}
-              <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
-                <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
-                  Card1
+          <form onSubmit={handleSaveNotices} className="space-y-8 text-xs">
+            {/* Seção 1: Cards Principais da Página Inicial */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
+                <span className="h-2 w-2 rounded-full bg-blue-500" />
+                <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
+                  Cards Principais da Página Inicial
                 </h4>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                      Título do Card
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={rule50_30_20Title}
-                      onChange={(e) => setRule50_30_20Title(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                      Mensagem explicativa
-                    </label>
-                    <textarea
-                      required
-                      rows={4}
-                      value={rule50_30_20Message}
-                      onChange={(e) => setRule50_30_20Message(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
-                    />
-                  </div>
-                </div>
               </div>
 
-              {/* Card Acompanhamento Semanal */}
-              <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
-                <h4 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
-                  Card2
-                </h4>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                      Título do Card
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={weeklyCheckTitle}
-                      onChange={(e) => setWeeklyCheckTitle(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
-                    />
+              <div className="grid gap-6 md:grid-cols-3">
+                {/* Card 1: Fluxo de Caixa Simplificado */}
+                <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
+                      Card 1 - Fluxo de Caixa
+                    </h5>
                   </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Título do Card
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={fluxoCaixaTitle}
+                        onChange={(e) => setFluxoCaixaTitle(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                      Mensagem explicativa
-                    </label>
-                    <textarea
-                      required
-                      rows={4}
-                      value={weeklyCheckMessage}
-                      onChange={(e) => setWeeklyCheckMessage(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
-                    />
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Mensagem explicativa
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        value={fluxoCaixaMessage}
+                        onChange={(e) => setFluxoCaixaMessage(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Resumos Inteligentes */}
+                <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
+                      Card 2 - Resumos Inteligentes
+                    </h5>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Título do Card
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={resumosInteligentesTitle}
+                        onChange={(e) => setResumosInteligentesTitle(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Mensagem explicativa
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        value={resumosInteligentesMessage}
+                        onChange={(e) => setResumosInteligentesMessage(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Planejamento e Objetivos */}
+                <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
+                      Card 3 - Planejamento e Objetivos
+                    </h5>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Título do Card
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={planejamentoObjetivosTitle}
+                        onChange={(e) => setPlanejamentoObjetivosTitle(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Mensagem explicativa
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        value={planejamentoObjetivosMessage}
+                        onChange={(e) => setPlanejamentoObjetivosMessage(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+            {/* Seção 2: Dicas para Saúde Financeira */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
+                  Cards de Dicas para Saúde Financeira
+                </h4>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Card 4: Regra 50-30-20 */}
+                <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
+                      Card 4 - Regra 50-30-20
+                    </h5>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Título do Card
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={rule50_30_20Title}
+                        onChange={(e) => setRule50_30_20Title(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Mensagem explicativa
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        value={rule50_30_20Message}
+                        onChange={(e) => setRule50_30_20Message(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 5: Acompanhamento Semanal */}
+                <div className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
+                      Card 5 - Acompanhamento Semanal
+                    </h5>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Título do Card
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={weeklyCheckTitle}
+                        onChange={(e) => setWeeklyCheckTitle(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                        Mensagem explicativa
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        value={weeklyCheckMessage}
+                        onChange={(e) => setWeeklyCheckMessage(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white leading-relaxed resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="submit"
                 disabled={noticesLoading}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
               >
-                {noticesLoading ? 'Salvando...' : 'Salvar Novos Avisos'}
+                {noticesLoading ? 'Salvando...' : 'Salvar Novos Avisos e Cards'}
               </button>
             </div>
           </form>
