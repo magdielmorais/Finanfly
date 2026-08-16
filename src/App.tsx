@@ -1205,21 +1205,13 @@ export default function App() {
         <div
           className={`flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ${
             viewMode === 'mobile'
-              ? 'flex justify-center bg-slate-200/60 dark:bg-slate-950/70 p-2 sm:p-4'
+              ? 'p-3 sm:p-4 flex justify-center'
               : 'p-4 sm:p-6 md:p-8'
           }`}
         >
           {viewMode === 'mobile' ? (
-            <div className="w-full max-w-[420px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border-4 border-slate-300 dark:border-slate-700 overflow-hidden flex flex-col my-auto min-h-[720px] transition-all">
-              {/* Smartphone simulated top indicator */}
-              <div className="bg-slate-100 dark:bg-slate-800/90 px-4 py-2 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 select-none">
-                <span className="font-semibold text-[11px]">9:41</span>
-                <div className="w-16 h-3.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto" />
-                <span className="text-[10px] font-bold">100% 🔋</span>
-              </div>
-              <div className="p-3 sm:p-4 overflow-y-auto flex-1 custom-scrollbar">
-                {renderPageContent()}
-              </div>
+            <div className="w-full max-w-[420px] mx-auto transition-all">
+              {renderPageContent()}
             </div>
           ) : (
             renderPageContent()
