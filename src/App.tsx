@@ -47,8 +47,6 @@ import {
   FileText,
   Sun,
   Moon,
-  Smartphone,
-  Monitor,
   AlertTriangle,
   HelpCircle,
   Plane,
@@ -65,8 +63,6 @@ export default function App() {
   const [subscriptionWarning, setSubscriptionWarning] = useState<string>('');
   const [inactivityNotice, setInactivityNotice] = useState<string>('');
 
-  // View mode switcher (computador vs celular)
-  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
   // Sidebar toggle for responsive mobile views
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Settings menu submenus expanded status
@@ -1141,41 +1137,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 text-sm font-semibold">
-            {/* Responsivo: Alternador de visualização Celular / Computador */}
-            <div
-              id="viewmode-toggle-group"
-              className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 gap-1"
-            >
-              <button
-                id="viewmode-mobile-btn"
-                onClick={() => setViewMode('mobile')}
-                className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
-                  viewMode === 'mobile'
-                    ? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100 shadow-xs font-bold ring-1 ring-slate-300 dark:ring-slate-600'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
-                }`}
-                title="Modo Tela de Celular (Mobile)"
-                aria-label="Modo Tela de Celular"
-              >
-                <Smartphone className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-              </button>
-
-              <button
-                id="viewmode-desktop-btn"
-                onClick={() => setViewMode('desktop')}
-                className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
-                  viewMode === 'desktop'
-                    ? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100 shadow-xs font-bold ring-1 ring-slate-300 dark:ring-slate-600'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
-                }`}
-                title="Modo Tela de Computador (Desktop)"
-                aria-label="Modo Tela de Computador"
-              >
-                <Monitor className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-              </button>
-            </div>
-
+          <div className="flex items-center gap-4 text-sm font-semibold">
             {/* Modo Claro / Escuro */}
             <button
               onClick={() => setIsDark(!isDark)}
@@ -1201,21 +1163,9 @@ export default function App() {
           </div>
         </header>
 
-        {/* Scrollable contents frame with responsive mode support */}
-        <div
-          className={`flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ${
-            viewMode === 'mobile'
-              ? 'p-3 sm:p-4 flex justify-center'
-              : 'p-4 sm:p-6 md:p-8'
-          }`}
-        >
-          {viewMode === 'mobile' ? (
-            <div className="w-full max-w-[420px] mx-auto transition-all">
-              {renderPageContent()}
-            </div>
-          ) : (
-            renderPageContent()
-          )}
+        {/* Scrollable contents frame */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
+          {renderPageContent()}
         </div>
       </main>
     </div>
