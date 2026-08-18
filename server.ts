@@ -3451,6 +3451,43 @@ async function warmupUserCache() {
 // Serve static assets in production, hook Vite dev middleware in development
 async function startServer() {
   warmupUserCache();
+
+  // Explicit static serving for public folder icons and PWA assets
+  const publicDir = path.join(process.cwd(), "public");
+  if (fs.existsSync(publicDir)) {
+    app.use(express.static(publicDir));
+  }
+
+  // Explicit route handlers for favicon and app icons
+  app.get(["/favicon.ico", "/favo.ico"], (req, res) => {
+    const icoPath = path.join(process.cwd(), "public", "favicon.ico");
+    if (fs.existsSync(icoPath)) {
+      res.setHeader("Content-Type", "image/x-icon");
+      return res.sendFile(icoPath);
+    }
+    const pngPath = path.join(process.cwd(), "public", "favicon.png");
+    if (fs.existsSync(pngPath)) {
+      res.setHeader("Content-Type", "image/png");
+      return res.sendFile(pngPath);
+    }
+    res.status(404).end();
+  });
+
+  app.get(["/favicon.png", "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png"], (req, res) => {
+    const fileName = path.basename(req.path);
+    const filePath = path.join(process.cwd(), "public", fileName);
+    if (fs.existsSync(filePath)) {
+      res.setHeader("Content-Type", "image/png");
+      return res.sendFile(filePath);
+    }
+    const fallbackPath = path.join(process.cwd(), "public", "favicon.png");
+    if (fs.existsSync(fallbackPath)) {
+      res.setHeader("Content-Type", "image/png");
+      return res.sendFile(fallbackPath);
+    }
+    res.status(404).end();
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
