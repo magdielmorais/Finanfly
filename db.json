@@ -12,14 +12,14 @@
       "state": "",
       "phone": "",
       "cpf": "99999999999",
-      "userMessage": "Acesso temporariamente bloqueado para auditoria interna.",
-      "mensagemUsuario": "Acesso temporariamente bloqueado para auditoria interna.",
+      "userMessage": "",
+      "mensagemUsuario": "",
       "isBlocked": true,
       "subscription": {
         "plan": "gratis",
-        "validUntil": "2026-10-07T01:51:19.283+00:00",
-        "selectedAt": "2026-08-08T01:51:19.283+00:00",
-        "freePlanUsed": true,
+        "validUntil": "2026-10-17T14:09:11.217+00:00",
+        "selectedAt": "2026-08-18T14:09:11.217+00:00",
+        "freePlanUsed": false,
         "approved": true
       }
     },
@@ -29,7 +29,7 @@
       "role": "admin",
       "name": "ADMINISTRADOR",
       "createdAt": "2026-08-08T01:44:04.727+00:00",
-      "lastAccess": "2026-08-15T01:26:35.801Z",
+      "lastAccess": "2026-08-18T17:55:42.136Z",
       "address": "",
       "city": "",
       "state": "",
@@ -42,7 +42,9 @@
         "selectedAt": "2026-08-08T01:46:56.818+00:00",
         "freePlanUsed": false,
         "approved": true
-      }
+      },
+      "userMessage": "",
+      "mensagemUsuario": ""
     },
     "elizardo.josa@gmail.com": {
       "email": "elizardo.josa@gmail.com",

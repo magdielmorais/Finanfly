@@ -935,7 +935,12 @@ export default function App() {
         {/* Brand logo */}
         <div className="p-5 flex items-center justify-between border-b border-slate-800/60">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-md shadow-blue-500/10">F</div>
+            <img
+              src="/favicon.png"
+              alt="FinanFly Logo"
+              className="w-8 h-8 rounded-lg object-contain shadow-md shadow-blue-500/20"
+              referrerPolicy="no-referrer"
+            />
             <span className="text-lg font-bold text-white tracking-tight">FinanFly</span>
           </div>
           {/* Close button for mobile */}
