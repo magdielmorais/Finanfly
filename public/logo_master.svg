@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Vibrant Blue Gradient from the user image -->
+    <linearGradient id="bgGrad" x1="15%" y1="5%" x2="85%" y2="95%">
+      <stop offset="0%" stop-color="#075ffc" />
+      <stop offset="50%" stop-color="#0246e4" />
+      <stop offset="100%" stop-color="#0022a3" />
+    </linearGradient>
+
+    <!-- Speed Lines Gradient -->
+    <linearGradient id="speedGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#5588ff" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#7da8ff" stop-opacity="0.9" />
+    </linearGradient>
+  </defs>
+
+  <!-- Solid Black Background (matching the exact attachment) -->
+  <rect width="1024" height="1024" fill="#000000" />
+
+  <!-- The Vibrant Blue Squircle Icon with smooth 220px radius -->
+  <rect x="2" y="2" width="1020" height="1020" rx="225" ry="225" fill="url(#bgGrad)" />
+
+  <!-- Speed Lines behind letter F -->
+  <!-- Top line -->
+  <rect x="198" y="424" width="220" height="38" rx="19" fill="url(#speedGrad)" />
+  <!-- Middle line (longest) -->
+  <rect x="144" y="506" width="274" height="38" rx="19" fill="url(#speedGrad)" />
+  <!-- Bottom line -->
+  <rect x="205" y="588" width="186" height="38" rx="19" fill="url(#speedGrad)" />
+
+  <!-- Bold Dynamic Forward-Italic Letter 'F' -->
+  <path d="M 432 208 L 788 208 L 760 324 L 566 324 L 536 432 L 722 432 L 694 544 L 508 544 L 434 816 L 278 816 Z" 
+        fill="#ffffff" />
+
+  <!-- Flying Banknote with Wings -->
+  <g transform="translate(348, 540)">
+    <!-- Left Angel Wing -->
+    <g transform="translate(4, 18)">
+      <path d="M 120 70 C 50 45 -10 -5 18 -42 C 42 -20 54 18 84 28 C 42 -12 78 -50 114 -32 C 122 8 126 38 132 60 Z" 
+            fill="#ffffff" stroke="#06227b" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" />
+      <path d="M 52 -18 C 76 8 84 32 94 48" fill="none" stroke="#06227b" stroke-width="7" stroke-linecap="round" />
+    </g>
+
+    <!-- Right Angel Wing -->
+    <g transform="translate(325, 42)">
+      <path d="M 50 60 C 118 32 178 -18 152 -54 C 128 -32 114 6 86 16 C 128 -22 92 -62 56 -44 C 48 -4 44 26 38 48 Z" 
+            fill="#ffffff" stroke="#06227b" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" />
+      <path d="M 118 -30 C 94 -4 86 20 76 36" fill="none" stroke="#06227b" stroke-width="7" stroke-linecap="round" />
+    </g>
+
+    <!-- Banknote Body (Tilted ~12.5 deg) -->
+    <g transform="rotate(-13, 220, 110)">
+      <!-- Outer White Note with Bold Navy Stroke -->
+      <rect x="70" y="45" width="280" height="152" rx="18" ry="18" fill="#ffffff" stroke="#06227b" stroke-width="14" />
+      
+      <!-- Inner dashed border -->
+      <rect x="86" y="61" width="248" height="120" rx="10" ry="10" fill="none" stroke="#06227b" stroke-width="5" stroke-dasharray="12 6" />
+
+      <!-- Center Solid Navy Circle -->
+      <circle cx="210" cy="121" r="44" fill="#06227b" />
+
+      <!-- Centered White Dollar Sign ($) -->
+      <text x="210" y="142" font-family="system-ui, -apple-system, sans-serif" font-size="62" font-weight="900" fill="#ffffff" text-anchor="middle">$</text>
+
+      <!-- Side Navy Dots -->
+      <circle cx="124" cy="121" r="9" fill="#06227b" />
+      <circle cx="296" cy="121" r="9" fill="#06227b" />
+    </g>
+  </g>
+</svg>

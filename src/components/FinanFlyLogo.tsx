@@ -11,40 +11,53 @@ interface FinanFlyLogoProps {
 export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
   className = '',
   size = 32,
-  rounded = 'rounded-xl',
-  shadow = true
+  rounded = '',
+  shadow = false
 }) => {
   const [imageError, setImageError] = useState(false);
 
   if (imageError) {
     return (
       <svg
-        viewBox="0 0 512 512"
-        className={`${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
+        viewBox="0 0 1024 1024"
+        className={`block ${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
         style={{ width: size, height: size }}
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="finanflyBlueGradFallback" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#0055ff" />
-            <stop offset="100%" stopColor="#0026b3" />
+          <linearGradient id="finanflyBlueGradFallback" x1="15%" y1="5%" x2="85%" y2="95%">
+            <stop offset="0%" stopColor="#075ffc" />
+            <stop offset="50%" stopColor="#0246e4" />
+            <stop offset="100%" stopColor="#0022a3" />
+          </linearGradient>
+          <linearGradient id="speedGradFallback" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#5588ff" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#7da8ff" stopOpacity="0.9" />
           </linearGradient>
         </defs>
-        <rect x="16" y="16" width="480" height="480" rx="108" ry="108" fill="url(#finanflyBlueGradFallback)" />
-        {/* Speed lines */}
-        <rect x="70" y="215" width="110" height="18" rx="9" fill="#4d88ff" opacity="0.8" />
-        <rect x="40" y="255" width="140" height="18" rx="9" fill="#3377ff" opacity="0.65" />
-        <rect x="70" y="295" width="100" height="18" rx="9" fill="#4d88ff" opacity="0.8" />
-        {/* Letter F */}
-        <path d="M 215 105 L 395 105 L 380 170 L 290 170 L 275 230 L 360 230 L 345 290 L 260 290 L 225 415 L 145 415 Z" fill="#ffffff" />
-        {/* Flying Dollar with wings */}
-        <g transform="translate(180, 280) rotate(-12)">
-          {/* Wings */}
-          <path d="M 0 35 C -35 20 -55 -5 -35 -20 C -25 -10 -20 10 -5 15 C -25 -5 -10 -25 5 -15 C 10 5 10 20 15 30 Z" fill="#ffffff" stroke="#0033cc" strokeWidth="4" />
-          <path d="M 140 30 C 175 15 195 -10 175 -25 C 165 -15 160 5 145 10 C 165 -10 150 -30 135 -20 C 130 0 130 15 125 25 Z" fill="#ffffff" stroke="#0033cc" strokeWidth="4" />
-          <rect x="0" y="0" width="140" height="75" rx="8" ry="8" fill="#ffffff" stroke="#0033cc" strokeWidth="7" />
-          <circle cx="70" cy="37.5" r="20" fill="#0033cc" />
-          <text x="70" y="47" fontFamily="system-ui, sans-serif" fontSize="28" fontWeight="900" fill="#ffffff" textAnchor="middle">$</text>
+        <rect width="1024" height="1024" fill="#000000" />
+        <rect x="2" y="2" width="1020" height="1020" rx="225" ry="225" fill="url(#finanflyBlueGradFallback)" />
+        <rect x="198" y="424" width="220" height="38" rx="19" fill="url(#speedGradFallback)" />
+        <rect x="144" y="506" width="274" height="38" rx="19" fill="url(#speedGradFallback)" />
+        <rect x="205" y="588" width="186" height="38" rx="19" fill="url(#speedGradFallback)" />
+        <path d="M 432 208 L 788 208 L 760 324 L 566 324 L 536 432 L 722 432 L 694 544 L 508 544 L 434 816 L 278 816 Z" fill="#ffffff" />
+        <g transform="translate(348, 540)">
+          <g transform="translate(4, 18)">
+            <path d="M 120 70 C 50 45 -10 -5 18 -42 C 42 -20 54 18 84 28 C 42 -12 78 -50 114 -32 C 122 8 126 38 132 60 Z" fill="#ffffff" stroke="#06227b" strokeWidth="9" strokeLinejoin="round" strokeLinecap="round" />
+            <path d="M 52 -18 C 76 8 84 32 94 48" fill="none" stroke="#06227b" strokeWidth="7" strokeLinecap="round" />
+          </g>
+          <g transform="translate(325, 42)">
+            <path d="M 50 60 C 118 32 178 -18 152 -54 C 128 -32 114 6 86 16 C 128 -22 92 -62 56 -44 C 48 -4 44 26 38 48 Z" fill="#ffffff" stroke="#06227b" strokeWidth="9" strokeLinejoin="round" strokeLinecap="round" />
+            <path d="M 118 -30 C 94 -4 86 20 76 36" fill="none" stroke="#06227b" strokeWidth="7" strokeLinecap="round" />
+          </g>
+          <g transform="rotate(-13, 220, 110)">
+            <rect x="70" y="45" width="280" height="152" rx="18" ry="18" fill="#ffffff" stroke="#06227b" strokeWidth="14" />
+            <rect x="86" y="61" width="248" height="120" rx="10" ry="10" fill="none" stroke="#06227b" strokeWidth="5" strokeDasharray="12 6" />
+            <circle cx="210" cy="121" r="44" fill="#06227b" />
+            <text x="210" y="142" fontFamily="system-ui, -apple-system, sans-serif" fontSize="62" fontWeight="900" fill="#ffffff" textAnchor="middle">$</text>
+            <circle cx="124" cy="121" r="9" fill="#06227b" />
+            <circle cx="296" cy="121" r="9" fill="#06227b" />
+          </g>
         </g>
       </svg>
     );
@@ -54,11 +67,10 @@ export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
     <img
       src={logoAsset}
       alt="FinanFly Logo"
-      className={`${rounded} object-contain ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
+      className={`block object-contain ${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
       style={{ width: size, height: size }}
       referrerPolicy="no-referrer"
       onError={(e) => {
-        // Fallback to /favicon.png, then to SVG
         const target = e.currentTarget;
         if (!target.src.includes('favicon.png')) {
           target.src = '/favicon.png';

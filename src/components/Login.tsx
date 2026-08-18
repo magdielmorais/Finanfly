@@ -239,7 +239,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         {/* Brand Header */}
         <div className="text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center">
-            <FinanFlyLogo size={64} rounded="rounded-2xl" shadow={true} />
+            <FinanFlyLogo size={64} />
           </div>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-white font-sans">
             FinanFly
