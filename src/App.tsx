@@ -906,6 +906,7 @@ export default function App() {
     { name: 'Cadastro Categoria Receitas', icon: TrendingUp },
     { name: 'Cadastro Categoria Despesas', icon: TrendingDown },
     { name: 'Tipos e Status Investimentos', icon: Vault },
+    { name: 'Modo app Web', icon: Globe },
   ];
 
   const dadosSubmenus = [
