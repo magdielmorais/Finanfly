@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
+import { FinanFlyLogo } from './FinanFlyLogo';
 import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 interface LoginProps {
@@ -237,13 +238,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl shadow-xl shadow-blue-500/20 overflow-hidden">
-            <img
-              src="/favicon.png"
-              alt="FinanFly Logo"
-              className="w-full h-full object-contain"
-              referrerPolicy="no-referrer"
-            />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center">
+            <FinanFlyLogo size={64} rounded="rounded-2xl" shadow={true} />
           </div>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-white font-sans">
             FinanFly

@@ -23,6 +23,7 @@ import { ViagemPage } from './components/ViagemPage';
 import { InvestimentosPage } from './components/InvestimentosPage';
 import { InvestimentosConfigPage } from './components/InvestimentosConfigPage';
 import { ModoAppWebPage } from './components/ModoAppWebPage';
+import { FinanFlyLogo } from './components/FinanFlyLogo';
 import { OfflineModal } from './components/OfflineModal';
 
 import {
@@ -935,12 +936,7 @@ export default function App() {
         {/* Brand logo */}
         <div className="p-5 flex items-center justify-between border-b border-slate-800/60">
           <div className="flex items-center gap-2.5">
-            <img
-              src="/favicon.png"
-              alt="FinanFly Logo"
-              className="w-8 h-8 rounded-lg object-contain shadow-md shadow-blue-500/20"
-              referrerPolicy="no-referrer"
-            />
+            <FinanFlyLogo size={32} />
             <span className="text-lg font-bold text-white tracking-tight">FinanFly</span>
           </div>
           {/* Close button for mobile */}
