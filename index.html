@@ -15,6 +15,13 @@
   <body>
     <div id="root"></div>
     <script>
+      // Capture PWA install prompt globally
+      window.deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('finanfly-install-ready', { detail: e }));
+      });
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch(() => {});

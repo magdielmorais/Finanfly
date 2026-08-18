@@ -10,8 +10,8 @@ import {
   Share2,
   PlusSquare,
   Sparkles,
-  Info,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 
 interface ModoAppWebPageProps {
@@ -19,12 +19,13 @@ interface ModoAppWebPageProps {
 }
 
 export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) => {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>((window as any).deferredInstallPrompt || null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [installSuccess, setInstallSuccess] = useState(false);
+  const [isTriggering, setIsTriggering] = useState(false);
 
   useEffect(() => {
     // Check if running in standalone mode (already installed as PWA)
@@ -44,44 +45,81 @@ export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) =>
     setIsIOS(isIOSDevice);
     setIsAndroid(isAndroidDevice);
 
+    // If global prompt already exists, use it
+    if ((window as any).deferredInstallPrompt) {
+      setDeferredPrompt((window as any).deferredInstallPrompt);
+    }
+
     // Listen for PWA beforeinstallprompt event (Chromium browsers)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
+      (window as any).deferredInstallPrompt = e;
       setDeferredPrompt(e);
+    };
+
+    const handleCustomInstallReady = (e: any) => {
+      if (e.detail) {
+        setDeferredPrompt(e.detail);
+      }
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setInstallSuccess(true);
       setDeferredPrompt(null);
+      (window as any).deferredInstallPrompt = null;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('finanfly-install-ready', handleCustomInstallReady);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('finanfly-install-ready', handleCustomInstallReady);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
+    setIsTriggering(true);
+
+    const promptToUse = deferredPrompt || (window as any).deferredInstallPrompt;
+
+    if (promptToUse) {
       try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
+        // Envia o comando nativo de instalação automática para o navegador
+        await promptToUse.prompt();
+        const choiceResult = await promptToUse.userChoice;
+        if (choiceResult && choiceResult.outcome === 'accepted') {
           setInstallSuccess(true);
           setIsInstalled(true);
         }
         setDeferredPrompt(null);
+        (window as any).deferredInstallPrompt = null;
       } catch (err) {
-        console.error('Erro ao acionar prompt de instalação:', err);
+        console.warn('Comando de prompt automático não pôde ser concluído:', err);
         setShowInstructionsModal(true);
+      } finally {
+        setIsTriggering(false);
       }
     } else {
-      // If deferredPrompt is not available (iOS, in-app browser, or already prompted), show platform instructions
-      setShowInstructionsModal(true);
+      setIsTriggering(false);
+      // Se estiver no iOS Safari e navigator.share estiver disponível, pode abrir a opção de adicionar à tela
+      if (isIOS && navigator.share) {
+        try {
+          await navigator.share({
+            title: 'FinanFly - Controle Financeiro',
+            text: 'Acesse e instale o FinanFly no seu celular',
+            url: window.location.origin
+          });
+        } catch {
+          setShowInstructionsModal(true);
+        }
+      } else {
+        // Abre o modal ilustrado com o passo a passo direto do navegador
+        setShowInstructionsModal(true);
+      }
     }
   };
 
@@ -191,7 +229,7 @@ export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) =>
           <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 shrink-0 mt-0.5">
             <Download className="h-5 w-5" />
           </div>
-          <div className="space-y-3 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+          <div className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
             <p>
               Vá até Configurações do seu navegador geralmente um ícone{' '}
               <span className="inline-flex items-center justify-center p-1 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 align-middle mx-1 shadow-2xs">
@@ -200,25 +238,18 @@ export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) =>
               (três pontinhos na vertical) e selecionar{' '}
               <strong className="font-bold text-slate-900 dark:text-white">( Instalar e criar atalho )</strong> — será instalado e criado um atalho no seu celular para o APP.
             </p>
-
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              <span>
-                Para usar no modo Celular, deve-se fazer a configuração no navegador conforme explicado acima (<strong>Modo CELULAR/TABLET</strong>).
-              </span>
-            </div>
           </div>
         </div>
 
-        {/* Botão com mecanismo de instalação no celular quando no modo navegador */}
+        {/* Botão com mecanismo de comando para instalar automaticamente no celular via navegador */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
           {installSuccess ? (
-            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3 text-emerald-800 dark:text-emerald-300">
+            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3 text-emerald-800 dark:text-emerald-300 animate-fade-in">
               <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div>
-                <p className="font-bold text-sm">Aplicativo Instalado com Sucesso!</p>
+                <p className="font-bold text-sm">Comando Executado: Aplicativo Instalado!</p>
                 <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                  O atalho do FinanFly foi adicionado à tela inicial do seu celular.
+                  O atalho do FinanFly foi criado com sucesso no seu celular.
                 </p>
               </div>
             </div>
@@ -227,39 +258,49 @@ export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) =>
               <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
                 <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                 <span>
-                  Você já está executando o <strong>FinanFly no Modo Aplicativo</strong> no seu dispositivo.
+                  Você já está executando o <strong>FinanFly instalado no Modo App</strong>.
                 </span>
               </div>
               <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
-                Instalado
+                Já Instalado
               </span>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-emerald-500/10 border border-emerald-500/20 dark:border-emerald-500/30">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                    <Sparkles className="h-4 w-4 text-emerald-500" />
-                    <span>Instalação Rápida no Navegador</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-blue-500/10 to-emerald-500/15 border-2 border-emerald-500/30 dark:border-emerald-500/40 shadow-sm">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
+                    <Sparkles className="h-4 w-4 text-emerald-500 animate-spin" style={{ animationDuration: '4s' }} />
+                    <span>Instalação Automática</span>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300">
-                    Clique no botão para instalar o FinanFly direto na tela inicial do seu celular ou tablet.
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-medium">
+                    Acione o comando do navegador para instalar o FinanFly diretamente no seu celular ou tablet.
                   </p>
                 </div>
 
                 <button
-                  id="btn-instalar-app-celular"
+                  id="btn-instalar-app-celular-comando"
                   onClick={handleInstallClick}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-md shadow-emerald-950/20 hover:shadow-lg hover:shadow-emerald-900/30 transition-all hover:scale-[1.02] active:scale-100 cursor-pointer shrink-0"
+                  disabled={isTriggering}
+                  className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-sm font-black shadow-lg shadow-emerald-900/25 hover:shadow-emerald-900/40 transition-all hover:scale-[1.02] active:scale-98 cursor-pointer shrink-0 disabled:opacity-75"
                 >
-                  <Smartphone className="h-4 w-4" />
-                  <span>Instalar Aplicativo no Celular</span>
+                  {isTriggering ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Executando comando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Smartphone className="h-4 w-4" />
+                      <span>INSTALAR APP NO CELULAR</span>
+                    </>
+                  )}
                 </button>
               </div>
 
               {deferredPrompt && (
                 <p className="text-[11px] text-center text-emerald-600 dark:text-emerald-400 font-medium">
-                  ✓ Seu navegador suporta instalação com 1 clique. Clique no botão acima para confirmar.
+                  ✓ Navegador pronto: ao clicar, o comando de instalação automática será disparado na tela.
                 </p>
               )}
             </div>
@@ -267,20 +308,20 @@ export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) =>
         </div>
       </div>
 
-      {/* Modal / Guia de Instalação Manual para Celulares (iOS Safari / Android Chrome) */}
+      {/* Modal / Guia de Instalação Manual para Celulares caso o navegador precise de confirmação */}
       {showInstructionsModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-fade-in"
           onClick={() => setShowInstructionsModal(false)}
         >
           <div
-            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-5"
+            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-5 animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-slate-900 dark:text-white font-extrabold text-base">
                 <Smartphone className="h-5 w-5 text-emerald-500" />
-                <span>Como Instalar no Celular</span>
+                <span>Instalar FinanFly no Celular</span>
               </div>
               <button
                 onClick={() => setShowInstructionsModal(false)}
@@ -322,13 +363,13 @@ export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) =>
                       3
                     </span>
                     <p>
-                      Toque em <strong>&quot;Adicionar&quot;</strong> no canto superior direito. Pronto!
+                      Toque em <strong>&quot;Adicionar&quot;</strong> no canto superior direito.
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
-              /* Instruções para Android / Chrome / Outros Navegadores */
+              /* Instruções para Android / Chrome / Samsung Internet */
               <div className="space-y-3.5 text-xs text-slate-700 dark:text-slate-300">
                 <p className="font-semibold text-slate-900 dark:text-white">
                   No Android (Google Chrome ou Samsung Internet):
@@ -370,7 +411,7 @@ export const ModoAppWebPage: React.FC<ModoAppWebPageProps> = ({ onNavigate }) =>
                 onClick={() => setShowInstructionsModal(false)}
                 className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer text-center"
               >
-                Entendi, fechar instruções
+                Fechar
               </button>
             </div>
           </div>
