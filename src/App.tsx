@@ -77,6 +77,7 @@ export default function App() {
   const navRef = useRef<HTMLElement>(null);
   const settingsSectionRef = useRef<HTMLDivElement>(null);
   const dadosSectionRef = useRef<HTMLDivElement>(null);
+  const skipNextFetchUserDataRef = useRef<boolean>(false);
 
   const scrollToSection = (elementRef: React.RefObject<HTMLDivElement>) => {
     setTimeout(() => {
@@ -231,6 +232,10 @@ export default function App() {
   // Sync user data whenever currentUser changes
   useEffect(() => {
     if (currentUser) {
+      if (skipNextFetchUserDataRef.current) {
+        skipNextFetchUserDataRef.current = false;
+        return;
+      }
       fetchUserData(currentUser.email);
     } else {
       setUserData(null);
@@ -438,6 +443,7 @@ export default function App() {
 
   const handleLoginSuccess = (user: UserProfile, initialUserData?: UserData) => {
     if (initialUserData) {
+      skipNextFetchUserDataRef.current = true;
       setUserData(initialUserData);
     }
     setCurrentUser(user);

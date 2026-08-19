@@ -1177,19 +1177,8 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
 
   if (supabase) {
     try {
-      // Fetch relational tables in parallel for existing tables
-      const [
-        pTypesRes,
-        pStatusesRes,
-        incCatsRes,
-        expCatsRes,
-        incomesRes,
-        expensesRes,
-        annualRes,
-        shopRes,
-        actPlansRes,
-        defActionsRes
-      ] = await Promise.all([
+      // Fetch relational tables in parallel for existing tables with 2.5s timeout protection
+      const queryPromise = Promise.all([
         supabase.from('payment_types').select('name').eq('email', lowerEmail),
         supabase.from('payment_statuses').select('name').eq('email', lowerEmail),
         supabase.from('income_categories').select('name').eq('email', lowerEmail),
@@ -1201,6 +1190,19 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         supabase.from('action_plans').select('*').eq('email', lowerEmail).order('target_date', { ascending: true }),
         supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false })
       ]);
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 2500));
+      const [
+        pTypesRes,
+        pStatusesRes,
+        incCatsRes,
+        expCatsRes,
+        incomesRes,
+        expensesRes,
+        annualRes,
+        shopRes,
+        actPlansRes,
+        defActionsRes
+      ] = await Promise.race([queryPromise, timeoutPromise]);
 
       // If database schema is missing, fall back to monolithic user_data table or local DB
       const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && res.error.code === '42P01');
@@ -1635,17 +1637,29 @@ async function getAllUsersList(): Promise<any[]> {
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
-      const { data: usersData, error: userErr } = await supabase.from('users').select('*');
-      if (userErr) {
-        if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
-          markSupabaseKeyAsInvalid("Invalid API key");
+      const fetchSupabaseUsers = async () => {
+        const { data: usersData, error: userErr } = await supabase.from('users').select('*');
+        if (userErr) {
+          if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
+            markSupabaseKeyAsInvalid("Invalid API key");
+          }
+          return null;
         }
-      } else if (usersData) {
+        if (!usersData) return null;
+
         const [profilesRes, subsRes] = await Promise.all([
           supabase.from('profiles').select('*'),
           supabase.from('subscriptions').select('*')
         ]);
 
+        return { usersData, profilesRes, subsRes };
+      };
+
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_ADMIN_USERS')), 3000));
+      const result = await Promise.race([fetchSupabaseUsers(), timeoutPromise]);
+
+      if (result && result.usersData) {
+        const { usersData, profilesRes, subsRes } = result;
         const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.email.toLowerCase().trim(), p]));
         const subsMap = new Map((subsRes.data || []).map((s: any) => [s.email.toLowerCase().trim(), s]));
         const usersMap = new Map<string, any>();
@@ -2278,11 +2292,15 @@ app.post("/api/auth/login", async (req, res) => {
 
     // Instant user workspace data from memory / local DB (0ms response)
     const localDb = getDb();
-    const cachedUserData = userDataCache.get(lowerE)?.data || localDb.userData?.[lowerE] || null;
+    let cachedUserData = userDataCache.get(lowerE)?.data || localDb.userData?.[lowerE] || null;
+    if (!cachedUserData) {
+      cachedUserData = await getUserDataByEmail(lowerE);
+    }
+    const safeUserData = cachedUserData ? ensureUserHasDefaults(cachedUserData) : getDefaultUserData();
 
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
-    res.json({ user: userProfile, token, userData: cachedUserData });
+    res.json({ user: userProfile, token, userData: safeUserData });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
