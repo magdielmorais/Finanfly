@@ -862,32 +862,55 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
 async function saveUser(user: any): Promise<boolean> {
   const lowerEmail = user.email.toLowerCase().trim();
 
-  // Invalidate and update user cache immediately
-  userCache.set(lowerEmail, { data: { ...user }, timestamp: Date.now() });
-
-  // Keep local JSON DB updated
+  // Keep local JSON DB updated and merge with existing data to strictly protect personal fields
   const db = getDb();
-  const msgVal = user.userMessage !== undefined ? user.userMessage : (user.mensagemUsuario !== undefined ? user.mensagemUsuario : undefined);
+  const existingLocal = db.users[lowerEmail] || {};
+  
+  const mergedName = user.name !== undefined && user.name !== '' ? user.name : (existingLocal.name || '');
+  const mergedAddress = user.address !== undefined && user.address !== '' ? user.address : (existingLocal.address || '');
+  const mergedCity = user.city !== undefined && user.city !== '' ? user.city : (existingLocal.city || '');
+  const mergedState = user.state !== undefined && user.state !== '' ? user.state : (existingLocal.state || '');
+  const mergedPhone = user.phone !== undefined && user.phone !== '' ? user.phone : (existingLocal.phone || '');
+  const mergedCpf = user.cpf !== undefined && user.cpf !== '' ? user.cpf : (existingLocal.cpf || '');
+  const mergedPassword = user.password !== undefined && user.password !== '' ? user.password : (existingLocal.password || '');
+  const mergedUserMessage = user.userMessage !== undefined 
+    ? user.userMessage 
+    : (user.mensagemUsuario !== undefined 
+        ? user.mensagemUsuario 
+        : (existingLocal.userMessage !== undefined ? existingLocal.userMessage : (existingLocal.mensagemUsuario || '')));
 
-  if (!db.users[lowerEmail]) {
-    db.users[lowerEmail] = { ...user };
-  } else {
-    db.users[lowerEmail] = { ...db.users[lowerEmail], ...user };
-  }
+  const finalUser = {
+    ...existingLocal,
+    ...user,
+    name: mergedName,
+    address: mergedAddress,
+    city: mergedCity,
+    state: mergedState,
+    phone: mergedPhone,
+    cpf: mergedCpf,
+    password: mergedPassword,
+    userMessage: mergedUserMessage,
+    mensagemUsuario: mergedUserMessage
+  };
 
-  if (msgVal !== undefined) {
-    db.users[lowerEmail].userMessage = msgVal;
-    db.users[lowerEmail].mensagemUsuario = msgVal;
+  // Invalidate and update user cache immediately
+  userCache.set(lowerEmail, { data: { ...finalUser }, timestamp: Date.now() });
+
+  db.users[lowerEmail] = { ...finalUser };
+
+  if (mergedUserMessage !== undefined) {
+    db.users[lowerEmail].userMessage = mergedUserMessage;
+    db.users[lowerEmail].mensagemUsuario = mergedUserMessage;
     if (!db.userData) db.userData = {};
     if (db.userData[lowerEmail]) {
-      db.userData[lowerEmail].userMessage = msgVal;
-      db.userData[lowerEmail].mensagemUsuario = msgVal;
+      db.userData[lowerEmail].userMessage = mergedUserMessage;
+      db.userData[lowerEmail].mensagemUsuario = mergedUserMessage;
     }
   }
   saveDb(db);
 
-  if (user.subscription && (user.subscription.freePlanUsed || user.subscription.plan === 'gratis')) {
-    recordTrialHistory(lowerEmail, user.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
+  if (finalUser.subscription && (finalUser.subscription.freePlanUsed || finalUser.subscription.plan === 'gratis')) {
+    recordTrialHistory(lowerEmail, finalUser.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
   }
 
   const supabase = getSupabaseClient();
@@ -898,10 +921,10 @@ async function saveUser(user: any): Promise<boolean> {
         .from('users')
         .upsert({
           email: lowerEmail,
-          password: user.password,
-          role: user.role || 'user',
-          created_at: user.createdAt || user.created_at || new Date().toISOString(),
-          is_blocked: !!user.isBlocked
+          password: finalUser.password,
+          role: finalUser.role || 'user',
+          created_at: finalUser.createdAt || finalUser.created_at || new Date().toISOString(),
+          is_blocked: !!finalUser.isBlocked
         });
       
       if (userErr && (userErr.code === '42703' || userErr.message?.includes('is_blocked'))) {
@@ -910,9 +933,9 @@ async function saveUser(user: any): Promise<boolean> {
           .from('users')
           .upsert({
             email: lowerEmail,
-            password: user.password,
-            role: user.role || 'user',
-            created_at: user.createdAt || user.created_at || new Date().toISOString()
+            password: finalUser.password,
+            role: finalUser.role || 'user',
+            created_at: finalUser.createdAt || finalUser.created_at || new Date().toISOString()
           });
         userErr = fallbackRes.error;
       }
@@ -927,19 +950,19 @@ async function saveUser(user: any): Promise<boolean> {
         }
       }
 
-      // 2. Upsert profiles table (for personal details)
+      // 2. Upsert profiles table (for personal details - strictly preserving all existing personal data)
       const profilePayload: any = {
         email: lowerEmail,
-        name: user.name || '',
-        address: user.address || '',
-        city: user.city || '',
-        state: user.state || '',
-        phone: user.phone || '',
-        cpf: user.cpf || '',
+        name: finalUser.name || '',
+        address: finalUser.address || '',
+        city: finalUser.city || '',
+        state: finalUser.state || '',
+        phone: finalUser.phone || '',
+        cpf: finalUser.cpf || '',
         updated_at: new Date().toISOString()
       };
-      if (msgVal !== undefined) {
-        profilePayload.user_message = msgVal;
+      if (mergedUserMessage !== undefined && mergedUserMessage !== '') {
+        profilePayload.user_message = mergedUserMessage;
       }
 
       let { error: profErr } = await supabase
@@ -960,16 +983,16 @@ async function saveUser(user: any): Promise<boolean> {
       }
 
       // 3. Upsert subscriptions table (for user subscription tier)
-      if (user.subscription) {
+      if (finalUser.subscription) {
         const { error: subErr } = await supabase
           .from('subscriptions')
           .upsert({
             email: lowerEmail,
-            plan: user.subscription.plan || 'none',
-            valid_until: user.subscription.validUntil || null,
-            selected_at: user.subscription.selectedAt || null,
-            free_plan_used: !!user.subscription.freePlanUsed,
-            approved: !!user.subscription.approved,
+            plan: finalUser.subscription.plan || 'none',
+            valid_until: finalUser.subscription.validUntil || null,
+            selected_at: finalUser.subscription.selectedAt || null,
+            free_plan_used: !!finalUser.subscription.freePlanUsed,
+            approved: !!finalUser.subscription.approved,
             updated_at: new Date().toISOString()
           });
 
