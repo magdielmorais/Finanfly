@@ -1,7 +1,7 @@
 export type UserRole = 'user' | 'admin';
 
 export interface UserSubscription {
-  plan: 'none' | 'gratis' | 'mensal' | 'anual' | 'livre';
+  plan: 'none' | 'inativo' | 'gratis' | 'mensal' | 'anual' | 'livre';
   validUntil: string | null; // ISO Date String
   selectedAt: string | null; // ISO Date String
   freePlanUsed: boolean; // Cannot select 60-day free plan again
@@ -23,6 +23,10 @@ export interface UserProfile {
   userMessage?: string;
   mensagemUsuario?: string;
   isBlocked?: boolean;
+  previousPlan?: 'none' | 'inativo' | 'gratis' | 'mensal' | 'anual' | 'livre';
+  previousValidUntil?: string | null;
+  previousApproved?: boolean;
+  previousSubscription?: UserSubscription;
 }
 
 export interface Income {

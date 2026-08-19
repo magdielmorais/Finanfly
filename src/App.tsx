@@ -478,12 +478,15 @@ export default function App() {
   const isSubscriptionActive = () => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true; // Admins bypass subscription check
+    if (currentUser.isBlocked) return false;
 
     const plan = currentUser.subscription?.plan || 'none';
-    const validUntil = currentUser.subscription?.validUntil;
-    const approved = currentUser.subscription?.approved;
+    if (plan === 'none' || plan === 'inativo') return false;
+    if (plan === 'livre') return true;
 
-    if (plan === 'none') return false;
+    const validUntil = currentUser.subscription?.validUntil;
+    const approved = currentUser.subscription?.approved !== false;
+
     if (!approved) return false;
     if (validUntil && new Date(validUntil) < new Date()) return false;
 

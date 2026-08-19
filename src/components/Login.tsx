@@ -177,7 +177,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
 
         const user: UserProfile = data.user;
 
-        if (user.isBlocked) {
+        if (user.isBlocked || user.subscription?.plan === 'inativo') {
           setError('');
           const rawReason = user.userMessage || user.mensagemUsuario || '';
           const blockReason = typeof rawReason === 'string' && rawReason.trim().length > 0
@@ -195,27 +195,16 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           onLoginSuccess(user, data?.userData);
         } else {
           // Check subscription status
-          const hasPlan = user.subscription && user.subscription.plan !== 'none';
-          const isValid = user.subscription && user.subscription.validUntil && new Date(user.subscription.validUntil) > new Date();
+          const plan = user.subscription?.plan || 'none';
+          const isValid = plan === 'livre' || (user.subscription?.validUntil && new Date(user.subscription.validUntil) > new Date());
+          const isApproved = user.subscription?.approved !== false;
+          const isActivePlan = plan === 'livre' || plan === 'gratis' || plan === 'mensal' || plan === 'anual';
 
-          if (hasPlan && isValid) {
+          if (isActivePlan && isValid && isApproved) {
             onLoginSuccess(user, data?.userData);
           } else {
-            const customUserMessage = (user.userMessage || user.mensagemUsuario || '').trim();
-            if (customUserMessage) {
-              setError('');
-              setBlockedDetails({
-                title: "Usuário bloqueado",
-                reason: customUserMessage
-              });
-              return;
-            }
-
-            // Subscription expired or none. Show nice modal notification first, then redirect to subscription
-            setError('Sua assinatura está expirada ou não ativa! É necessário escolher um plano para continuar.');
-            setTimeout(() => {
-              onRedirectToSubscription(user);
-            }, 3000);
+            // Subscription is 'none' or expired: redirect user to choose subscription
+            onRedirectToSubscription(user);
           }
         }
       }

@@ -159,7 +159,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [newRole, setNewRole] = useState<'user' | 'admin'>('user');
-  const [newPlan, setNewPlan] = useState<'none' | 'gratis' | 'mensal' | 'anual' | 'livre'>('none');
+  const [newPlan, setNewPlan] = useState<'none' | 'inativo' | 'gratis' | 'mensal' | 'anual' | 'livre'>('none');
   const [successMsg, setSuccessMsg] = useState('');
 
   // Password reminder state
@@ -182,7 +182,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'user' | 'admin'>('user');
-  const [editPlan, setEditPlan] = useState<'none' | 'gratis' | 'mensal' | 'anual' | 'livre'>('none');
+  const [editPlan, setEditPlan] = useState<'none' | 'inativo' | 'gratis' | 'mensal' | 'anual' | 'livre'>('none');
   const [editPassword, setEditPassword] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [editAddress, setEditAddress] = useState('');
@@ -557,20 +557,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
     users.forEach(u => {
       if (u.role === 'admin') return;
+      if (u.isBlocked || u.subscription?.plan === 'inativo') {
+        expired++;
+        return;
+      }
       const validUntil = u.subscription?.validUntil;
-      const isApproved = u.subscription?.approved;
-      const hasPlan = u.subscription?.plan && u.subscription.plan !== 'none';
+      const isApproved = u.subscription?.approved !== false;
+      const plan = u.subscription?.plan || 'none';
 
-      if (hasPlan) {
-        const isValid = u.subscription?.plan === 'livre' || (validUntil && new Date(validUntil) > new Date());
-        if (isValid) {
-          if (isApproved) {
-            active++;
-          } else {
-            pendingApproval++;
-          }
+      if (plan === 'none') {
+        expired++;
+      } else if (plan === 'livre' || (validUntil && new Date(validUntil) > new Date())) {
+        if (isApproved) {
+          active++;
         } else {
-          expired++;
+          pendingApproval++;
         }
       } else {
         expired++;
@@ -593,7 +594,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       // 2. Filter by status Filter
       if (statusFilter === 'all') return true;
 
-      const isApproved = user.subscription?.approved;
+      const isBlocked = !!user.isBlocked || user.subscription?.plan === 'inativo';
+      const isApproved = user.subscription?.approved !== false;
       const plan = user.subscription?.plan || 'none';
       const valid = plan === 'livre' || (user.subscription?.validUntil && new Date(user.subscription.validUntil) > new Date());
 
@@ -601,8 +603,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         return user.role === 'admin';
       }
 
-      if (statusFilter === 'blocked') {
-        return !!user.isBlocked;
+      if (statusFilter === 'blocked' || statusFilter === 'inativo') {
+        return isBlocked;
       }
 
       if (user.role === 'admin') {
@@ -610,19 +612,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         return false;
       }
 
+      if (statusFilter === 'none') {
+        return !isBlocked && plan === 'none';
+      }
+
       if (statusFilter === 'approved') {
         // Approved and has active plan
-        return isApproved && plan !== 'none' && valid;
+        return !isBlocked && isApproved && plan !== 'none' && valid;
       }
 
       if (statusFilter === 'pending') {
         // Pending approval (even if plan exists, but not approved)
-        return !isApproved && plan !== 'none' && valid;
+        return !isBlocked && !isApproved && plan !== 'none' && valid;
       }
 
       if (statusFilter === 'expired') {
         // No plan or expired plan
-        return plan === 'none' || !valid;
+        return !isBlocked && (plan === 'none' || !valid);
       }
 
       return true;
@@ -798,7 +804,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         ...selectedUserForBlock,
         isBlocked: blockModalIsBlocked,
         userMessage: blockModalMessage,
-        mensagemUsuario: blockModalMessage
+        mensagemUsuario: blockModalMessage,
+        subscription: {
+          ...selectedUserForBlock.subscription,
+          plan: blockModalIsBlocked ? 'inativo' : (selectedUserForBlock.previousPlan || 'none')
+        }
       };
 
       setUsers(prev => prev.map(u => u.email.toLowerCase() === selectedUserForBlock.email.toLowerCase() ? { ...u, ...updatedUser } : u));
@@ -807,7 +817,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         setAuditUserMessage(blockModalMessage);
       }
 
-      setBlockSuccess(blockModalIsBlocked ? 'Usuário bloqueado e motivo registrado com sucesso!' : 'Usuário desbloqueado com sucesso!');
+      await fetchUsers();
+
+      setBlockSuccess(blockModalIsBlocked ? 'Usuário bloqueado e status alterado para inativo!' : 'Usuário desbloqueado e plano anterior restaurado com sucesso!');
       setTimeout(() => {
         setSelectedUserForBlock(null);
         setBlockSuccess('');
@@ -1301,7 +1313,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     onChange={(e) => setNewPlan(e.target.value as any)}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
-                    <option value="none">Nenhum</option>
+                    <option value="none">Nenhum (Acessa e escolhe plano)</option>
+                    <option value="inativo">Inativo ⛔ (Bloqueado)</option>
                     <option value="gratis">Grátis (60d)</option>
                     <option value="mensal">Mensal</option>
                     <option value="anual">Anual</option>
@@ -1448,7 +1461,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     onChange={(e) => setEditPlan(e.target.value as any)}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
-                    <option value="none">Nenhum / Inativo</option>
+                    <option value="none">Nenhum (Acessa e escolhe plano)</option>
+                    <option value="inativo">Inativo ⛔ (Bloqueia acesso)</option>
                     <option value="gratis">Grátis (60d)</option>
                     <option value="mensal">Mensal</option>
                     <option value="anual">Anual ✨</option>
@@ -1521,9 +1535,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               >
                 <option value="all">Todos os Status</option>
                 <option value="approved">Aprovados / Ativos ✅</option>
+                <option value="none">Nenhum (Pendente de Plano) ⚠️</option>
                 <option value="pending">Pendentes de Aprovação ⏳</option>
-                <option value="expired">Inativos / Expirados ❌</option>
-                <option value="blocked">Bloqueados 🚫</option>
+                <option value="expired">Planos Expirados ⌛</option>
+                <option value="blocked">Inativos / Bloqueados ⛔</option>
                 <option value="admin">Administradores 🛡️</option>
               </select>
 
@@ -1566,17 +1581,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {filteredUsers.map((user) => {
                     const plan = user.subscription?.plan || 'none';
+                    const isBlocked = !!user.isBlocked || plan === 'inativo';
                     const valid = plan === 'livre' || (user.subscription?.validUntil && new Date(user.subscription.validUntil) > new Date());
-                    const isApproved = user.subscription?.approved;
+                    const isApproved = user.subscription?.approved !== false;
 
                     return (
                       <tr key={user.email} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                         <td className="py-3">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-slate-800 dark:text-slate-200">{user.name}</span>
-                            {user.isBlocked && (
+                            {isBlocked && (
                               <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm">
-                                <Lock className="h-2.5 w-2.5" /> Bloqueado
+                                <Lock className="h-2.5 w-2.5" /> Inativo / Bloqueado
                               </span>
                             )}
                           </div>
@@ -1593,13 +1609,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                         </td>
                         <td className="py-3">
                           <div className="font-semibold text-slate-700 dark:text-slate-300">
+                            {plan === 'inativo' && <span className="text-rose-600 dark:text-rose-400">Inativo ⛔</span>}
+                            {plan === 'none' && <span className="text-amber-600 dark:text-amber-400">Nenhum (Pendente) ⚠️</span>}
                             {plan === 'gratis' && 'Grátis (60d)'}
                             {plan === 'mensal' && 'Mensal'}
                             {plan === 'anual' && 'Anual ✨'}
                             {plan === 'livre' && 'Livre 🔓'}
-                            {plan === 'none' && 'Nenhum'}
                           </div>
-                          {plan !== 'livre' && user.subscription?.validUntil && (
+                          {plan !== 'livre' && plan !== 'inativo' && plan !== 'none' && user.subscription?.validUntil && (
                             <div className="text-[9px] text-slate-400 font-mono">
                               Exp: {new Date(user.subscription.validUntil).toLocaleDateString('pt-BR')}
                             </div>
@@ -1623,13 +1640,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                         <td className="py-3 text-center">
                           {user.role === 'admin' ? (
                             <span className="text-[10px] text-emerald-600 font-bold">Livre</span>
+                          ) : isBlocked ? (
+                            <span className="text-[10px] text-rose-600 font-bold bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900">Bloqueado</span>
                           ) : (
                             <button
                               onClick={() => handleToggleApproval(user.email, isApproved)}
                               className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
                                 isApproved
                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40'
-                                  : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40'
+                                   : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40'
                               }`}
                             >
                               {isApproved ? 'Aprovado ✓' : 'Aprovar manual ➜'}

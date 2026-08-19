@@ -638,7 +638,11 @@ function refreshUserInBackground(lowerEmail: string) {
         cpf: cpfValue || '',
         userMessage: resolvedUserMessage,
         mensagemUsuario: resolvedUserMessage,
-        isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked),
+        isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked || (subData ? subData.plan === 'inativo' : false) || localUser?.subscription?.plan === 'inativo'),
+        previousPlan: localUser?.previousPlan || (localUser?.subscription?.plan && localUser?.subscription?.plan !== 'inativo' ? localUser.subscription.plan : undefined),
+        previousValidUntil: localUser?.previousValidUntil !== undefined ? localUser.previousValidUntil : (localUser?.subscription?.validUntil || null),
+        previousApproved: localUser?.previousApproved !== undefined ? localUser.previousApproved : localUser?.subscription?.approved,
+        previousSubscription: localUser?.previousSubscription || (localUser?.subscription?.plan !== 'inativo' ? localUser?.subscription : undefined),
         subscription: subData ? {
           plan: subData.plan || 'none',
           validUntil: subData.valid_until,
@@ -647,12 +651,12 @@ function refreshUserInBackground(lowerEmail: string) {
           freePlanUsedReason: undefined,
           approved: !!subData.approved
         } : {
-          plan: 'none',
-          validUntil: null,
-          selectedAt: null,
-          freePlanUsed: false,
+          plan: localUser?.subscription?.plan || 'none',
+          validUntil: localUser?.subscription?.validUntil || null,
+          selectedAt: localUser?.subscription?.selectedAt || null,
+          freePlanUsed: !!localUser?.subscription?.freePlanUsed,
           freePlanUsedReason: undefined,
-          approved: false
+          approved: localUser?.subscription?.approved !== undefined ? !!localUser.subscription.approved : false
         }
       };
 
@@ -796,7 +800,11 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
           cpf: cpfValue || '',
           userMessage: resolvedUserMessage,
           mensagemUsuario: resolvedUserMessage,
-          isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked),
+          isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked || (subData ? subData.plan === 'inativo' : false) || localUser?.subscription?.plan === 'inativo'),
+          previousPlan: localUser?.previousPlan || (localUser?.subscription?.plan && localUser?.subscription?.plan !== 'inativo' ? localUser.subscription.plan : undefined),
+          previousValidUntil: localUser?.previousValidUntil !== undefined ? localUser.previousValidUntil : (localUser?.subscription?.validUntil || null),
+          previousApproved: localUser?.previousApproved !== undefined ? localUser.previousApproved : localUser?.subscription?.approved,
+          previousSubscription: localUser?.previousSubscription || (localUser?.subscription?.plan !== 'inativo' ? localUser?.subscription : undefined),
           subscription: subData ? {
             plan: subData.plan || 'none',
             validUntil: subData.valid_until,
@@ -805,12 +813,12 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
             freePlanUsedReason: undefined,
             approved: !!subData.approved
           } : {
-            plan: 'none',
-            validUntil: null,
-            selectedAt: null,
-            freePlanUsed: false,
+            plan: localUser?.subscription?.plan || 'none',
+            validUntil: localUser?.subscription?.validUntil || null,
+            selectedAt: localUser?.subscription?.selectedAt || null,
+            freePlanUsed: !!localUser?.subscription?.freePlanUsed,
             freePlanUsedReason: undefined,
-            approved: false
+            approved: localUser?.subscription?.approved !== undefined ? !!localUser.subscription.approved : false
           }
         };
 
@@ -1644,21 +1652,25 @@ async function getAllUsersList(): Promise<any[]> {
             cpf: prof ? prof.cpf : (localU?.cpf || ''),
             userMessage: userMsg,
             mensagemUsuario: userMsg,
-            isBlocked: !!(u.is_blocked || u.isBlocked || prof?.is_blocked || prof?.isBlocked || localU?.isBlocked || localU?.blocked),
+            isBlocked: !!(u.is_blocked || u.isBlocked || prof?.is_blocked || prof?.isBlocked || localU?.isBlocked || localU?.blocked || sub?.plan === 'inativo' || localU?.subscription?.plan === 'inativo'),
             role: u.role || 'user',
+            previousPlan: localU?.previousPlan || (localU?.subscription?.plan && localU?.subscription?.plan !== 'inativo' ? localU.subscription.plan : undefined),
+            previousValidUntil: localU?.previousValidUntil !== undefined ? localU.previousValidUntil : (localU?.subscription?.validUntil || null),
+            previousApproved: localU?.previousApproved !== undefined ? localU.previousApproved : localU?.subscription?.approved,
+            previousSubscription: localU?.previousSubscription || (localU?.subscription?.plan !== 'inativo' ? localU?.subscription : undefined),
             subscription: sub ? {
               plan: sub.plan || 'none',
               validUntil: sub.valid_until,
               selectedAt: sub.selected_at,
               freePlanUsed: !!sub.free_plan_used,
               approved: !!sub.approved
-            } : {
+            } : (localU?.subscription ? { ...localU.subscription } : {
               plan: 'none',
               validUntil: null,
               selectedAt: null,
               freePlanUsed: false,
               approved: false
-            },
+            }),
             createdAt: u.created_at || u.createdAt || new Date().toISOString()
           });
         }
@@ -1678,7 +1690,7 @@ async function getAllUsersList(): Promise<any[]> {
               ...localU,
               userMessage: userMsg,
               mensagemUsuario: userMsg,
-              isBlocked: !!(localU.isBlocked || localU.blocked)
+              isBlocked: !!(localU.isBlocked || localU.blocked || localU.subscription?.plan === 'inativo')
             });
           }
         }
@@ -3130,7 +3142,10 @@ app.post("/api/admin/create-user", async (req, res) => {
     }
 
     let validUntil = null;
-    if (plan === "gratis") {
+    let isBlocked = false;
+    if (plan === "inativo") {
+      isBlocked = true;
+    } else if (plan === "gratis") {
       const dbInstance = getDb();
       const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
       validUntil = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
@@ -3149,6 +3164,7 @@ app.post("/api/admin/create-user", async (req, res) => {
       phone: "",
       role: role || "user",
       password: password || "user123",
+      isBlocked,
       subscription: {
         plan: plan || "none",
         validUntil,
@@ -3192,9 +3208,16 @@ app.post("/api/admin/edit-user", async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    if (isBlocked !== undefined) {
-      user.isBlocked = !!isBlocked;
+    if (!user.subscription) {
+      user.subscription = {
+        plan: "none",
+        validUntil: null,
+        selectedAt: new Date().toISOString(),
+        freePlanUsed: false,
+        approved: true,
+      };
     }
+
     if (name !== undefined) user.name = name;
     if (role !== undefined) user.role = role;
     if (password !== undefined && password.trim() !== "") user.password = password;
@@ -3210,28 +3233,68 @@ app.post("/api/admin/edit-user", async (req, res) => {
       user.mensagemUsuario = mensagemUsuario;
     }
 
-    if (plan !== undefined) {
-      if (!user.subscription) {
-        user.subscription = {
-          plan: "none",
-          validUntil: null,
-          selectedAt: new Date().toISOString(),
-          freePlanUsed: false,
-          approved: true,
-        };
+    // Handle isBlocked flag change
+    if (isBlocked !== undefined) {
+      if (isBlocked) {
+        // ADMIN IS BLOCKING USER:
+        // Save previous plan before changing to inativo if it's not already inativo
+        if (user.subscription.plan !== "inativo") {
+          user.previousPlan = user.subscription.plan || "none";
+          user.previousValidUntil = user.subscription.validUntil || null;
+          user.previousApproved = user.subscription.approved !== undefined ? user.subscription.approved : true;
+          user.previousSubscription = { ...user.subscription };
+        }
+        user.isBlocked = true;
+        user.subscription.plan = "inativo";
+      } else {
+        // ADMIN IS UNBLOCKING USER:
+        user.isBlocked = false;
+        if (user.subscription.plan === "inativo") {
+          const prevPlan = user.previousPlan || (user.previousSubscription ? user.previousSubscription.plan : null);
+          if (prevPlan && prevPlan !== "inativo" && prevPlan !== "none") {
+            // Restore previous plan (gratis, mensal, anual, livre) with its existing expiration
+            user.subscription.plan = prevPlan;
+            user.subscription.validUntil = user.previousValidUntil !== undefined ? user.previousValidUntil : (user.previousSubscription ? user.previousSubscription.validUntil : null);
+            user.subscription.approved = user.previousApproved !== undefined ? user.previousApproved : true;
+            if (user.previousSubscription?.freePlanUsed !== undefined) {
+              user.subscription.freePlanUsed = user.previousSubscription.freePlanUsed;
+            }
+          } else {
+            // If no plan was chosen before, reset to 'none' so user accesses and chooses a subscription
+            user.subscription.plan = "none";
+            user.subscription.validUntil = null;
+          }
+        }
       }
-      
-      if (user.subscription.plan !== plan) {
+    }
+
+    // Handle explicit plan change
+    if (plan !== undefined) {
+      if (plan === "inativo") {
+        if (user.subscription.plan !== "inativo") {
+          user.previousPlan = user.subscription.plan || "none";
+          user.previousValidUntil = user.subscription.validUntil || null;
+          user.previousApproved = user.subscription.approved !== undefined ? user.subscription.approved : true;
+          user.previousSubscription = { ...user.subscription };
+        }
+        user.isBlocked = true;
+        user.subscription.plan = "inativo";
+      } else {
+        // If transitioning away from inativo or isBlocked
+        user.isBlocked = false;
         user.subscription.plan = plan;
         let validUntil = null;
         if (plan === "gratis") {
           const dbInstance = getDb();
           const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
           validUntil = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+          user.subscription.freePlanUsed = true;
         } else if (plan === "mensal") {
           validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         } else if (plan === "anual") {
           validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        } else if (plan === "livre" || plan === "none") {
+          validUntil = null;
         }
         user.subscription.validUntil = validUntil;
         user.subscription.selectedAt = new Date().toISOString();
