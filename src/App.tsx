@@ -944,8 +944,8 @@ export default function App() {
       }`}>
         {/* Brand logo */}
         <div className="p-5 flex items-center justify-between border-b border-slate-800/60">
-          <div className="flex items-center gap-2.5">
-            <FinanFlyLogo size={32} />
+          <div className="flex items-center gap-3">
+            <FinanFlyLogo size={36} />
             <span className="text-lg font-bold text-white tracking-tight">FinanFly</span>
           </div>
           {/* Close button for mobile */}

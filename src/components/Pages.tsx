@@ -2384,8 +2384,8 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
   const [selectedYear, setSelectedYear] = useState<number>(2026);
 
   const monthsList = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    'JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN',
+    'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'
   ];
 
   const annualStats = useMemo(() => {
@@ -2512,10 +2512,10 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
           <table className="w-full text-left text-xs table-fixed">
             <thead>
               <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
-                <th className="pb-3.5 font-semibold w-[14%]">Mês</th>
-                <th className="pb-3.5 font-semibold text-right w-[28.66%]">Orçado</th>
-                <th className="pb-3.5 font-semibold text-right w-[28.66%]">Realizado</th>
-                <th className="pb-3.5 font-semibold text-right w-[28.68%]">Saldo</th>
+                <th className="pb-3.5 font-semibold w-[10%]">Mês</th>
+                <th className="pb-3.5 font-semibold text-right w-[30%]">Orçado</th>
+                <th className="pb-3.5 font-semibold text-right w-[30%]">Realizado</th>
+                <th className="pb-3.5 font-semibold text-right w-[30%]">Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
@@ -2523,12 +2523,17 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
                 return (
                   <tr key={m.monthIndex} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
                     <td className="py-3 font-bold text-slate-700 dark:text-slate-300">{m.monthName}</td>
-                    <td className="py-3 text-right font-mono font-extrabold text-slate-950 dark:text-white">R$ {m.budget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="py-3 text-right font-mono font-extrabold text-slate-950 dark:text-white">
+                      <span className="font-normal text-[10px] text-slate-500 mr-0.5 inline-block">R$</span>
+                      {m.budget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
                     <td className="py-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
-                      R$ {m.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      <span className="font-normal text-[10px] text-slate-500 mr-0.5 inline-block">R$</span>
+                      {m.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                     <td className={`py-3 text-right font-mono font-bold ${m.balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                      R$ {m.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      <span className={`font-normal text-[10px] mr-0.5 inline-block ${m.balance < 0 ? 'text-red-500/80 dark:text-red-400/80' : 'text-emerald-600/80 dark:text-emerald-400/80'}`}>R$</span>
+                      {m.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 );
