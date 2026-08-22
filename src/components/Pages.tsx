@@ -2315,7 +2315,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Orçados do Mês</span>
-          <div className="text-xl font-bold text-indigo-600 mt-1 font-mono">
+          <div className="text-xl font-bold text-purple-600 dark:text-sky-400 mt-1 font-mono">
             R$ {monthData.sumBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
@@ -2340,29 +2340,32 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
 
       {/* Performance by Category Table */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Desempenho por Categoria Mensal</h3>
+        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Resumo por Categoria Mensal</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs table-fixed">
             <thead>
               <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
-                <th className="pb-3.5 font-semibold">Categoria</th>
-                <th className="pb-3.5 font-semibold text-right">Orçado Mês</th>
-                <th className="pb-3.5 font-semibold text-right">Realizado Mês</th>
-                <th className="pb-3.5 font-semibold text-right">Saldo</th>
+                <th className="pb-3.5 font-semibold w-[22%]">Categoria</th>
+                <th className="pb-3.5 font-semibold text-right w-[26%]">Orçado Mês</th>
+                <th className="pb-3.5 font-semibold text-right w-[26%]">Realizado Mês</th>
+                <th className="pb-3.5 font-semibold text-right w-[26%]">Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {monthData.categoriesTableData.map((item) => (
                 <tr key={item.category} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
-                  <td className="py-3 font-bold text-slate-700 dark:text-slate-300">{item.category}</td>
+                  <td className="py-3 font-bold text-slate-700 dark:text-slate-300 truncate" title={item.category}>{item.category}</td>
                   <td className="py-3 text-right font-mono font-medium text-slate-600 dark:text-slate-400">
-                    R$ {item.budgetedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    <span className="text-[10px] mr-0.5 opacity-80 font-sans">R$</span>
+                    {item.budgetedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="py-3 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
-                    R$ {item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    <span className="text-[10px] mr-0.5 opacity-80 font-sans">R$</span>
+                    {item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
                   <td className={`py-3 text-right font-mono font-bold ${item.balanceValue < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    R$ {item.balanceValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    <span className="text-[10px] mr-0.5 opacity-80 font-sans">{item.balanceValue < 0 ? '- R$' : 'R$'}</span>
+                    {Math.abs(item.balanceValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
                 </tr>
               ))}

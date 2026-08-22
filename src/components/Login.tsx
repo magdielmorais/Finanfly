@@ -221,18 +221,36 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
     setBlockedDetails(null);
   };
 
+  const [logoFailed, setLogoFailed] = useState(false);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-900 px-4 py-12">
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center">
-            <img
-              src={loginLogo}
-              alt="FinanFly Logo"
-              className="h-[92px] w-[92px] object-contain"
-              referrerPolicy="no-referrer"
-            />
+            {logoFailed ? (
+              <FinanFlyLogo size={92} />
+            ) : (
+              <img
+                src={loginLogo}
+                alt="FinanFly Logo"
+                className="h-[92px] w-[92px] object-contain"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  const base = import.meta.env.BASE_URL || '/';
+                  const baseClean = base.endsWith('/') ? base : `${base}/`;
+                  if (!target.src.includes('logo_oficial_finanfly.png') && !target.src.includes('logo.png')) {
+                    target.src = `${baseClean}logo_oficial_finanfly.png`;
+                  } else if (!target.src.includes('favicon.png')) {
+                    target.src = `${baseClean}favicon.png`;
+                  } else {
+                    setLogoFailed(true);
+                  }
+                }}
+              />
+            )}
           </div>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-white font-sans">
             FinanFly
@@ -243,7 +261,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           <p className="mt-2 text-xs text-white font-medium">
             Controle financeiro inteligente, prático e seguro.
           </p>
-          <p className="mt-2.5 text-lg font-bold text-blue-500">
+          <p className="mt-2.5 text-sm font-semibold text-blue-500">
             Comece grátis
           </p>
         </div>

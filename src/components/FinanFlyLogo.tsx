@@ -72,8 +72,12 @@ export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
       referrerPolicy="no-referrer"
       onError={(e) => {
         const target = e.currentTarget;
-        if (!target.src.includes('favicon.png')) {
-          target.src = '/favicon.png';
+        const base = import.meta.env.BASE_URL || '/';
+        const baseClean = base.endsWith('/') ? base : `${base}/`;
+        if (!target.src.includes('logo_oficial_finanfly.png') && !target.src.includes('logo.png')) {
+          target.src = `${baseClean}logo_oficial_finanfly.png`;
+        } else if (!target.src.includes('favicon.png')) {
+          target.src = `${baseClean}favicon.png`;
         } else {
           setImageError(true);
         }
