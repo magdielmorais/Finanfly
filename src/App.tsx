@@ -955,7 +955,7 @@ export default function App() {
             <FinanFlyLogo size={38} rounded="rounded-xl" shadow className="transition-transform group-hover:scale-105" />
             <div>
               <span className="text-lg font-extrabold text-white tracking-tight block leading-tight">FinanFly</span>
-              <span className="text-[10px] text-sky-400 font-semibold tracking-wider uppercase block">Finanças Inteligentes</span>
+              <span className="text-[8.5px] text-slate-300 font-medium tracking-wider uppercase block">Finanças Inteligente</span>
             </div>
           </div>
           {/* Close button for mobile */}

@@ -2355,21 +2355,21 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       {/* KPI Row */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Orçados do Mês</span>
-          <div className="text-xl font-bold text-purple-600 dark:text-sky-400 mt-1 font-mono">
-            R$ {monthData.sumBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          <span className="text-xs sm:text-[13px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Orçados do Mês</span>
+          <div className="text-xl font-bold text-blue-900 dark:text-sky-400 mt-1 font-mono">
+            <span className="text-xs mr-0.5 opacity-60 font-sans font-normal">R$</span> {monthData.sumBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Realizados do Mês</span>
+          <span className="text-xs sm:text-[13px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Realizados do Mês</span>
           <div className="text-xl font-bold text-red-500 mt-1 font-mono">
-            - R$ {monthData.sumExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <span className="text-xs mr-0.5 opacity-60 font-sans font-normal">R$</span> -{monthData.sumExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo do Mês</span>
+          <span className="text-xs sm:text-[13px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Saldo do Mês</span>
           <div className={`text-xl font-bold mt-1 font-mono ${monthData.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-            R$ {monthData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <span className="text-xs mr-0.5 opacity-60 font-sans font-normal">R$</span> {monthData.balance < 0 ? `-${Math.abs(monthData.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : monthData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
       </div>
@@ -2405,16 +2405,16 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
                   <tr key={item.category} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
                     <td className="py-3 font-bold text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-tight" title={item.category}>{item.category}</td>
                     <td className="py-3 text-right font-mono text-slate-800 dark:text-white">
-                      <span className="text-[10px] mr-0.5 opacity-80 font-sans font-normal">R$</span>
+                      <span className="text-[10px] mr-0.5 opacity-50 font-sans font-normal text-slate-500 dark:text-slate-400">R$</span>
                       <span className="font-bold">{item.budgetedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     </td>
                     <td className="py-3 text-right font-mono text-slate-800 dark:text-slate-200">
-                      <span className="text-[10px] mr-0.5 opacity-80 font-sans font-normal">R$</span>
+                      <span className="text-[10px] mr-0.5 opacity-50 font-sans font-normal text-slate-500 dark:text-slate-400">R$</span>
                       <span className="font-bold">{item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     </td>
                     <td className={`py-3 text-right font-mono font-bold ${balanceColorClass}`}>
-                      <span className="text-[10px] mr-0.5 opacity-80 font-sans font-normal">{item.balanceValue < 0 ? '- R$' : 'R$'}</span>
-                      <span>{Math.abs(item.balanceValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-[10px] mr-0.5 opacity-70 font-sans font-normal inline-block">R$</span>
+                      <span>{item.balanceValue < 0 ? `-${Math.abs(item.balanceValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : item.balanceValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     </td>
                   </tr>
                 );
@@ -2892,21 +2892,21 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
       {/* KPI Row */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Orçado Total {selectedYear}</span>
-          <div className="text-xl font-bold text-purple-600 dark:text-sky-400 mt-1 font-mono">
-            R$ {annualStats.yearPlannedExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          <span className="text-xs sm:text-[13px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Orçado Total {selectedYear}</span>
+          <div className="text-xl font-bold text-blue-900 dark:text-sky-400 mt-1 font-mono">
+            <span className="text-xs mr-0.5 opacity-60 font-sans font-normal">R$</span> {annualStats.yearPlannedExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Realizado Total {selectedYear}</span>
+          <span className="text-xs sm:text-[13px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Realizado Total {selectedYear}</span>
           <div className="text-xl font-bold text-red-500 mt-1 font-mono">
-            R$ {annualStats.yearExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <span className="text-xs mr-0.5 opacity-60 font-sans font-normal">R$</span> -{annualStats.yearExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo Total</span>
+          <span className="text-xs sm:text-[13px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Saldo Total {selectedYear}</span>
           <div className={`text-xl font-bold mt-1 font-mono ${annualStats.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-            R$ {annualStats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <span className="text-xs mr-0.5 opacity-60 font-sans font-normal">R$</span> {annualStats.balance < 0 ? `-${Math.abs(annualStats.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : annualStats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
       </div>
@@ -2931,20 +2931,29 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {annualStats.monthlySummary.map((m) => {
+                const isZero = m.budget === 0 && m.expense === 0;
+                let balanceColorClass = 'text-emerald-600 dark:text-emerald-400';
+
+                if (isZero) {
+                  balanceColorClass = 'text-black dark:text-white';
+                } else if (m.balance < 0) {
+                  balanceColorClass = 'text-red-600 dark:text-red-400';
+                }
+
                 return (
                   <tr key={m.monthIndex} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
                     <td className="py-3 font-bold text-slate-700 dark:text-slate-300">{m.monthName}</td>
                     <td className="py-3 text-right font-mono font-extrabold text-slate-950 dark:text-white">
-                      <span className="font-normal text-[10px] text-slate-500 mr-0.5 inline-block">R$</span>
+                      <span className="font-normal text-[10px] text-slate-500 dark:text-slate-400 opacity-50 mr-0.5 inline-block">R$</span>
                       {m.budget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
-                      <span className="font-normal text-[10px] text-slate-500 mr-0.5 inline-block">R$</span>
+                      <span className="font-normal text-[10px] text-slate-500 dark:text-slate-400 opacity-50 mr-0.5 inline-block">R$</span>
                       {m.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className={`py-3 text-right font-mono font-bold ${m.balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                      <span className={`font-normal text-[10px] mr-0.5 inline-block ${m.balance < 0 ? 'text-red-500/80 dark:text-red-400/80' : 'text-emerald-600/80 dark:text-emerald-400/80'}`}>R$</span>
-                      {m.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    <td className={`py-3 text-right font-mono font-bold ${balanceColorClass}`}>
+                      <span className="font-normal text-[10px] opacity-70 mr-0.5 inline-block">R$</span>
+                      <span>{m.balance < 0 ? `-${Math.abs(m.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : m.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     </td>
                   </tr>
                 );

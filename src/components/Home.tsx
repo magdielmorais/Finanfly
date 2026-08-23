@@ -115,7 +115,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
           <div className="hidden lg:flex flex-col items-center justify-center p-6 rounded-2xl bg-slate-950/40 border border-slate-800/80 backdrop-blur-sm shrink-0 shadow-2xl">
             <FinanFlyLogo size={120} rounded="rounded-3xl" shadow />
             <span className="mt-3 text-sm font-extrabold tracking-wider text-white">FinanFly</span>
-            <span className="text-[11px] font-bold text-sky-400 tracking-wide">Finanças Inteligentes</span>
+            <span className="text-[11px] font-bold text-sky-400 tracking-wide">Finanças Inteligente</span>
           </div>
         </div>
       </div>

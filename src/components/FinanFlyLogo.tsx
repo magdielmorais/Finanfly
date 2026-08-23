@@ -6,22 +6,24 @@ interface FinanFlyLogoProps {
   size?: number | string;
   rounded?: string;
   shadow?: boolean;
+  alt?: string;
 }
 
 export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
   className = '',
   size = 32,
   rounded = 'rounded-lg',
-  shadow = false
+  shadow = false,
+  alt = 'FinanFly Logo'
 }) => {
-  const [imageError, setImageError] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
-  if (imageError) {
+  if (hasError) {
     return (
       <svg
         viewBox="0 0 1024 1024"
         className={`block ${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
-        style={{ width: size, height: size }}
+        style={{ width: size, height: size, minWidth: size, minHeight: size }}
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
@@ -65,24 +67,15 @@ export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
   return (
     <img
       src={logoAsset}
-      alt="FinanFly Logo"
-      className={`block object-contain select-none ${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
-      style={{ width: size, height: size }}
-      referrerPolicy="no-referrer"
-      onError={(e) => {
-        const target = e.currentTarget;
-        const base = import.meta.env.BASE_URL || '/';
-        const baseClean = base.endsWith('/') ? base : `${base}/`;
-        if (!target.src.includes('logo.png')) {
-          target.src = `${baseClean}logo.png`;
-        } else if (!target.src.includes('favicon.png')) {
-          target.src = `${baseClean}favicon.png`;
-        } else {
-          setImageError(true);
-        }
-      }}
+      alt={alt}
+      className={`block object-contain select-none shrink-0 ${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
+      style={{ width: size, height: size, minWidth: size, minHeight: size }}
+      loading="eager"
+      decoding="async"
+      onError={() => setHasError(true)}
     />
   );
 };
 
 export default FinanFlyLogo;
+
