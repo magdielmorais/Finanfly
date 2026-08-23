@@ -53,7 +53,12 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
 
   return (
     <div className="w-full min-w-0">
-      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+      <div 
+        data-no-swipe="true"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
+      >
         <svg
           viewBox={`0 0 ${width} ${height}`}
           style={{ minWidth: '650px' }}
@@ -396,7 +401,12 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
 
   return (
     <div className="w-full min-w-0">
-      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+      <div 
+        data-no-swipe="true"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
+      >
         <svg
           viewBox={`0 0 ${width} ${height}`}
           style={{ minWidth: '750px' }}
@@ -894,7 +904,12 @@ export const Investment5YearTotalChart: React.FC<{
 
   return (
     <div className="w-full min-w-0">
-      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+      <div 
+        data-no-swipe="true"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
+      >
         <svg
           viewBox={`0 0 ${width} ${height}`}
           style={{ minWidth: '650px' }}
@@ -1049,7 +1064,12 @@ export const Investment5YearStackedChart: React.FC<{
 
   return (
     <div className="w-full min-w-0">
-      <div className="relative w-full overflow-x-auto pb-3 custom-scrollbar">
+      <div 
+        data-no-swipe="true"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
+      >
         <svg
           viewBox={`0 0 ${width} ${height}`}
           style={{ minWidth: '650px' }}
@@ -1356,7 +1376,10 @@ export const InvestmentMonthlyDonutChart: React.FC<{
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[220px] max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+        <div 
+          data-no-swipe="true"
+          className="flex flex-col gap-2 w-full sm:w-auto min-w-[220px] max-h-60 overflow-y-auto pr-1 custom-scrollbar"
+        >
           {data.map((item, idx) => {
             if (item.value <= 0) return null;
             const pct = totalValue > 0 ? ((item.value / totalValue) * 100).toFixed(1) : '0.0';
