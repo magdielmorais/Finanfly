@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish } from '../types';
 import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart } from 'lucide-react';
+import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface PageProps {
   userData: UserData;
@@ -2195,6 +2196,8 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
+  const [selectedRealizedCategory, setSelectedRealizedCategory] = useState<string | null>(null);
 
   const monthsList = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -2244,6 +2247,18 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
     const yearPlan = userData.annualPlanning.find(p => p.year === selectedYear);
     const budget = yearPlan?.monthlyBudgets.find(b => b.month === selectedMonth);
 
+    const CATEGORY_COLORS = [
+      '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899',
+      '#06B6D4', '#F97316', '#14B8A6', '#6366F1', '#EF4444',
+      '#84CC16', '#D946EF', '#0284C7', '#E11D48', '#EAB308', '#22C55E',
+      '#A855F7', '#38BDF8', '#FB7185', '#FACC15', '#4ADE80', '#64748B'
+    ];
+
+    const categoryColorMap: Record<string, string> = {};
+    userData.expenseCategories.forEach((cat, idx) => {
+      categoryColorMap[cat] = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+    });
+
     const categoriesTableData = userData.expenseCategories.map(cat => {
       const catBudget = budget?.categoryBudgets?.find(cb => cb.category === cat);
       const budgetedValue = catBudget?.budgetedValue || 0;
@@ -2258,11 +2273,30 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
         category: cat,
         budgetedValue,
         realizedValue,
-        balanceValue
+        balanceValue,
+        color: categoryColorMap[cat] || '#94A3B8'
       };
     }).sort((a, b) => a.category.localeCompare(b.category, 'pt-BR'));
 
     const sumBudget = categoriesTableData.reduce((sum, item) => sum + item.budgetedValue, 0);
+
+    const budgetedCategoriesList = categoriesTableData.map(item => ({
+      name: item.category,
+      value: item.budgetedValue,
+      percentage: sumBudget > 0 ? (item.budgetedValue / sumBudget) * 100 : 0,
+      color: item.color
+    }));
+
+    const budgetedPieSlices = budgetedCategoriesList.filter(item => item.value > 0);
+
+    const realizedCategoriesList = categoriesTableData.map(item => ({
+      name: item.category,
+      value: item.realizedValue,
+      percentage: sumExpense > 0 ? (item.realizedValue / sumExpense) * 100 : 0,
+      color: item.color
+    }));
+
+    const realizedPieSlices = realizedCategoriesList.filter(item => item.value > 0);
 
     return {
       sumIncome,
@@ -2271,7 +2305,11 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       balance: sumBudget - sumExpense,
       catStats: Object.entries(catStats).map(([category, value]) => ({ category, value })),
       statement,
-      categoriesTableData
+      categoriesTableData,
+      budgetedCategoriesList,
+      budgetedPieSlices,
+      realizedCategoriesList,
+      realizedPieSlices
     };
   }, [userData.incomes, userData.expenses, userData.annualPlanning, userData.expenseCategories, selectedMonth, selectedYear]);
 
@@ -2308,6 +2346,9 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
           >
             <Trash2 className="h-4 w-4" />
           </button>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            ← selecione o filtro
+          </span>
         </div>
       </div>
 
@@ -2327,7 +2368,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo do Mês</span>
-          <div className={`text-xl font-bold mt-1 font-mono ${monthData.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+          <div className={`text-xl font-bold mt-1 font-mono ${monthData.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
             R$ {monthData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
@@ -2344,31 +2385,40 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs table-fixed">
             <thead>
-              <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
-                <th className="pb-3.5 font-semibold w-[22%]">Categoria</th>
-                <th className="pb-3.5 font-semibold text-right w-[26%]">Orçado Mês</th>
-                <th className="pb-3.5 font-semibold text-right w-[26%]">Realizado Mês</th>
-                <th className="pb-3.5 font-semibold text-right w-[26%]">Saldo</th>
+              <tr className="border-b-2 border-black text-slate-500 dark:border-slate-700 dark:text-slate-300">
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-200 w-[22%]">Categoria</th>
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-200 text-right w-[26%]">Orçado</th>
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-200 text-right w-[26%]">Realizado</th>
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-200 text-right w-[26%]">Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-              {monthData.categoriesTableData.map((item) => (
-                <tr key={item.category} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
-                  <td className="py-3 font-bold text-slate-700 dark:text-slate-300 truncate" title={item.category}>{item.category}</td>
-                  <td className="py-3 text-right font-mono font-medium text-slate-600 dark:text-slate-400">
-                    <span className="text-[10px] mr-0.5 opacity-80 font-sans">R$</span>
-                    {item.budgetedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-3 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
-                    <span className="text-[10px] mr-0.5 opacity-80 font-sans">R$</span>
-                    {item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className={`py-3 text-right font-mono font-bold ${item.balanceValue < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    <span className="text-[10px] mr-0.5 opacity-80 font-sans">{item.balanceValue < 0 ? '- R$' : 'R$'}</span>
-                    {Math.abs(item.balanceValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
+              {monthData.categoriesTableData.map((item) => {
+                const isBothZero = item.budgetedValue === 0 && item.realizedValue === 0;
+                const balanceColorClass = isBothZero
+                  ? 'text-black dark:text-white'
+                  : item.balanceValue < 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-emerald-600 dark:text-emerald-400';
+
+                return (
+                  <tr key={item.category} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
+                    <td className="py-3 font-bold text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-tight" title={item.category}>{item.category}</td>
+                    <td className="py-3 text-right font-mono text-slate-800 dark:text-white">
+                      <span className="text-[10px] mr-0.5 opacity-80 font-sans font-normal">R$</span>
+                      <span className="font-bold">{item.budgetedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-3 text-right font-mono text-slate-800 dark:text-slate-200">
+                      <span className="text-[10px] mr-0.5 opacity-80 font-sans font-normal">R$</span>
+                      <span className="font-bold">{item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className={`py-3 text-right font-mono font-bold ${balanceColorClass}`}>
+                      <span className="text-[10px] mr-0.5 opacity-80 font-sans font-normal">{item.balanceValue < 0 ? '- R$' : 'R$'}</span>
+                      <span>{Math.abs(item.balanceValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                  </tr>
+                );
+              })}
               {monthData.categoriesTableData.length === 0 && (
                 <tr>
                   <td colSpan={4} className="py-4 text-center text-slate-400">Nenhuma Categoria cadastrada.</td>
@@ -2377,6 +2427,361 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Seção com Separadores e Gráficos Tipo Pizza: Orçado e Realizado */}
+      <div className="space-y-4 pt-2">
+        {/* Line with pill badge in the style of GRÁFICOS FINANCEIROS do Painel */}
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t-2 border-slate-200 dark:border-slate-800" />
+          </div>
+          <div className="relative bg-emerald-100/80 border border-emerald-300 dark:border-emerald-800/60 dark:bg-emerald-950/40 px-4 py-1.5 rounded-full text-xs sm:text-xs font-extrabold uppercase tracking-wider text-emerald-950 dark:text-emerald-300 shadow-sm text-center">
+            Gráficos de percentuais
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Card Gráfico Orçado */}
+          <div className="space-y-3">
+          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+            <div className="h-4 w-1 rounded-full bg-purple-600 dark:bg-sky-400" />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+              Categorias - Orçado
+            </h3>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col items-center">
+            {monthData.budgetedPieSlices.length > 0 ? (
+              <>
+                <div className="relative h-64 w-full flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={monthData.budgetedPieSlices}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={95}
+                        paddingAngle={3}
+                        dataKey="value"
+                        nameKey="name"
+                        cursor="pointer"
+                        onClick={(entry: any) => {
+                          if (entry && entry.name) {
+                            setSelectedBudgetCategory(prev => prev === entry.name ? null : entry.name);
+                          }
+                        }}
+                      >
+                        {monthData.budgetedPieSlices.map((entry) => {
+                          const isSelected = selectedBudgetCategory === entry.name;
+                          return (
+                            <Cell
+                              key={`cell-budget-${entry.name}`}
+                              fill={entry.color}
+                              stroke={isSelected ? '#ffffff' : 'transparent'}
+                              strokeWidth={isSelected ? 3 : 0}
+                              opacity={selectedBudgetCategory ? (isSelected ? 1 : 0.35) : 1}
+                              style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+                            />
+                          );
+                        })}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  {/* Informação no centro da rosca ao clicar na fatia */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    {(() => {
+                      const sel = monthData.budgetedCategoriesList.find(c => c.name === selectedBudgetCategory);
+                      if (sel && sel.value > 0) {
+                        return (
+                          <div className="text-center px-1.5 max-w-[100px]">
+                            <div className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate leading-tight" title={sel.name}>
+                              {sel.name}
+                            </div>
+                            <div className="text-base font-black text-purple-600 dark:text-sky-400 leading-tight my-0.5 font-mono">
+                              {sel.percentage.toFixed(1)}%
+                            </div>
+                            <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                              R$ {sel.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="text-center px-1.5 max-w-[100px]">
+                          <div className="text-[9px] font-medium text-slate-400 dark:text-slate-500 leading-tight">
+                            Clique na fatia
+                          </div>
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-0.5">
+                            Orçado
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Banner com destaque da categoria e porcentagem ao clicar */}
+                {(() => {
+                  const sel = monthData.budgetedCategoriesList.find(c => c.name === selectedBudgetCategory);
+                  if (!sel) return null;
+                  return (
+                    <div className="w-full my-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex items-center justify-between transition-all">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="h-4 w-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: sel.color }} />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-purple-950 dark:text-purple-100 truncate">
+                            {sel.name}
+                          </div>
+                          <div className="text-[11px] font-mono text-purple-700 dark:text-purple-300">
+                            Valor Orçado: <span className="font-bold">R$ {sel.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="px-2.5 py-1 rounded-md bg-purple-600 dark:bg-sky-500 text-white font-mono font-bold text-xs shadow-sm">
+                          {sel.percentage.toFixed(1)}%
+                        </div>
+                        <button
+                          onClick={() => setSelectedBudgetCategory(null)}
+                          className="p-1 rounded text-purple-500 hover:text-purple-800 hover:bg-purple-200/50 dark:text-purple-300 dark:hover:text-white dark:hover:bg-purple-900/60 transition-colors"
+                          title="Desmarcar seleção"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <div className="h-48 w-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-xs">
+                <div className="h-24 w-24 rounded-full border-4 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center mb-2">
+                  <span className="font-semibold text-[11px] text-slate-400">R$ 0,00</span>
+                </div>
+                Nenhum valor orçado para as categorias neste mês.
+              </div>
+            )}
+
+            {/* Legenda com TODAS as categorias de Cadastro Categoria Despesas */}
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 w-full">
+              <div className="flex items-center justify-between pb-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                <span>Todas as Categorias Cadastradas ({monthData.budgetedCategoriesList.length})</span>
+                <span>Total: R$ {monthData.sumBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-56 overflow-y-auto pr-1">
+                {monthData.budgetedCategoriesList.map((item) => {
+                  const isSelected = selectedBudgetCategory === item.name;
+                  return (
+                    <div
+                      key={item.name}
+                      onClick={() => setSelectedBudgetCategory(prev => prev === item.name ? null : item.name)}
+                      className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all ${
+                        isSelected
+                          ? 'ring-2 ring-purple-500 bg-purple-100/70 dark:bg-purple-950/60 dark:ring-sky-400 shadow-sm'
+                          : 'bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/40 dark:hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                        <span className={`truncate ${isSelected ? 'font-bold text-purple-950 dark:text-purple-100' : 'font-medium text-slate-700 dark:text-slate-200'}`} title={item.name}>
+                          {item.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0 font-mono text-right">
+                        <span className={`text-[11px] ${item.value > 0 ? 'font-medium text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                          R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          item.value > 0 
+                            ? isSelected
+                              ? 'text-white bg-purple-600 dark:bg-sky-500'
+                              : 'text-purple-700 dark:text-sky-300 bg-purple-100 dark:bg-sky-950/60' 
+                            : 'text-slate-400 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-800/60'
+                        }`}>
+                          {item.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card Gráfico Realizado */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+            <div className="h-4 w-1 rounded-full bg-red-500" />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+              Categorias - Realizado
+            </h3>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col items-center">
+            {monthData.realizedPieSlices.length > 0 ? (
+              <>
+                <div className="relative h-64 w-full flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={monthData.realizedPieSlices}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={95}
+                        paddingAngle={3}
+                        dataKey="value"
+                        nameKey="name"
+                        cursor="pointer"
+                        onClick={(entry: any) => {
+                          if (entry && entry.name) {
+                            setSelectedRealizedCategory(prev => prev === entry.name ? null : entry.name);
+                          }
+                        }}
+                      >
+                        {monthData.realizedPieSlices.map((entry) => {
+                          const isSelected = selectedRealizedCategory === entry.name;
+                          return (
+                            <Cell
+                              key={`cell-realized-${entry.name}`}
+                              fill={entry.color}
+                              stroke={isSelected ? '#ffffff' : 'transparent'}
+                              strokeWidth={isSelected ? 3 : 0}
+                              opacity={selectedRealizedCategory ? (isSelected ? 1 : 0.35) : 1}
+                              style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+                            />
+                          );
+                        })}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  {/* Informação no centro da rosca ao clicar na fatia */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    {(() => {
+                      const sel = monthData.realizedCategoriesList.find(c => c.name === selectedRealizedCategory);
+                      if (sel && sel.value > 0) {
+                        return (
+                          <div className="text-center px-1.5 max-w-[100px]">
+                            <div className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate leading-tight" title={sel.name}>
+                              {sel.name}
+                            </div>
+                            <div className="text-base font-black text-red-600 dark:text-red-400 leading-tight my-0.5 font-mono">
+                              {sel.percentage.toFixed(1)}%
+                            </div>
+                            <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                              R$ {sel.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="text-center px-1.5 max-w-[100px]">
+                          <div className="text-[9px] font-medium text-slate-400 dark:text-slate-500 leading-tight">
+                            Clique na fatia
+                          </div>
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-0.5">
+                            Realizado
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Banner com destaque da categoria e porcentagem ao clicar */}
+                {(() => {
+                  const sel = monthData.realizedCategoriesList.find(c => c.name === selectedRealizedCategory);
+                  if (!sel) return null;
+                  return (
+                    <div className="w-full my-2 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 flex items-center justify-between transition-all">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="h-4 w-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: sel.color }} />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-red-950 dark:text-red-100 truncate">
+                            {sel.name}
+                          </div>
+                          <div className="text-[11px] font-mono text-red-700 dark:text-red-300">
+                            Valor Realizado: <span className="font-bold">R$ {sel.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="px-2.5 py-1 rounded-md bg-red-600 text-white font-mono font-bold text-xs shadow-sm">
+                          {sel.percentage.toFixed(1)}%
+                        </div>
+                        <button
+                          onClick={() => setSelectedRealizedCategory(null)}
+                          className="p-1 rounded text-red-500 hover:text-red-800 hover:bg-red-200/50 dark:text-red-300 dark:hover:text-white dark:hover:bg-red-900/60 transition-colors"
+                          title="Desmarcar seleção"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <div className="h-48 w-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-xs">
+                <div className="h-24 w-24 rounded-full border-4 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center mb-2">
+                  <span className="font-semibold text-[11px] text-slate-400">R$ 0,00</span>
+                </div>
+                Nenhuma despesa realizada neste mês.
+              </div>
+            )}
+
+            {/* Legenda com TODAS as categorias de Cadastro Categoria Despesas */}
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 w-full">
+              <div className="flex items-center justify-between pb-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                <span>Todas as Categorias Cadastradas ({monthData.realizedCategoriesList.length})</span>
+                <span>Total: R$ {monthData.sumExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-56 overflow-y-auto pr-1">
+                {monthData.realizedCategoriesList.map((item) => {
+                  const isSelected = selectedRealizedCategory === item.name;
+                  return (
+                    <div
+                      key={item.name}
+                      onClick={() => setSelectedRealizedCategory(prev => prev === item.name ? null : item.name)}
+                      className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all ${
+                        isSelected
+                          ? 'ring-2 ring-red-500 bg-red-100/70 dark:bg-red-950/60 dark:ring-red-400 shadow-sm'
+                          : 'bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/40 dark:hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                        <span className={`truncate ${isSelected ? 'font-bold text-red-950 dark:text-red-100' : 'font-medium text-slate-700 dark:text-slate-200'}`} title={item.name}>
+                          {item.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0 font-mono text-right">
+                        <span className={`text-[11px] ${item.value > 0 ? 'font-medium text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                          R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          item.value > 0 
+                            ? isSelected
+                              ? 'text-white bg-red-600'
+                              : 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/60' 
+                            : 'text-slate-400 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-800/60'
+                        }`}>
+                          {item.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   );
@@ -2478,6 +2883,9 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
           >
             <Trash2 className="h-4 w-4" />
           </button>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            ← selecione o ano para filtrar
+          </span>
         </div>
       </div>
 
@@ -2485,7 +2893,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Orçado Total {selectedYear}</span>
-          <div className="text-xl font-bold text-indigo-600 mt-1 font-mono">
+          <div className="text-xl font-bold text-purple-600 dark:text-sky-400 mt-1 font-mono">
             R$ {annualStats.yearPlannedExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
@@ -2497,7 +2905,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo Total</span>
-          <div className={`text-xl font-bold mt-1 font-mono ${annualStats.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+          <div className={`text-xl font-bold mt-1 font-mono ${annualStats.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
             R$ {annualStats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
@@ -2514,11 +2922,11 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs table-fixed">
             <thead>
-              <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
-                <th className="pb-3.5 font-semibold w-[10%]">Mês</th>
-                <th className="pb-3.5 font-semibold text-right w-[30%]">Orçado</th>
-                <th className="pb-3.5 font-semibold text-right w-[30%]">Realizado</th>
-                <th className="pb-3.5 font-semibold text-right w-[30%]">Saldo</th>
+              <tr className="border-b-2 border-black dark:border-white">
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-100 w-[10%]">Mês</th>
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-100 text-right w-[30%]">Orçado</th>
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-100 text-right w-[30%]">Realizado</th>
+                <th className="pb-3.5 text-sm font-semibold text-slate-800 dark:text-slate-100 text-right w-[30%]">Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
@@ -2534,7 +2942,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
                       <span className="font-normal text-[10px] text-slate-500 mr-0.5 inline-block">R$</span>
                       {m.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className={`py-3 text-right font-mono font-bold ${m.balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <td className={`py-3 text-right font-mono font-bold ${m.balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                       <span className={`font-normal text-[10px] mr-0.5 inline-block ${m.balance < 0 ? 'text-red-500/80 dark:text-red-400/80' : 'text-emerald-600/80 dark:text-emerald-400/80'}`}>R$</span>
                       {m.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
