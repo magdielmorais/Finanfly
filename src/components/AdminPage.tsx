@@ -89,16 +89,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [freeTrialError, setFreeTrialError] = useState('');
 
   // Notices state
-  const [fluxoCaixaTitle, setFluxoCaixaTitle] = useState('Fluxo de Caixa Simplificado');
-  const [fluxoCaixaMessage, setFluxoCaixaMessage] = useState('Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), tipos de pagamento e status de recebimento.');
-  const [resumosInteligentesTitle, setResumosInteligentesTitle] = useState('Resumos Inteligentes');
-  const [resumosInteligentesMessage, setResumosInteligentesMessage] = useState('Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo.');
-  const [planejamentoObjetivosTitle, setPlanejamentoObjetivosTitle] = useState('Planejamento e Objetivos');
-  const [planejamentoObjetivosMessage, setPlanejamentoObjetivosMessage] = useState('Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos.');
-  const [rule50_30_20Title, setRule50_30_20Title] = useState('Regra 50-30-20');
-  const [rule50_30_20Message, setRule50_30_20Message] = useState('Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos.');
-  const [weeklyCheckTitle, setWeeklyCheckTitle] = useState('Acompanhamento Semanal');
-  const [weeklyCheckMessage, setWeeklyCheckMessage] = useState('Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês.');
+  const [fluxoCaixaTitle, setFluxoCaixaTitle] = useState('');
+  const [fluxoCaixaMessage, setFluxoCaixaMessage] = useState('');
+  const [resumosInteligentesTitle, setResumosInteligentesTitle] = useState('');
+  const [resumosInteligentesMessage, setResumosInteligentesMessage] = useState('');
+  const [planejamentoObjetivosTitle, setPlanejamentoObjetivosTitle] = useState('');
+  const [planejamentoObjetivosMessage, setPlanejamentoObjetivosMessage] = useState('');
+  const [rule50_30_20Title, setRule50_30_20Title] = useState('');
+  const [rule50_30_20Message, setRule50_30_20Message] = useState('');
+  const [weeklyCheckTitle, setWeeklyCheckTitle] = useState('');
+  const [weeklyCheckMessage, setWeeklyCheckMessage] = useState('');
   const [noticesLoading, setNoticesLoading] = useState(false);
   const [noticesSuccess, setNoticesSuccess] = useState('');
   const [noticesError, setNoticesError] = useState('');

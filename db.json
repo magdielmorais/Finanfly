@@ -27,14 +27,14 @@
       "email": "admin@finanfly.com.br",
       "password": "administrator",
       "role": "admin",
-      "name": "ADMINISTRADOR",
+      "name": "",
       "createdAt": "2026-08-08T01:44:04.727+00:00",
-      "lastAccess": "2026-08-18T17:55:42.136Z",
+      "lastAccess": "2026-08-23T15:52:30.009Z",
       "address": "",
       "city": "",
       "state": "",
       "phone": "",
-      "cpf": "99099099099",
+      "cpf": "",
       "isBlocked": false,
       "subscription": {
         "plan": "livre",
@@ -44,7 +44,17 @@
         "approved": true
       },
       "userMessage": "",
-      "mensagemUsuario": ""
+      "mensagemUsuario": "",
+      "previousPlan": "livre",
+      "previousValidUntil": null,
+      "previousApproved": true,
+      "previousSubscription": {
+        "plan": "livre",
+        "validUntil": null,
+        "selectedAt": "2026-08-08T01:46:56.818+00:00",
+        "freePlanUsed": false,
+        "approved": true
+      }
     },
     "elizardo.josa@gmail.com": {
       "email": "elizardo.josa@gmail.com",
@@ -72,20 +82,32 @@
   },
   "userData": {},
   "planPrices": {
-    "mensal_de": "29,90",
-    "mensal_por": "19,90",
-    "anual_de": "299,00",
-    "anual_por": "149,00"
+    "anual_de": "129,90",
+    "anual_por": "49,90",
+    "mensal_de": "14,90",
+    "mensal_por": "9,90"
   },
   "freeTrialDays": 60,
   "notices": {
+    "fluxoCaixa": {
+      "title": "Fluxo de Caixa Simplificado",
+      "message": "Cadastre receitas e despesas de forma imediata."
+    },
+    "resumosInteligentes": {
+      "title": "Resumos Inteligentes",
+      "message": "Tenha uma visão consolidada mensal e anual."
+    },
+    "planejamentoObjetivos": {
+      "title": "Planejamento e Objetivos",
+      "message": "Crie planos de ação com status de acompanhamento."
+    },
     "rule50_30_20": {
       "title": "Regra 50/30/20",
-      "message": "A regra de ouro das finanças recomenda destinar 50% dos seus rendimentos para necessidades básicas, 30% para desejos pessoais e 20% para prioridades financeiras ou investimentos."
+      "message": "Divida sua renda líquida: 50% necessidades, 30% desejos, 20% investimentos."
     },
     "weeklyCheck": {
       "title": "Check-in Semanal",
-      "message": "Reserve 10 minutos no início ou fim de cada semana para registrar todas as suas receitas e despesas. Manter seus lançamentos atualizados evita surpresas no final do mês!"
+      "message": "Reserve 10 minutos por semana para revisar suas finanças."
     }
   }
 }

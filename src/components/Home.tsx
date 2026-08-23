@@ -13,7 +13,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
   const [notices, setNotices] = useState({
     fluxoCaixa: {
       title: 'Fluxo de Caixa Simplificado',
-      message: 'Cadastre receitas e despesas de forma imediata. Controle categorias ("Categoria da despesa"), tipos de pagamento e status de recebimento.'
+      message: 'Cadastre receitas e despesas de forma imediata. Controle categorias, tipos de pagamento e status de recebimento.'
     },
     resumosInteligentes: {
       title: 'Resumos Inteligentes',
@@ -24,12 +24,12 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
       message: 'Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos.'
     },
     rule50_30_20: {
-      title: 'Regra 50-30-20',
-      message: 'Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos.'
+      title: 'Regra 50/30/20',
+      message: 'A regra de ouro das finanças recomenda destinar 50% dos seus rendimentos para necessidades básicas, 30% para desejos pessoais e 20% para prioridades financeiras ou investimentos.'
     },
     weeklyCheck: {
-      title: 'Acompanhamento Semanal',
-      message: 'Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês.'
+      title: 'Check-in Semanal',
+      message: 'Reserve 10 minutos no início ou fim de cada semana para registrar todas as suas receitas e despesas. Manter seus lançamentos atualizados evita surpresas no final do mês!'
     }
   });
 
@@ -38,16 +38,31 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
       .then(res => res.json())
       .then(data => {
         if (data) {
-          setNotices(prev => ({
-            fluxoCaixa: data.fluxoCaixa || prev.fluxoCaixa,
-            resumosInteligentes: data.resumosInteligentes || prev.resumosInteligentes,
-            planejamentoObjetivos: data.planejamentoObjetivos || prev.planejamentoObjetivos,
-            rule50_30_20: data.rule50_30_20 || prev.rule50_30_20,
-            weeklyCheck: data.weeklyCheck || prev.weeklyCheck,
-          }));
+          setNotices({
+            fluxoCaixa: {
+              title: data.fluxoCaixa?.title || '',
+              message: data.fluxoCaixa?.message || ''
+            },
+            resumosInteligentes: {
+              title: data.resumosInteligentes?.title || '',
+              message: data.resumosInteligentes?.message || ''
+            },
+            planejamentoObjetivos: {
+              title: data.planejamentoObjetivos?.title || '',
+              message: data.planejamentoObjetivos?.message || ''
+            },
+            rule50_30_20: {
+              title: data.rule50_30_20?.title || '',
+              message: data.rule50_30_20?.message || ''
+            },
+            weeklyCheck: {
+              title: data.weeklyCheck?.title || '',
+              message: data.weeklyCheck?.message || ''
+            }
+          });
         }
       })
-      .catch(err => console.error('Erro ao carregar avisos na Home:', err));
+      .catch(err => console.error('Erro ao carregar avisos sincronizados na Home:', err));
   }, []);
 
   return (

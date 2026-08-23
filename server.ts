@@ -449,51 +449,6 @@ function saveDb(db: Database, immediate = false) {
   }
 }
 
-async function getPlanPrices(): Promise<{ mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }> {
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      const { data } = await supabase.from('system_settings').select('value').eq('key', 'plan_prices').maybeSingle();
-      if (data && data.value && data.value.mensal_por) {
-        return data.value;
-      }
-    } catch (err) {
-      // ignore, fall back to local db
-    }
-  }
-
-  const db = getDb();
-  if (db.planPrices && db.planPrices.mensal_por) {
-    return db.planPrices;
-  }
-
-  return {
-    mensal_de: "29,90",
-    mensal_por: "19,90",
-    anual_de: "299,00",
-    anual_por: "149,00"
-  };
-}
-
-async function savePlanPrices(prices: { mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }): Promise<void> {
-  const db = getDb();
-  db.planPrices = prices;
-  saveDb(db);
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      await supabase.from('system_settings').upsert({
-        key: 'plan_prices',
-        value: prices,
-        updated_at: new Date().toISOString()
-      });
-    } catch (err) {
-      console.error('[Supabase] Error saving plan prices to system_settings:', err);
-    }
-  }
-}
-
 import { createClient } from "@supabase/supabase-js";
 
 let supabaseClient: any = null;
@@ -553,6 +508,219 @@ function getSupabaseClient() {
   }
 
   return null;
+}
+
+// ---------------- GESTÃO DE CONFIGURAÇÕES GLOBAIS NO SUPABASE ----------------
+async function getPlanPrices(): Promise<{ mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }> {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('system_settings').select('value').eq('key', 'plan_prices').maybeSingle();
+      if (data && data.value && data.value.mensal_por) {
+        const db = getDb();
+        db.planPrices = data.value;
+        saveDb(db);
+        return data.value;
+      }
+    } catch (err) {
+      // ignore, fall back to local db
+    }
+  }
+
+  const db = getDb();
+  if (db.planPrices && db.planPrices.mensal_por) {
+    return db.planPrices;
+  }
+
+  return {
+    mensal_de: "29,90",
+    mensal_por: "19,90",
+    anual_de: "299,00",
+    anual_por: "149,00"
+  };
+}
+
+async function savePlanPrices(prices: { mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }): Promise<void> {
+  const db = getDb();
+  db.planPrices = prices;
+  saveDb(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('system_settings').upsert({
+        key: 'plan_prices',
+        value: prices,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[Supabase] Error saving plan prices to system_settings:', err);
+    }
+  }
+}
+
+async function getFreeTrialDays(): Promise<number> {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'free_trial_days')
+        .maybeSingle();
+
+      if (!error && data && data.value && data.value.days !== undefined) {
+        const days = Number(data.value.days);
+        const db = getDb();
+        db.freeTrialDays = days;
+        saveDb(db);
+        return days;
+      }
+    } catch (err) {
+      console.warn('[Supabase] Error fetching free_trial_days from system_settings:', err);
+    }
+  }
+
+  const db = getDb();
+  return db.freeTrialDays !== undefined ? db.freeTrialDays : 60;
+}
+
+async function saveFreeTrialDays(days: number): Promise<void> {
+  const db = getDb();
+  db.freeTrialDays = days;
+  saveDb(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('system_settings').upsert({
+        key: 'free_trial_days',
+        value: { days },
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[Supabase] Erro ao salvar free_trial_days no Supabase:', err);
+    }
+  }
+}
+
+async function getHomeNotices(): Promise<{
+  fluxoCaixa: { title: string; message: string };
+  resumosInteligentes: { title: string; message: string };
+  planejamentoObjetivos: { title: string; message: string };
+  rule50_30_20: { title: string; message: string };
+  weeklyCheck: { title: string; message: string };
+}> {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'home_notices')
+        .maybeSingle();
+
+      if (!error && data && data.value) {
+        const val = data.value;
+        const db = getDb();
+        db.notices = val;
+        saveDb(db);
+        return {
+          fluxoCaixa: {
+            title: val.fluxoCaixa?.title ?? '',
+            message: val.fluxoCaixa?.message ?? ''
+          },
+          resumosInteligentes: {
+            title: val.resumosInteligentes?.title ?? '',
+            message: val.resumosInteligentes?.message ?? ''
+          },
+          planejamentoObjetivos: {
+            title: val.planejamentoObjetivos?.title ?? '',
+            message: val.planejamentoObjetivos?.message ?? ''
+          },
+          rule50_30_20: {
+            title: val.rule50_30_20?.title ?? '',
+            message: val.rule50_30_20?.message ?? ''
+          },
+          weeklyCheck: {
+            title: val.weeklyCheck?.title ?? '',
+            message: val.weeklyCheck?.message ?? ''
+          }
+        };
+      }
+    } catch (err) {
+      console.warn('[Supabase] Error fetching home_notices from Supabase:', err);
+    }
+  }
+
+  const db = getDb();
+  if (db.notices && Object.keys(db.notices).length > 0) {
+    return {
+      fluxoCaixa: {
+        title: db.notices.fluxoCaixa?.title ?? '',
+        message: db.notices.fluxoCaixa?.message ?? ''
+      },
+      resumosInteligentes: {
+        title: db.notices.resumosInteligentes?.title ?? '',
+        message: db.notices.resumosInteligentes?.message ?? ''
+      },
+      planejamentoObjetivos: {
+        title: db.notices.planejamentoObjetivos?.title ?? '',
+        message: db.notices.planejamentoObjetivos?.message ?? ''
+      },
+      rule50_30_20: {
+        title: db.notices.rule50_30_20?.title ?? '',
+        message: db.notices.rule50_30_20?.message ?? ''
+      },
+      weeklyCheck: {
+        title: db.notices.weeklyCheck?.title ?? '',
+        message: db.notices.weeklyCheck?.message ?? ''
+      }
+    };
+  }
+
+  return {
+    fluxoCaixa: {
+      title: "Fluxo de Caixa Simplificado",
+      message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
+    },
+    resumosInteligentes: {
+      title: "Resumos Inteligentes",
+      message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
+    },
+    planejamentoObjetivos: {
+      title: "Planejamento e Objetivos",
+      message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
+    },
+    rule50_30_20: {
+      title: "Regra 50-30-20",
+      message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
+    },
+    weeklyCheck: {
+      title: "Acompanhamento Semanal",
+      message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
+    }
+  };
+}
+
+async function saveHomeNotices(notices: any): Promise<void> {
+  const db = getDb();
+  db.notices = notices;
+  saveDb(db);
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('system_settings').upsert({
+        key: 'home_notices',
+        value: notices,
+        updated_at: new Date().toISOString()
+      });
+      console.log('[Supabase] Avisos e cards da página inicial sincronizados com sucesso no Supabase.');
+    } catch (err) {
+      console.error('[Supabase] Erro ao sincronizar home_notices no Supabase system_settings:', err);
+    }
+  }
 }
 
 // Record used trial email and CPF in persistent historical trial table
@@ -2933,10 +3101,14 @@ app.post("/api/admin/plan-prices", async (req, res) => {
 });
 
 // Get Free Trial Days (Public)
-app.get("/api/free-trial-days", (req, res) => {
-  const db = getDb();
-  const days = db.freeTrialDays !== undefined ? db.freeTrialDays : 60;
-  res.json({ days });
+app.get("/api/free-trial-days", async (req, res) => {
+  try {
+    const days = await getFreeTrialDays();
+    res.json({ days });
+  } catch (err) {
+    const db = getDb();
+    res.json({ days: db.freeTrialDays !== undefined ? db.freeTrialDays : 60 });
+  }
 });
 
 // Update Free Trial Days (Admin only)
@@ -2957,69 +3129,28 @@ app.post("/api/admin/free-trial-days", async (req, res) => {
       return res.status(400).json({ error: "Quantidade de dias inválida." });
     }
 
-    const db = getDb();
-    db.freeTrialDays = Number(days);
-    saveDb(db);
+    const numericDays = Number(days);
+    await saveFreeTrialDays(numericDays);
 
-    res.json({ message: "Limite de uso gratuito atualizado com sucesso!", days: db.freeTrialDays });
+    res.json({ message: "Limite de uso gratuito atualizado com sucesso no Supabase e servidor!", days: numericDays });
   } catch (err) {
     console.error("Error updating free trial days:", err);
     res.status(500).json({ error: "Erro interno ao atualizar limite gratuito." });
   }
 });
 
-// Get Home Notices (Public)
-app.get("/api/notices", (req, res) => {
-  const db = getDb();
-  const defaultNotices = {
-    fluxoCaixa: {
-      title: "Fluxo de Caixa Simplificado",
-      message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
-    },
-    resumosInteligentes: {
-      title: "Resumos Inteligentes",
-      message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
-    },
-    planejamentoObjetivos: {
-      title: "Planejamento e Objetivos",
-      message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
-    },
-    rule50_30_20: {
-      title: "Regra 50-30-20",
-      message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
-    },
-    weeklyCheck: {
-      title: "Acompanhamento Semanal",
-      message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
-    }
-  };
-
-  const notices = {
-    fluxoCaixa: {
-      title: db.notices?.fluxoCaixa?.title || defaultNotices.fluxoCaixa.title,
-      message: db.notices?.fluxoCaixa?.message || defaultNotices.fluxoCaixa.message
-    },
-    resumosInteligentes: {
-      title: db.notices?.resumosInteligentes?.title || defaultNotices.resumosInteligentes.title,
-      message: db.notices?.resumosInteligentes?.message || defaultNotices.resumosInteligentes.message
-    },
-    planejamentoObjetivos: {
-      title: db.notices?.planejamentoObjetivos?.title || defaultNotices.planejamentoObjetivos.title,
-      message: db.notices?.planejamentoObjetivos?.message || defaultNotices.planejamentoObjetivos.message
-    },
-    rule50_30_20: {
-      title: db.notices?.rule50_30_20?.title || defaultNotices.rule50_30_20.title,
-      message: db.notices?.rule50_30_20?.message || defaultNotices.rule50_30_20.message
-    },
-    weeklyCheck: {
-      title: db.notices?.weeklyCheck?.title || defaultNotices.weeklyCheck.title,
-      message: db.notices?.weeklyCheck?.message || defaultNotices.weeklyCheck.message
-    }
-  };
-  res.json(notices);
+// Get Home Notices (Public) - Persistido e buscado do Supabase
+app.get("/api/notices", async (req, res) => {
+  try {
+    const notices = await getHomeNotices();
+    res.json(notices);
+  } catch (err) {
+    console.error("Error fetching notices:", err);
+    res.status(500).json({ error: "Erro ao buscar avisos da página inicial." });
+  }
 });
 
-// Update Home Notices (Admin only)
+// Update Home Notices (Admin only) - Salvo diretamente no Supabase e local
 app.post("/api/admin/notices", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
   if (!email) {
@@ -3032,59 +3163,35 @@ app.post("/api/admin/notices", async (req, res) => {
       return res.status(403).json({ error: "Acesso restrito ao administrador." });
     }
 
-    const defaultNotices = {
-      fluxoCaixa: {
-        title: "Fluxo de Caixa Simplificado",
-        message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
-      },
-      resumosInteligentes: {
-        title: "Resumos Inteligentes",
-        message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
-      },
-      planejamentoObjetivos: {
-        title: "Planejamento e Objetivos",
-        message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
-      },
-      rule50_30_20: {
-        title: "Regra 50-30-20",
-        message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
-      },
-      weeklyCheck: {
-        title: "Acompanhamento Semanal",
-        message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
-      }
-    };
-
     const { fluxoCaixa, resumosInteligentes, planejamentoObjetivos, rule50_30_20, weeklyCheck } = req.body;
+    const currentNotices = await getHomeNotices();
 
-    const db = getDb();
-    const currentNotices = db.notices || defaultNotices;
-
-    db.notices = {
+    const updatedNotices = {
       fluxoCaixa: {
-        title: String(fluxoCaixa?.title || currentNotices.fluxoCaixa?.title || defaultNotices.fluxoCaixa.title).trim(),
-        message: String(fluxoCaixa?.message || currentNotices.fluxoCaixa?.message || defaultNotices.fluxoCaixa.message).trim()
+        title: String(fluxoCaixa?.title !== undefined ? fluxoCaixa.title : currentNotices.fluxoCaixa?.title || '').trim(),
+        message: String(fluxoCaixa?.message !== undefined ? fluxoCaixa.message : currentNotices.fluxoCaixa?.message || '').trim()
       },
       resumosInteligentes: {
-        title: String(resumosInteligentes?.title || currentNotices.resumosInteligentes?.title || defaultNotices.resumosInteligentes.title).trim(),
-        message: String(resumosInteligentes?.message || currentNotices.resumosInteligentes?.message || defaultNotices.resumosInteligentes.message).trim()
+        title: String(resumosInteligentes?.title !== undefined ? resumosInteligentes.title : currentNotices.resumosInteligentes?.title || '').trim(),
+        message: String(resumosInteligentes?.message !== undefined ? resumosInteligentes.message : currentNotices.resumosInteligentes?.message || '').trim()
       },
       planejamentoObjetivos: {
-        title: String(planejamentoObjetivos?.title || currentNotices.planejamentoObjetivos?.title || defaultNotices.planejamentoObjetivos.title).trim(),
-        message: String(planejamentoObjetivos?.message || currentNotices.planejamentoObjetivos?.message || defaultNotices.planejamentoObjetivos.message).trim()
+        title: String(planejamentoObjetivos?.title !== undefined ? planejamentoObjetivos.title : currentNotices.planejamentoObjetivos?.title || '').trim(),
+        message: String(planejamentoObjetivos?.message !== undefined ? planejamentoObjetivos.message : currentNotices.planejamentoObjetivos?.message || '').trim()
       },
       rule50_30_20: {
-        title: String(rule50_30_20?.title || currentNotices.rule50_30_20?.title || defaultNotices.rule50_30_20.title).trim(),
-        message: String(rule50_30_20?.message || currentNotices.rule50_30_20?.message || defaultNotices.rule50_30_20.message).trim()
+        title: String(rule50_30_20?.title !== undefined ? rule50_30_20.title : currentNotices.rule50_30_20?.title || '').trim(),
+        message: String(rule50_30_20?.message !== undefined ? rule50_30_20.message : currentNotices.rule50_30_20?.message || '').trim()
       },
       weeklyCheck: {
-        title: String(weeklyCheck?.title || currentNotices.weeklyCheck?.title || defaultNotices.weeklyCheck.title).trim(),
-        message: String(weeklyCheck?.message || currentNotices.weeklyCheck?.message || defaultNotices.weeklyCheck.message).trim()
+        title: String(weeklyCheck?.title !== undefined ? weeklyCheck.title : currentNotices.weeklyCheck?.title || '').trim(),
+        message: String(weeklyCheck?.message !== undefined ? weeklyCheck.message : currentNotices.weeklyCheck?.message || '').trim()
       }
     };
-    saveDb(db);
 
-    res.json({ message: "Avisos e cards atualizados com sucesso!", notices: db.notices });
+    await saveHomeNotices(updatedNotices);
+
+    res.json({ message: "Avisos e cards atualizados e sincronizados com sucesso no Supabase!", notices: updatedNotices });
   } catch (err) {
     console.error("Error updating notices:", err);
     res.status(500).json({ error: "Erro interno ao atualizar avisos." });
@@ -3543,6 +3650,13 @@ async function warmupUserCache() {
         userDataCache.set(email.toLowerCase().trim(), { data: ud, timestamp: Date.now() });
       }
     }
+    // Sync home notices, plan prices, and free trial days from Supabase into memory and local db
+    Promise.all([
+      getHomeNotices(),
+      getPlanPrices(),
+      getFreeTrialDays()
+    ]).catch(e => console.warn("[Supabase] Warmup system settings error:", e));
+
     // Quietly sync all users list from Supabase in background
     getAllUsersList().then(users => {
       for (const u of users) {
