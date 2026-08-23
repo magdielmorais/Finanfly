@@ -11,7 +11,7 @@ interface FinanFlyLogoProps {
 export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
   className = '',
   size = 32,
-  rounded = '',
+  rounded = 'rounded-lg',
   shadow = false
 }) => {
   const [imageError, setImageError] = useState(false);
@@ -35,8 +35,7 @@ export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
             <stop offset="100%" stopColor="#7da8ff" stopOpacity="0.9" />
           </linearGradient>
         </defs>
-        <rect width="1024" height="1024" fill="#000000" />
-        <rect x="2" y="2" width="1020" height="1020" rx="225" ry="225" fill="url(#finanflyBlueGradFallback)" />
+        <rect width="1024" height="1024" rx="32" ry="32" fill="url(#finanflyBlueGradFallback)" />
         <rect x="198" y="424" width="220" height="38" rx="19" fill="url(#speedGradFallback)" />
         <rect x="144" y="506" width="274" height="38" rx="19" fill="url(#speedGradFallback)" />
         <rect x="205" y="588" width="186" height="38" rx="19" fill="url(#speedGradFallback)" />
@@ -67,15 +66,15 @@ export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
     <img
       src={logoAsset}
       alt="FinanFly Logo"
-      className={`block object-contain ${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
+      className={`block object-contain select-none ${rounded} ${shadow ? 'shadow-md shadow-blue-500/20' : ''} ${className}`}
       style={{ width: size, height: size }}
       referrerPolicy="no-referrer"
       onError={(e) => {
         const target = e.currentTarget;
         const base = import.meta.env.BASE_URL || '/';
         const baseClean = base.endsWith('/') ? base : `${base}/`;
-        if (!target.src.includes('logo_oficial_finanfly.png') && !target.src.includes('logo.png')) {
-          target.src = `${baseClean}logo_oficial_finanfly.png`;
+        if (!target.src.includes('logo.png')) {
+          target.src = `${baseClean}logo.png`;
         } else if (!target.src.includes('favicon.png')) {
           target.src = `${baseClean}favicon.png`;
         } else {
@@ -85,4 +84,5 @@ export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
     />
   );
 };
+
 export default FinanFlyLogo;

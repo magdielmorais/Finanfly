@@ -14,11 +14,8 @@
     </linearGradient>
   </defs>
 
-  <!-- Solid Black Background (matching the exact attachment) -->
-  <rect width="1024" height="1024" fill="#000000" />
-
-  <!-- The Vibrant Blue Squircle Icon with smooth 220px radius -->
-  <rect x="2" y="2" width="1020" height="1020" rx="225" ry="225" fill="url(#bgGrad)" />
+  <!-- The Vibrant Blue Icon without outer black background or thick line border -->
+  <rect width="1024" height="1024" rx="32" ry="32" fill="url(#bgGrad)" />
 
   <!-- Speed Lines behind letter F -->
   <!-- Top line -->

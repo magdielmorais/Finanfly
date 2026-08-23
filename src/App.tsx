@@ -943,15 +943,25 @@ export default function App() {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Brand logo */}
-        <div className="p-5 flex items-center justify-between border-b border-slate-800/60">
-          <div className="flex items-center gap-3">
-            <FinanFlyLogo size={36} />
-            <span className="text-lg font-bold text-white tracking-tight">FinanFly</span>
+        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/40">
+          <div
+            onClick={() => {
+              setCurrentPage('Início');
+              setSidebarOpen(false);
+            }}
+            className="flex items-center gap-3 cursor-pointer group"
+            title="Ir para o Início"
+          >
+            <FinanFlyLogo size={38} rounded="rounded-xl" shadow className="transition-transform group-hover:scale-105" />
+            <div>
+              <span className="text-lg font-extrabold text-white tracking-tight block leading-tight">FinanFly</span>
+              <span className="text-[10px] text-sky-400 font-semibold tracking-wider uppercase block">Finanças Inteligentes</span>
+            </div>
           </div>
           {/* Close button for mobile */}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-1 rounded hover:bg-slate-800 text-slate-400 md:hidden"
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white md:hidden cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -1135,16 +1145,26 @@ export default function App() {
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         
         {/* Top Header Row */}
-        <header className="h-16 shrink-0 bg-white border-b border-slate-200 flex items-center justify-between px-6 dark:bg-slate-900 dark:border-slate-800 z-10">
-          <div className="flex items-center gap-3">
+        <header className="h-16 shrink-0 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 dark:bg-slate-900 dark:border-slate-800 z-10">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             {/* Mobile menu hamburger */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 md:hidden dark:hover:bg-slate-800 dark:text-slate-300"
+              className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 md:hidden dark:hover:bg-slate-800 dark:text-slate-300 cursor-pointer"
+              aria-label="Abrir menu"
             >
               <Menu className="h-5 w-5" />
             </button>
             
+            {/* Mobile-only logo icon next to hamburger */}
+            <div 
+              onClick={() => setCurrentPage('Início')} 
+              className="flex items-center md:hidden cursor-pointer shrink-0"
+              title="FinanFly Início"
+            >
+              <FinanFlyLogo size={30} rounded="rounded-lg" shadow />
+            </div>
+
             <h2 className="text-base sm:text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
               {currentPage}
             </h2>

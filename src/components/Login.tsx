@@ -229,28 +229,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         {/* Brand Header */}
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center">
-            {logoFailed ? (
-              <FinanFlyLogo size={92} />
-            ) : (
-              <img
-                src={loginLogo}
-                alt="FinanFly Logo"
-                className="h-[92px] w-[92px] object-contain"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  const base = import.meta.env.BASE_URL || '/';
-                  const baseClean = base.endsWith('/') ? base : `${base}/`;
-                  if (!target.src.includes('logo_oficial_finanfly.png') && !target.src.includes('logo.png')) {
-                    target.src = `${baseClean}logo_oficial_finanfly.png`;
-                  } else if (!target.src.includes('favicon.png')) {
-                    target.src = `${baseClean}favicon.png`;
-                  } else {
-                    setLogoFailed(true);
-                  }
-                }}
-              />
-            )}
+            <FinanFlyLogo size={96} rounded="rounded-lg" shadow />
           </div>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-white font-sans">
             FinanFly

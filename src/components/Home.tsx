@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info, Smartphone } from 'lucide-react';
+import { FinanFlyLogo } from './FinanFlyLogo';
 
 interface HomeProps {
   userName: string;
@@ -52,53 +53,69 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 to-blue-950 p-8 text-white md:p-12 border border-slate-800">
-        <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="relative max-w-2xl space-y-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-400">
-            👋 Bem-vindo {userName}!
-          </span>
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-            Sua saúde financeira, <br />
-            <span className="text-blue-400">sob controle absoluto.</span>
-          </h1>
-          <p className="text-slate-200 text-base max-w-xl leading-relaxed">
-            Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações para melhoria contínua de finanças. Tudo em um único lugar, adaptado para qualquer tela.
-          </p>
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Painel')}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all cursor-pointer"
-            >
-              Ir para o {isAdmin ? 'Painel Admin' : 'Painel'}
-              <ArrowRight className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => onNavigate('Receitas (Ganhos)')}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
-            >
-              <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse" />
-              Adicionar Receitas
-            </button>
-            <button
-              onClick={() => onNavigate('Despesas (Gastos)')}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
-            >
-              <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse" />
-              Adicionar Despesas
-            </button>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-6 sm:p-8 text-white md:p-10 border border-slate-800 shadow-xl">
+        <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+        
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="max-w-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <FinanFlyLogo size={46} rounded="rounded-2xl" shadow />
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 px-3 py-0.5 text-xs font-semibold text-blue-300">
+                  👋 Bem-vindo {userName}!
+                </span>
+                <p className="text-[11px] text-slate-400 font-medium tracking-wide mt-0.5">FinanFly • Controle Financeiro Inteligente</p>
+              </div>
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Sua saúde financeira, <br />
+              <span className="text-blue-400">sob controle absoluto.</span>
+            </h1>
+            <p className="text-slate-200 text-base max-w-xl leading-relaxed">
+              Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações para melhoria contínua de finanças. Tudo em um único lugar, adaptado para qualquer tela.
+            </p>
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Painel')}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all cursor-pointer"
+              >
+                Ir para o {isAdmin ? 'Painel Admin' : 'Painel'}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => onNavigate('Receitas (Ganhos)')}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
+              >
+                <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse" />
+                Adicionar Receitas
+              </button>
+              <button
+                onClick={() => onNavigate('Despesas (Gastos)')}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
+              >
+                <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse" />
+                Adicionar Despesas
+              </button>
+            </div>
+
+            {/* Botão Modo Celular abaixo de Adicionar Despesas linkado para Modo App Web */}
+            <div className="pt-1">
+              <button
+                id="btn-home-modo-celular"
+                onClick={() => onNavigate('Modo app Web')}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-bold shadow-md shadow-emerald-950/30 transition-all hover:scale-[1.02] active:scale-100 border border-emerald-400/40 cursor-pointer"
+              >
+                <Smartphone className="h-4 w-4 text-emerald-100" />
+                Modo Celular
+              </button>
+            </div>
           </div>
 
-          {/* Botão Modo Celular abaixo de Adicionar Despesas linkado para Modo App Web */}
-          <div className="pt-1">
-            <button
-              id="btn-home-modo-celular"
-              onClick={() => onNavigate('Modo app Web')}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-bold shadow-md shadow-emerald-950/30 transition-all hover:scale-[1.02] active:scale-100 border border-emerald-400/40 cursor-pointer"
-            >
-              <Smartphone className="h-4 w-4 text-emerald-100" />
-              Modo Celular
-            </button>
+          {/* Logo Badge in Hero on medium+ screens */}
+          <div className="hidden lg:flex flex-col items-center justify-center p-6 rounded-2xl bg-slate-950/40 border border-slate-800/80 backdrop-blur-sm shrink-0 shadow-2xl">
+            <FinanFlyLogo size={120} rounded="rounded-3xl" shadow />
+            <span className="mt-3 text-sm font-extrabold tracking-wider text-white">FinanFly</span>
+            <span className="text-[11px] font-bold text-sky-400 tracking-wide">Finanças Inteligentes</span>
           </div>
         </div>
       </div>

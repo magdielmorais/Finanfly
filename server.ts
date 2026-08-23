@@ -3564,9 +3564,11 @@ async function startServer() {
 
   // Explicit route handlers for favicon and app icons
   app.get(["/favicon.ico", "/favo.ico"], (req, res) => {
-    const icoPath = path.join(process.cwd(), "public", "favicon.ico");
+    const fileName = req.path.includes("favo.ico") ? "favo.ico" : "favicon.ico";
+    const icoPath = path.join(process.cwd(), "public", fileName);
     if (fs.existsSync(icoPath)) {
       res.setHeader("Content-Type", "image/x-icon");
+      res.setHeader("Cache-Control", "public, max-age=86400");
       return res.sendFile(icoPath);
     }
     const pngPath = path.join(process.cwd(), "public", "favicon.png");
@@ -3577,17 +3579,28 @@ async function startServer() {
     res.status(404).end();
   });
 
-  app.get(["/favicon.png", "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png"], (req, res) => {
+  app.get(["/favicon.png", "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png", "/logo.png", "/logo_oficial_finanfly.png"], (req, res) => {
     const fileName = path.basename(req.path);
     const filePath = path.join(process.cwd(), "public", fileName);
     if (fs.existsSync(filePath)) {
       res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=86400");
       return res.sendFile(filePath);
     }
-    const fallbackPath = path.join(process.cwd(), "public", "favicon.png");
+    const fallbackPath = path.join(process.cwd(), "public", "logo.png");
     if (fs.existsSync(fallbackPath)) {
       res.setHeader("Content-Type", "image/png");
       return res.sendFile(fallbackPath);
+    }
+    res.status(404).end();
+  });
+
+  app.get(["/favicon.svg", "/logo_master.svg"], (req, res) => {
+    const fileName = path.basename(req.path);
+    const filePath = path.join(process.cwd(), "public", fileName);
+    if (fs.existsSync(filePath)) {
+      res.setHeader("Content-Type", "image/svg+xml");
+      return res.sendFile(filePath);
     }
     res.status(404).end();
   });
