@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
+import { getUserInitials } from '../utils/userUtils';
 import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check } from 'lucide-react';
 
 interface AdminPageProps {
@@ -1655,15 +1656,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     return (
                       <tr key={user.email} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                         <td className="py-3">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-800 dark:text-slate-200">{user.name}</span>
-                            {isBlocked && (
-                              <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm">
-                                <Lock className="h-2.5 w-2.5" /> Inativo / Bloqueado
-                              </span>
-                            )}
+                          <div className="flex items-center gap-2.5">
+                            <div 
+                              className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 select-none shadow-sm"
+                              title={`Iniciais: ${getUserInitials(user.name, user.email)}`}
+                            >
+                              {getUserInitials(user.name, user.email)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{user.name}</span>
+                                {isBlocked && (
+                                  <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm">
+                                    <Lock className="h-2.5 w-2.5" /> Inativo / Bloqueado
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
+                            </div>
                           </div>
-                          <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
                         </td>
                         <td className="py-3">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -2535,7 +2546,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 ) : (
                   filteredReportUsers.map(u => (
                     <tr key={u.email} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20 text-slate-700 dark:text-slate-300">
-                      <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{u.name}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0 select-none shadow-sm"
+                            title={`Iniciais: ${getUserInitials(u.name, u.email)}`}
+                          >
+                            {getUserInitials(u.name, u.email)}
+                          </div>
+                          <span className="truncate">{u.name}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{u.email}</td>
                       <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">{u.state || '-'}</td>
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{u.city || '-'}</td>

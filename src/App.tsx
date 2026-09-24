@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { UserProfile, UserData } from './types';
 import { Login } from './components/Login';
 import { FinanFlyLogo } from './components/FinanFlyLogo';
+import { getUserInitials } from './utils/userUtils';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
 const Home = lazy(() => import('./components/Home').then(m => ({ default: m.Home })));
@@ -1153,8 +1154,11 @@ export default function App() {
         <div className="p-3 border-t border-slate-800">
           <div className="bg-slate-950/60 rounded-xl p-2.5 border border-slate-800/60">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                {currentUser.name.substring(0, 2).toUpperCase()}
+              <div 
+                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 select-none shadow-sm"
+                title={`Iniciais: ${getUserInitials(currentUser.name, currentUser.email)}`}
+              >
+                {getUserInitials(currentUser.name, currentUser.email)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
@@ -1228,7 +1232,7 @@ export default function App() {
               {isDark ? <Sun className="h-6 w-6 text-amber-400" /> : <Moon className="h-6 w-6 text-slate-700 dark:text-slate-200" />}
             </button>
 
-            {/* Display profile initials */}
+            {/* Display profile initials in blue circle */}
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-bold text-slate-800 dark:text-white">{currentUser.name}</div>
@@ -1236,9 +1240,10 @@ export default function App() {
               </div>
               <div
                 onClick={() => setCurrentPage('Dados pessoais')}
-                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-blue-600/10 cursor-pointer hover:opacity-85"
+                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-blue-600/10 cursor-pointer hover:opacity-85 select-none"
+                title={`Perfil de ${currentUser.name} (${getUserInitials(currentUser.name, currentUser.email)})`}
               >
-                {currentUser.name.substring(0, 2).toUpperCase()}
+                {getUserInitials(currentUser.name, currentUser.email)}
               </div>
             </div>
           </div>
