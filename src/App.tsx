@@ -60,12 +60,26 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const savedUserStr = localStorage.getItem('finanfly_user');
+      const lastActivityStr = localStorage.getItem('finanfly_last_activity');
+      if (savedUserStr && lastActivityStr) {
+        const lastActivityTime = parseInt(lastActivityStr, 10);
+        const now = Date.now();
+        if (!isNaN(lastActivityTime) && (now - lastActivityTime < 5 * 60 * 1000)) {
+          return JSON.parse(savedUserStr);
+        }
+      }
+    } catch (e) {
+      console.error('Error reading saved user session:', e);
+    }
+    return null;
+  });
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentPage, setCurrentPage] = useState<string>('Início');
   const [subscriptionWarning, setSubscriptionWarning] = useState<string>('');
   const [inactivityNotice, setInactivityNotice] = useState<string>('');
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Sidebar toggle for responsive mobile views
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -213,7 +227,6 @@ export default function App() {
           const user = JSON.parse(savedUserStr);
           setCurrentUser(user);
           localStorage.setItem('finanfly_last_activity', now.toString());
-          setIsInitialLoading(false);
           return;
         } catch (e) {
           console.error('Error parsing saved user session:', e);
@@ -229,11 +242,6 @@ export default function App() {
     localStorage.removeItem('finanfly_token');
     localStorage.removeItem('finanfly_last_activity');
     setCurrentUser(null);
-    
-    const timer = setTimeout(() => {
-      setIsInitialLoading(false);
-    }, 350);
-    return () => clearTimeout(timer);
   }, []);
 
   // Sync user data whenever currentUser changes
@@ -884,34 +892,7 @@ export default function App() {
     }
   };
 
-  // Initial launch loading screen with squircle logo (bordas quadradas com arredondamento)
-  if (isInitialLoading) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-slate-950 text-white select-none z-50 animate-fade-in">
-        <div className="relative">
-          <div className="h-28 w-28 rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/30 border border-blue-500/20 bg-gradient-to-br from-blue-600 to-blue-900 flex items-center justify-center">
-            <FinanFlyLogo size={112} rounded="rounded-3xl" shadow />
-          </div>
-        </div>
-        <h1 className="mt-5 text-2xl font-black tracking-tight text-white font-sans">
-          FinanFly
-        </h1>
-        <p className="mt-1 text-sm font-extrabold tracking-wide text-cintilante drop-shadow-sm">
-          Suas finanças voando!
-        </p>
-        <div className="mt-7 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-        </div>
-        <span className="mt-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-          Carregando...
-        </span>
-      </div>
-    );
-  }
-
-  // If user is not logged in, render Login screen
+  // If user is not logged in, render Login screen immediately
   if (!currentUser) {
     return (
       <>
