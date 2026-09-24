@@ -11,7 +11,6 @@ import {
   Check, 
   Info,
   Compass,
-  RotateCcw,
   CreditCard,
   CheckCircle2,
   Clock,
@@ -53,8 +52,6 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   const [expensePaymentType, setExpensePaymentType] = useState('');
   const [expenseStatus, setExpenseStatus] = useState('Pago'); // Default "Pago"
 
-  // Neutral clear confirmation modal state
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   // Accordion state for Aviso card
   const [isAvisoOpen, setIsAvisoOpen] = useState(false);
 
@@ -307,13 +304,6 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
     onUpdateUserData({ trips: updatedTrips });
   };
 
-  // Clear all expenses inside all trips
-  const confirmClearAllExpenses = () => {
-    const updatedTrips = trips.map(t => ({ ...t, expenses: [] }));
-    onUpdateUserData({ trips: updatedTrips });
-    setShowClearConfirm(false);
-  };
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 p-1 sm:p-4" id="viagem-page-container">
       {/* Page Header */}
@@ -343,18 +333,6 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
             <Plus className="h-4 w-4" />
             Nova Viagem
           </button>
-          
-          {trips.length > 0 && (
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 border border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-bold text-rose-600 dark:text-rose-400 rounded-xl transition-all"
-              id="btn-limpar-despesas-viagem"
-              title="Limpa os lançamentos de despesas de todas as viagens"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Limpar Lançamentos
-            </button>
-          )}
         </div>
       </div>
 
@@ -1150,48 +1128,6 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                 </div>
               </form>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ========================================================================= */}
-      {/* CONFIRMAÇÃO DE LIMPEZA DE TODAS AS DESPESAS                               */}
-      {/* ========================================================================= */}
-      <AnimatePresence>
-        {showClearConfirm && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-              <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300">
-                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/50 rounded-2xl text-rose-500">
-                  <RotateCcw className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Limpar Lançamentos de Viagem?</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Esta ação é irreversível</p>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Deseja realmente apagar todos os lançamentos de despesas de todas as viagens? Os nomes das viagens cadastradas serão preservados, mas os gastos individuais serão zerados.
-              </p>
-
-              <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmClearAllExpenses}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-rose-500/20"
-                >
-                  Confirmar Limpeza
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </AnimatePresence>
