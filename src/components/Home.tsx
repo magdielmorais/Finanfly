@@ -10,35 +10,44 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => {
   const [isComoComecarOpen, setIsComoComecarOpen] = useState(false);
-  const [notices, setNotices] = useState({
-    fluxoCaixa: {
-      title: 'Fluxo de Caixa Simplificado',
-      message: 'Cadastre receitas e despesas de forma imediata. Controle categorias, tipos de pagamento e status de recebimento.'
-    },
-    resumosInteligentes: {
-      title: 'Resumos Inteligentes',
-      message: 'Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo.'
-    },
-    planejamentoObjetivos: {
-      title: 'Planejamento e Objetivos',
-      message: 'Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos.'
-    },
-    rule50_30_20: {
-      title: 'Regra 50/30/20',
-      message: 'A regra de ouro das finanças recomenda destinar 50% dos seus rendimentos para necessidades básicas, 30% para desejos pessoais e 20% para prioridades financeiras ou investimentos.'
-    },
-    weeklyCheck: {
-      title: 'Check-in Semanal',
-      message: 'Reserve 10 minutos no início ou fim de cada semana para registrar todas as suas receitas e despesas. Manter seus lançamentos atualizados evita surpresas no final do mês!'
-    }
+  const [notices, setNotices] = useState(() => {
+    try {
+      const saved = localStorage.getItem('finanfly_home_notices');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.fluxoCaixa) return parsed;
+      }
+    } catch (e) {}
+    return {
+      fluxoCaixa: {
+        title: 'Fluxo de Caixa Simplificado',
+        message: 'Cadastre suas receitas e despesas de forma imediata, mantendo o controle total dos seus gastos diários sem perder tempo.'
+      },
+      resumosInteligentes: {
+        title: 'Resumos Inteligentes',
+        message: 'Acompanhe a sua evolução financeira através de uma visão consolidada mensal e anual, identificando padrões de consumo e oportunidades de economia com facilidade, veja onde está o gargalo das suas finanças.'
+      },
+      planejamentoObjetivos: {
+        title: 'Planejamento e Objetivos',
+        message: 'Transforme suas metas em realidade criando planos de ação personalizados com status de acompanhamento em tempo real, ajuste sua realidade de ganhos com os gastos.'
+      },
+      rule50_30_20: {
+        title: 'Regra 70/30',
+        message: 'A regra de ouro das finanças recomenda destinar os seus rendimentos da seguinte forma:\n✳️ 70% para o BEM DA FAMÍLIA - Necessidades básicas, desejos, segurança, desenvolvimento, lazer, além do bem-estar físico e emocional.\n✳️ 10% para o BEM DO REINO - Reconhecendo que tudo vem do Criador, uma parte é destinada para expandir o Seu amor, apoiando, por exemplo, instituições religiosas focadas na evangelização.\n✳️ 10% para o BEM DAS PESSOAS - Demonstrando generosidade ao auxiliar o próximo em momentos de necessidade (cestas básicas, remédios, roupas e calçados) e ao celebrar conquistas (presentes de aniversário, casamento, formatura, etc.).\n✳️ 10% para o BEM FUTURO - Investimentos voltados à construção de riqueza, fazendo o dinheiro trabalhar por você para garantir uma aposentadoria farta e abundante.'
+      },
+      weeklyCheck: {
+        title: 'Lançamento diário e Check-in Semanal',
+        message: 'Registre suas finanças assim que elas acontecerem. Depois, reserve apenas 10 minutos no início ou no fim da semana para revisar o resumo de receitas e despesas. Manter os lançamentos em dia é o segredo para evitar surpresas no fim do mês!'
+      }
+    };
   });
 
   useEffect(() => {
     fetch('/api/notices')
       .then(res => res.json())
       .then(data => {
-        if (data) {
-          setNotices({
+        if (data && data.fluxoCaixa) {
+          const freshNotices = {
             fluxoCaixa: {
               title: data.fluxoCaixa?.title || '',
               message: data.fluxoCaixa?.message || ''
@@ -59,7 +68,11 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
               title: data.weeklyCheck?.title || '',
               message: data.weeklyCheck?.message || ''
             }
-          });
+          };
+          setNotices(freshNotices);
+          try {
+            localStorage.setItem('finanfly_home_notices', JSON.stringify(freshNotices));
+          } catch (e) {}
         }
       })
       .catch(err => console.error('Erro ao carregar avisos sincronizados na Home:', err));
@@ -208,13 +221,13 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
             <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-blue-400 uppercase tracking-wider">{notices.rule50_30_20.title}</h4>
-            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
               {notices.rule50_30_20.message}
             </p>
           </div>
           <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
             <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-blue-400 uppercase tracking-wider">{notices.weeklyCheck.title}</h4>
-            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
               {notices.weeklyCheck.message}
             </p>
           </div>

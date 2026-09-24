@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserData } from '../types';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check } from 'lucide-react';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -11,22 +11,45 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Supabase Connection Verification State
+  // Supabase Connection Verification State & Database Audit
   const [supabaseStatus, setSupabaseStatus] = useState<{
     loading: boolean;
     active: boolean | null;
     url: string;
     message: string;
     schema?: string;
+    differentialSql?: string;
+    fullSafeSql?: string;
+    totalRequired?: number;
+    existingCount?: number;
+    missingCount?: number;
+    missingTables?: string[];
+    tables?: Array<{
+      name: string;
+      category: string;
+      description: string;
+      exists: boolean;
+      recordCount: number | null;
+      error?: string;
+    }>;
   }>({
     loading: true,
     active: null,
     url: '',
     message: '',
     schema: '',
+    differentialSql: '',
+    fullSafeSql: '',
+    totalRequired: 21,
+    existingCount: 0,
+    missingCount: 0,
+    missingTables: [],
+    tables: []
   });
 
   const [copiedSchema, setCopiedSchema] = useState(false);
+  const [selectedScriptType, setSelectedScriptType] = useState<'differential' | 'full'>('differential');
+  const [showTableDetails, setShowTableDetails] = useState(false);
 
   const checkSupabaseStatus = async () => {
     setSupabaseStatus(prev => ({ ...prev, loading: true }));
@@ -39,7 +62,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         url: data.url || '',
         message: data.message || (data.active ? 'Conectado ao Supabase com sucesso!' : 'Desconectado do Supabase'),
         schema: data.schema || '',
+        differentialSql: data.differentialSql || '',
+        fullSafeSql: data.fullSafeSql || '',
+        totalRequired: data.totalRequired || 21,
+        existingCount: data.existingCount ?? (data.active ? 21 : 0),
+        missingCount: data.missingCount ?? 0,
+        missingTables: data.missingTables || [],
+        tables: data.tables || []
       });
+      // If there are missing tables, default tab to differential
+      if (data.missingCount > 0) {
+        setSelectedScriptType('differential');
+      }
     } catch (err) {
       setSupabaseStatus({
         loading: false,
@@ -47,16 +81,44 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         url: '',
         message: 'Erro ao verificar conexão com o Supabase.',
         schema: '',
+        differentialSql: '',
+        fullSafeSql: '',
+        totalRequired: 21,
+        existingCount: 0,
+        missingCount: 21,
+        missingTables: [],
+        tables: []
       });
     }
   };
 
   const handleCopySchema = () => {
-    if (supabaseStatus.schema) {
-      navigator.clipboard.writeText(supabaseStatus.schema);
+    const scriptToCopy = selectedScriptType === 'differential'
+      ? (supabaseStatus.differentialSql || supabaseStatus.schema || '')
+      : (supabaseStatus.fullSafeSql || supabaseStatus.schema || '');
+    if (scriptToCopy) {
+      navigator.clipboard.writeText(scriptToCopy);
       setCopiedSchema(true);
       setTimeout(() => setCopiedSchema(false), 2000);
     }
+  };
+
+  const handleDownloadSql = () => {
+    const scriptToDownload = selectedScriptType === 'differential'
+      ? (supabaseStatus.differentialSql || supabaseStatus.schema || '')
+      : (supabaseStatus.fullSafeSql || supabaseStatus.schema || '');
+    if (!scriptToDownload) return;
+    const blob = new Blob([scriptToDownload], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = selectedScriptType === 'differential'
+      ? 'finanfly_atualizacao_segura_supabase.sql'
+      : 'finanfly_esquema_completo_seguro_supabase.sql';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -732,7 +794,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     setAuditSaveError('');
 
     try {
-      const res = await fetch('/api/admin/edit-user', {
+      const res = await fetch('/api/admin/save-user-message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -755,7 +817,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
       setSelectedUserForAudit(updatedUser);
       setUsers(prev => prev.map(u => u.email.toLowerCase() === selectedUserForAudit.email.toLowerCase() ? updatedUser : u));
-      setAuditSaveSuccess('Mensagem salva com sucesso!');
+      setAuditSaveSuccess('Mensagem gravada no banco de dados com sucesso!');
       setTimeout(() => setAuditSaveSuccess(''), 4000);
     } catch (err: any) {
       setAuditSaveError(err.message || 'Erro ao salvar.');
@@ -893,6 +955,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     setNoticesSuccess('');
     setNoticesError('');
 
+    const payload = {
+      fluxoCaixa: { title: fluxoCaixaTitle, message: fluxoCaixaMessage },
+      resumosInteligentes: { title: resumosInteligentesTitle, message: resumosInteligentesMessage },
+      planejamentoObjetivos: { title: planejamentoObjetivosTitle, message: planejamentoObjetivosMessage },
+      rule50_30_20: { title: rule50_30_20Title, message: rule50_30_20Message },
+      weeklyCheck: { title: weeklyCheckTitle, message: weeklyCheckMessage }
+    };
+
     try {
       const res = await fetch('/api/admin/notices', {
         method: 'POST',
@@ -900,17 +970,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
         },
-        body: JSON.stringify({
-          fluxoCaixa: { title: fluxoCaixaTitle, message: fluxoCaixaMessage },
-          resumosInteligentes: { title: resumosInteligentesTitle, message: resumosInteligentesMessage },
-          planejamentoObjetivos: { title: planejamentoObjetivosTitle, message: planejamentoObjetivosMessage },
-          rule50_30_20: { title: rule50_30_20Title, message: rule50_30_20Message },
-          weeklyCheck: { title: weeklyCheckTitle, message: weeklyCheckMessage }
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar avisos.');
-      setNoticesSuccess(data.message || 'Avisos atualizados com sucesso!');
+      try {
+        localStorage.setItem('finanfly_home_notices', JSON.stringify(payload));
+      } catch (e) {}
+      setNoticesSuccess(data.message || 'Avisos atualizados e sincronizados no banco de dados com sucesso!');
     } catch (err: any) {
       setNoticesError(err.message || 'Ocorreu um erro.');
     } finally {
@@ -2490,11 +2557,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       )}
 
-      {/* Supabase Connection Verification Card */}
-      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all">
+      {/* Supabase Connection Verification & Real-time Database Audit Card */}
+      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
-            <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
+            <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
               supabaseStatus.loading
                 ? 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400'
                 : supabaseStatus.active
@@ -2505,26 +2572,38 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-bold text-slate-800 dark:text-white tracking-wide">
-                  Status da Conexão com Supabase
+                <span className="text-base font-bold text-slate-800 dark:text-white tracking-wide">
+                  Auditoria e Sincronização Segura do Supabase
                 </span>
                 {supabaseStatus.loading ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                    <RefreshCw className="h-3 w-3 animate-spin" /> Verificando...
+                    <RefreshCw className="h-3 w-3 animate-spin" /> Auditando banco...
                   </span>
                 ) : supabaseStatus.active ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <CheckCircle2 className="h-3 w-3" /> Conectado
+                    <CheckCircle2 className="h-3 w-3" /> Nuvem Conectada
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400 border border-red-500/20">
                     <XCircle className="h-3 w-3" /> Desconectado
                   </span>
                 )}
+                {supabaseStatus.active && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
+                    (supabaseStatus.missingCount ?? 0) === 0
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
+                      : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200 dark:border-amber-800/40'
+                  }`}>
+                    {(supabaseStatus.missingCount ?? 0) === 0 ? '✓ 21/21 Tabelas 100% Sincronizadas' : `⚠️ ${supabaseStatus.missingCount} tabela(s) pendente(s)`}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300 px-2 py-0.5 text-[10px] font-semibold border border-blue-200 dark:border-blue-900/40">
+                  🛡️ 100% Não-Destrutivo (Zero perda de dados)
+                </span>
               </div>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-snug">
                 {supabaseStatus.loading
-                  ? 'Testando comunicação direta com o banco de dados...'
+                  ? 'Auditando tabelas existentes e gerando script seguro...'
                   : supabaseStatus.message}
               </p>
               {supabaseStatus.url && (
@@ -2538,79 +2617,169 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             type="button"
             onClick={checkSupabaseStatus}
             disabled={supabaseStatus.loading}
-            className="flex h-9 px-3.5 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 shrink-0 self-end sm:self-auto"
-            title="Clique para re-testar a conexão com o Supabase"
+            className="flex h-9 px-3.5 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 shrink-0 self-end sm:self-auto shadow-sm"
+            title="Clique para auditar o banco e re-testar em tempo real"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${supabaseStatus.loading ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
-            <span>Testar Conexão</span>
+            <span>Re-auditar Banco Agora</span>
           </button>
         </div>
-      </div>
 
-      {/* Database Connection Info & SQL Schema Card */}
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all space-y-4 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
-          <div className="flex items-center space-x-2">
-            <Database className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <h3 className="font-bold text-slate-800 dark:text-white text-sm">Estrutura e Tabelas do Banco de Dados</h3>
-          </div>
-          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
-            supabaseStatus.active
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
-              : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
-          }`}>
-            {supabaseStatus.active ? 'Nuvem Conectada' : 'Modo Backup Local'}
-          </span>
-        </div>
-
-        {supabaseStatus.active ? (
-          <div className="space-y-2">
-            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-              Sua aplicação está conectada com sucesso ao banco de dados do <strong>Supabase</strong>. Todos os cadastros, acessos de login e lançamentos financeiros estão sendo persistidos com segurança na nuvem.
-            </p>
-            {supabaseStatus.url && (
-              <div className="rounded-lg bg-slate-50 p-2.5 text-[11px] font-mono text-slate-600 dark:bg-slate-950 dark:text-slate-400 break-all border border-slate-100 dark:border-slate-800">
-                <strong>SUPABASE_URL:</strong> {supabaseStatus.url}
+        {/* Missing Tables Notice / Status Banner */}
+        {supabaseStatus.active && (
+          <div className="mt-4 pt-4 border-t border-slate-150 dark:border-slate-800">
+            {(supabaseStatus.missingCount ?? 0) > 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 space-y-1.5">
+                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{supabaseStatus.missingCount} tabela(s) pendente(s) de criação no Supabase:</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {supabaseStatus.missingTables?.map(t => (
+                    <span key={t} className="px-2 py-0.5 bg-amber-200/60 dark:bg-amber-900/50 rounded font-mono font-semibold text-[11px] text-amber-950 dark:text-amber-100 border border-amber-300/60 dark:border-amber-800">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed pt-1">
+                  O script diferencial abaixo cria <strong>apenas</strong> essas tabelas e adiciona colunas faltantes. Ele <strong>não usa DROP TABLE</strong> e preserva intactos todos os usuários e dados já existentes.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>
+                  <strong>Perfeito!</strong> Todas as 21 tabelas do sistema estão presentes no Supabase e os dados dos usuários continuam 100% seguros e preservados.
+                </span>
               </div>
             )}
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-start space-x-2 text-amber-800 dark:text-amber-400">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-              <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                As variáveis de ambiente do Supabase não foram configuradas ou a chave de API está inválida. A aplicação está rodando no <strong>Modo Backup Local</strong> salvando os dados localmente no servidor.
-              </p>
-            </div>
-            <div className="rounded-lg bg-amber-50/50 p-3 border border-amber-100 dark:bg-amber-950/10 dark:border-amber-900/30 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
-              <p className="font-bold">Para ativar a persistência em Nuvem com Supabase:</p>
-              <ol className="list-decimal pl-4 space-y-1">
-                <li>Crie um projeto em <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline font-semibold">supabase.com</a></li>
-                <li>Obtenha a URL e a Anon Key em API Settings.</li>
-                <li>Adicione as variáveis de ambiente no sistema.</li>
-              </ol>
-            </div>
-          </div>
         )}
 
-        <div className="border-t border-slate-100 pt-3 dark:border-slate-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-700 dark:text-slate-300">Esquema das Tabelas (Script SQL DDL)</span>
+        {/* Script Selection & Code Box */}
+        <div className="mt-4 pt-4 border-t border-slate-150 dark:border-slate-800 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Tabs for Differential vs Full */}
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setSelectedScriptType('differential')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  selectedScriptType === 'differential'
+                    ? 'bg-white shadow-sm text-blue-600 dark:bg-slate-900 dark:text-blue-400 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Script Diferencial Seguro {(supabaseStatus.missingCount ?? 0) > 0 ? `(${supabaseStatus.missingCount} faltantes)` : '(Recomendado)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedScriptType('full')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  selectedScriptType === 'full'
+                    ? 'bg-white shadow-sm text-blue-600 dark:bg-slate-900 dark:text-blue-400 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Script Completo Seguro (21 Tabelas)
+              </button>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDownloadSql}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                title="Baixar arquivo SQL"
+              >
+                <Download className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                <span>Baixar .sql</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCopySchema}
+                className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 text-xs font-semibold transition-all shadow-sm active:scale-95"
+              >
+                {copiedSchema ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copiedSchema ? 'Copiado para Área de Transferência!' : 'Copiar Script SQL'}</span>
+              </button>
+            </div>
+          </div>
+
+          <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
+            💡 <strong>Instrução:</strong> Abra o console do seu <strong>Supabase</strong>, vá no menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>RUN</strong>. Ele aplicará as alterações com total segurança sem resetar ou apagar dados de usuários já existentes.
+          </p>
+
+          <div className="relative">
+            <pre className="rounded-xl bg-slate-950 p-4 text-[10px] font-mono text-emerald-400/90 overflow-x-auto max-h-56 border border-slate-800 leading-relaxed custom-scrollbar selection:bg-blue-600 selection:text-white">
+              {selectedScriptType === 'differential'
+                ? (supabaseStatus.differentialSql || supabaseStatus.schema || 'Carregando script diferencial...')
+                : (supabaseStatus.fullSafeSql || supabaseStatus.schema || 'Carregando script completo...')}
+            </pre>
+          </div>
+
+          {/* Toggle button to inspect all 21 tables */}
+          <div className="pt-2">
             <button
               type="button"
-              onClick={handleCopySchema}
-              className="flex items-center space-x-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors text-xs font-semibold"
+              onClick={() => setShowTableDetails(!showTableDetails)}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
             >
-              <Copy className="h-3.5 w-3.5" />
-              <span>{copiedSchema ? 'Copiado!' : 'Copiar Script SQL'}</span>
+              <span>{showTableDetails ? '▲ Ocultar detalhes das 21 tabelas do sistema' : '▼ Ver catálogo e contagem de registros das 21 tabelas'}</span>
             </button>
+
+            {showTableDetails && (
+              <div className="mt-3 overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl max-h-72 overflow-y-auto custom-scrollbar">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="px-3 py-2">Tabela</th>
+                      <th className="px-3 py-2">Categoria</th>
+                      <th className="px-3 py-2">Descrição</th>
+                      <th className="px-3 py-2 text-center">Status no Supabase</th>
+                      <th className="px-3 py-2 text-right">Registros</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150 dark:divide-slate-800">
+                    {(supabaseStatus.tables && supabaseStatus.tables.length > 0) ? (
+                      supabaseStatus.tables.map(t => (
+                        <tr key={t.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 text-slate-700 dark:text-slate-300">
+                          <td className="px-3 py-2 font-mono font-bold text-slate-900 dark:text-slate-100">{t.name}</td>
+                          <td className="px-3 py-2">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                              {t.category}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{t.description}</td>
+                          <td className="px-3 py-2 text-center">
+                            {t.exists ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <CheckCircle2 className="h-3 w-3" /> Criada
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                                <AlertTriangle className="h-3 w-3" /> Pendente
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
+                            {t.exists ? (t.recordCount !== null ? t.recordCount : '-') : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-3 py-4 text-center text-slate-400">
+                          Clique em "Re-auditar Banco Agora" para carregar a lista de tabelas.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          <p className="text-slate-500 dark:text-slate-400 text-[11px]">
-            Execute o script abaixo no <strong>SQL Editor</strong> do seu painel Supabase para criar/atualizar todas as tabelas e permissões do sistema:
-          </p>
-          <pre className="rounded-lg bg-slate-950 p-3.5 text-[10px] font-mono text-slate-300 overflow-x-auto max-h-48 border border-slate-800 leading-relaxed custom-scrollbar">
-            {supabaseStatus.schema || 'Carregando esquema SQL...'}
-          </pre>
         </div>
       </div>
 

@@ -87,27 +87,27 @@
     "mensal_de": "14,90",
     "mensal_por": "9,90"
   },
-  "freeTrialDays": 60,
+  "freeTrialDays": 45,
   "notices": {
     "fluxoCaixa": {
       "title": "Fluxo de Caixa Simplificado",
-      "message": "Cadastre receitas e despesas de forma imediata."
+      "message": "Cadastre suas receitas e despesas de forma imediata, mantendo o controle total dos seus gastos diários sem perder tempo."
+    },
+    "weeklyCheck": {
+      "title": "Lançamento diário e Check-in Semanal",
+      "message": "Registre suas finanças assim que elas acontecerem. Depois, reserve apenas 10 minutos no início ou no fim da semana para revisar o resumo de receitas e despesas. Manter os lançamentos em dia é o segredo para evitar surpresas no fim do mês!"
+    },
+    "rule50_30_20": {
+      "title": "Regra 70/30",
+      "message": "A regra de ouro das finanças recomenda destinar os seus rendimentos da seguinte forma:\n✳️ 70% para o BEM DA FAMÍLIA - Necessidades básicas, desejos, segurança, desenvolvimento, lazer, além do bem-estar físico e emocional.\n✳️ 10% para o BEM DO REINO - Reconhecendo que tudo vem do Criador, uma parte é destinada para expandir o Seu amor, apoiando, por exemplo, instituições religiosas focadas na evangelização.\n✳️ 10% para o BEM DAS PESSOAS - Demonstrando generosidade ao auxiliar o próximo em momentos de necessidade (cestas básicas, remédios, roupas e calçados) e ao celebrar conquistas (presentes de aniversário, casamento, formatura, etc.).\n✳️ 10% para o BEM FUTURO - Investimentos voltados à construção de riqueza, fazendo o dinheiro trabalhar por você para garantir uma aposentadoria farta e abundante."
     },
     "resumosInteligentes": {
       "title": "Resumos Inteligentes",
-      "message": "Tenha uma visão consolidada mensal e anual."
+      "message": "Acompanhe a sua evolução financeira através de uma visão consolidada mensal e anual, identificando padrões de consumo e oportunidades de economia com facilidade, veja onde está o gargalo das suas finanças."
     },
     "planejamentoObjetivos": {
       "title": "Planejamento e Objetivos",
-      "message": "Crie planos de ação com status de acompanhamento."
-    },
-    "rule50_30_20": {
-      "title": "Regra 50/30/20",
-      "message": "Divida sua renda líquida: 50% necessidades, 30% desejos, 20% investimentos."
-    },
-    "weeklyCheck": {
-      "title": "Check-in Semanal",
-      "message": "Reserve 10 minutos por semana para revisar suas finanças."
+      "message": "Transforme suas metas em realidade criando planos de ação personalizados com status de acompanhamento em tempo real, ajuste sua realidade de ganhos com os gastos."
     }
   }
 }

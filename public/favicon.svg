@@ -9,8 +9,8 @@
     </filter>
   </defs>
 
-  <!-- Rounded Background without outer white inset/border -->
-  <rect x="0" y="0" width="512" height="512" rx="24" ry="24" fill="url(#finanflyBlueGrad)" />
+  <!-- Rounded Square Background (squircle ~22%) -->
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#finanflyBlueGrad)" />
 
   <!-- Speed Lines -->
   <rect x="70" y="215" width="110" height="18" rx="9" fill="#4d88ff" opacity="0.8" />

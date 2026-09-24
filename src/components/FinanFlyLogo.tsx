@@ -12,7 +12,7 @@ interface FinanFlyLogoProps {
 export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
   className = '',
   size = 32,
-  rounded = 'rounded-lg',
+  rounded = 'rounded-2xl',
   shadow = false,
   alt = 'FinanFly Logo'
 }) => {
@@ -37,7 +37,7 @@ export const FinanFlyLogo: React.FC<FinanFlyLogoProps> = ({
             <stop offset="100%" stopColor="#7da8ff" stopOpacity="0.9" />
           </linearGradient>
         </defs>
-        <rect width="1024" height="1024" rx="32" ry="32" fill="url(#finanflyBlueGradFallback)" />
+        <rect width="1024" height="1024" rx="220" ry="220" fill="url(#finanflyBlueGradFallback)" />
         <rect x="198" y="424" width="220" height="38" rx="19" fill="url(#speedGradFallback)" />
         <rect x="144" y="506" width="274" height="38" rx="19" fill="url(#speedGradFallback)" />
         <rect x="205" y="588" width="186" height="38" rx="19" fill="url(#speedGradFallback)" />

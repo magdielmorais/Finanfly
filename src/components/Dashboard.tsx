@@ -647,12 +647,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               transition={{ duration: 0.18 }}
               className="space-y-6"
             >
-              {/* Line with text: RESUMO MONETÁRIO GERAL (Above filter with blue theme) */}
+              {/* Line with text: RESUMO MONETÁRIO GERAL (Above filter with blue theme matching the tab card) */}
               <div className="relative my-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-blue-200 dark:border-blue-900/60" />
+                  <div className="w-full border-t-2 border-blue-300/80 dark:border-blue-700/60" />
                 </div>
-                <div className="relative bg-blue-100 px-5 py-1.5 rounded-full border border-blue-300 dark:border-blue-800 dark:bg-blue-950 text-xs font-black uppercase tracking-widest text-blue-900 dark:text-blue-200 shadow-xs">
+                <div className="relative bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 px-5 py-1.5 rounded-full border border-blue-400/50 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-blue-500/25">
                   RESUMO MONETÁRIO GERAL
                 </div>
               </div>
@@ -832,12 +832,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               transition={{ duration: 0.18 }}
               className="space-y-6"
             >
-              {/* Line with text: RESUMO FINANCEIRO (Indigo theme) */}
+              {/* Line with text: RESUMO FINANCEIRO (Indigo theme matching tab card) */}
               <div className="relative my-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-indigo-200 dark:border-indigo-900/60" />
+                  <div className="w-full border-t-2 border-indigo-300/80 dark:border-indigo-700/60" />
                 </div>
-                <div className="relative bg-indigo-100 px-5 py-1.5 rounded-full border border-indigo-300 dark:border-indigo-800 dark:bg-indigo-950 text-xs font-black uppercase tracking-widest text-indigo-900 dark:text-indigo-200 shadow-xs">
+                <div className="relative bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 px-5 py-1.5 rounded-full border border-indigo-400/50 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-indigo-500/25">
                   RESUMO FINANCEIRO
                 </div>
               </div>
@@ -1059,12 +1059,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               transition={{ duration: 0.18 }}
               className="space-y-6"
             >
-              {/* Divider line: GRÁFICO DE INVESTIMENTO */}
+              {/* Divider line: GRÁFICOS DE INVESTIMENTO (Purple theme matching tab card) */}
               <div className="relative my-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-purple-200 dark:border-purple-900/60" />
+                  <div className="w-full border-t-2 border-purple-300/80 dark:border-purple-700/60" />
                 </div>
-                <div className="relative bg-purple-100 px-5 py-1.5 rounded-full border border-purple-300 dark:border-purple-800 dark:bg-purple-950 text-xs font-black uppercase tracking-widest text-purple-900 dark:text-purple-200 shadow-xs">
+                <div className="relative bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 px-5 py-1.5 rounded-full border border-purple-400/50 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-purple-500/25">
                   GRÁFICOS DE INVESTIMENTO
                 </div>
               </div>

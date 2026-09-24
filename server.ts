@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import { DATABASE_SCHEMA_CATALOG, generateSafeSchemaScripts } from "./src/lib/databaseCatalog";
 
 // Define _dirname de forma segura para ambientes ES Module (ESM) e CommonJS (CJS)
 const _dirname = typeof __dirname !== "undefined"
@@ -332,23 +333,23 @@ function initDb() {
     notices: {
       fluxoCaixa: {
         title: "Fluxo de Caixa Simplificado",
-        message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
+        message: "Cadastre suas receitas e despesas de forma imediata, mantendo o controle total dos seus gastos diários sem perder tempo."
       },
       resumosInteligentes: {
         title: "Resumos Inteligentes",
-        message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
+        message: "Acompanhe a sua evolução financeira através de uma visão consolidada mensal e anual, identificando padrões de consumo e oportunidades de economia com facilidade, veja onde está o gargalo das suas finanças."
       },
       planejamentoObjetivos: {
         title: "Planejamento e Objetivos",
-        message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
+        message: "Transforme suas metas em realidade criando planos de ação personalizados com status de acompanhamento em tempo real, ajuste sua realidade de ganhos com os gastos."
       },
       rule50_30_20: {
-        title: "Regra 50-30-20",
-        message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
+        title: "Regra 70/30",
+        message: "A regra de ouro das finanças recomenda destinar os seus rendimentos da seguinte forma:\n✳️ 70% para o BEM DA FAMÍLIA - Necessidades básicas, desejos, segurança, desenvolvimento, lazer, além do bem-estar físico e emocional.\n✳️ 10% para o BEM DO REINO - Reconhecendo que tudo vem do Criador, uma parte é destinada para expandir o Seu amor, apoiando, por exemplo, instituições religiosas focadas na evangelização.\n✳️ 10% para o BEM DAS PESSOAS - Demonstrando generosidade ao auxiliar o próximo em momentos de necessidade (cestas básicas, remédios, roupas e calçados) e ao celebrar conquistas (presentes de aniversário, casamento, formatura, etc.).\n✳️ 10% para o BEM FUTURO - Investimentos voltados à construção de riqueza, fazendo o dinheiro trabalhar por você para garantir uma aposentadoria farta e abundante."
       },
       weeklyCheck: {
-        title: "Acompanhamento Semanal",
-        message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
+        title: "Lançamento diário e Check-in Semanal",
+        message: "Registre suas finanças assim que elas acontecerem. Depois, reserve apenas 10 minutos no início ou no fim da semana para revisar o resumo de receitas e despesas. Manter os lançamentos em dia é o segredo para evitar surpresas no fim do mês!"
       }
     }
   };
@@ -604,6 +605,123 @@ async function saveFreeTrialDays(days: number): Promise<void> {
   }
 }
 
+// ---------------- GESTÃO DE MENSAGENS DE USUÁRIOS NO SUPABASE ----------------
+let userMessagesCache: { data: Record<string, string>; timestamp: number } | null = null;
+
+async function getUserMessagesMap(bypassCache = false): Promise<Record<string, string>> {
+  if (!bypassCache && userMessagesCache && (Date.now() - userMessagesCache.timestamp < 15000)) {
+    return userMessagesCache.data;
+  }
+
+  const supabase = getSupabaseClient();
+  let map: Record<string, string> = {};
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'user_messages')
+        .maybeSingle();
+
+      if (!error && data && data.value && typeof data.value === 'object') {
+        map = { ...data.value };
+      }
+    } catch (err) {
+      console.warn('[Supabase] Erro ao buscar user_messages em system_settings:', err);
+    }
+  }
+
+  // Also check local DB users for any existing messages to ensure migration
+  const db = getDb();
+  let updated = false;
+  if (db.users) {
+    for (const [email, u] of Object.entries<any>(db.users)) {
+      const lower = email.toLowerCase().trim();
+      const msg = (u.userMessage || u.mensagemUsuario || '').trim();
+      if (msg && !map[lower]) {
+        map[lower] = msg;
+        updated = true;
+      }
+    }
+  }
+
+  if (updated && supabase) {
+    supabase.from('system_settings').upsert({
+      key: 'user_messages',
+      value: map,
+      updated_at: new Date().toISOString()
+    }).then(() => {}).catch(() => {});
+  }
+
+  userMessagesCache = { data: map, timestamp: Date.now() };
+  return map;
+}
+
+async function saveUserMessageToDatabase(email: string, message: string): Promise<void> {
+  const lowerEmail = email.toLowerCase().trim();
+  const cleanMsg = typeof message === 'string' ? message.trim() : '';
+
+  // 1. Update memory cache & local DB
+  const db = getDb();
+  if (!db.users) db.users = {};
+  if (!db.users[lowerEmail]) {
+    db.users[lowerEmail] = { email: lowerEmail };
+  }
+  db.users[lowerEmail].userMessage = cleanMsg;
+  db.users[lowerEmail].mensagemUsuario = cleanMsg;
+  if (!db.userData) db.userData = {};
+  if (db.userData[lowerEmail]) {
+    db.userData[lowerEmail].userMessage = cleanMsg;
+    db.userData[lowerEmail].mensagemUsuario = cleanMsg;
+  }
+  saveDb(db);
+
+  // Invalidate and update user cache
+  const cachedUser = userCache.get(lowerEmail);
+  if (cachedUser) {
+    cachedUser.data.userMessage = cleanMsg;
+    cachedUser.data.mensagemUsuario = cleanMsg;
+  }
+
+  // 2. Persist to Supabase system_settings
+  const currentMap = await getUserMessagesMap(true);
+  currentMap[lowerEmail] = cleanMsg;
+  userMessagesCache = { data: currentMap, timestamp: Date.now() };
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('system_settings').upsert({
+        key: 'user_messages',
+        value: currentMap,
+        updated_at: new Date().toISOString()
+      });
+      console.log(`[Supabase] Mensagem do usuário ${lowerEmail} sincronizada com sucesso no banco de dados.`);
+    } catch (err) {
+      console.error(`[Supabase] Erro ao salvar mensagem de ${lowerEmail} em system_settings:`, err);
+    }
+
+    // Also update profiles table if user_message column exists
+    try {
+      await supabase.from('profiles').update({
+        user_message: cleanMsg,
+        updated_at: new Date().toISOString()
+      }).eq('email', lowerEmail);
+    } catch (err) {}
+
+    // Also update user_data table
+    try {
+      const { data: udRow } = await supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
+      if (udRow && udRow.data) {
+        udRow.data.userMessage = cleanMsg;
+        udRow.data.mensagemUsuario = cleanMsg;
+        await supabase.from('user_data').update({ data: udRow.data, updated_at: new Date().toISOString() }).eq('email', lowerEmail);
+      }
+    } catch (err) {}
+  }
+}
+
 async function getHomeNotices(): Promise<{
   fluxoCaixa: { title: string; message: string };
   resumosInteligentes: { title: string; message: string };
@@ -679,26 +797,27 @@ async function getHomeNotices(): Promise<{
     };
   }
 
+  // Fallback defaults strictly reflecting user customized database texts
   return {
     fluxoCaixa: {
       title: "Fluxo de Caixa Simplificado",
-      message: "Cadastre receitas e despesas de forma imediata. Controle categorias (\"Categoria da despesa\"), tipos de pagamento e status de recebimento."
+      message: "Cadastre suas receitas e despesas de forma imediata, mantendo o controle total dos seus gastos diários sem perder tempo."
     },
     resumosInteligentes: {
       title: "Resumos Inteligentes",
-      message: "Tenha uma visão consolidada mensal e anual. Visualize em gráficos as suas maiores despesas e receitas para otimizar seus hábitos de consumo."
+      message: "Acompanhe a sua evolução financeira através de uma visão consolidada mensal e anual, identificando padrões de consumo e oportunidades de economia com facilidade, veja onde está o gargalo das suas finanças."
     },
     planejamentoObjetivos: {
       title: "Planejamento e Objetivos",
-      message: "Crie planos de ação com status de acompanhamento. Defina limites orçamentários mensais e acompanhe se você está cumprindo os seus objetivos."
+      message: "Transforme suas metas em realidade criando planos de ação personalizados com status de acompanhamento em tempo real, ajuste sua realidade de ganhos com os gastos."
     },
     rule50_30_20: {
-      title: "Regra 50-30-20",
-      message: "Divida sua renda líquida: 50% para necessidades (aluguel, contas), 30% para desejos (lazer, compras) e 20% para poupança ou investimentos."
+      title: "Regra 70/30",
+      message: "A regra de ouro das finanças recomenda destinar os seus rendimentos da seguinte forma:\n✳️ 70% para o BEM DA FAMÍLIA - Necessidades básicas, desejos, segurança, desenvolvimento, lazer, além do bem-estar físico e emocional.\n✳️ 10% para o BEM DO REINO - Reconhecendo que tudo vem do Criador, uma parte é destinada para expandir o Seu amor, apoiando, por exemplo, instituições religiosas focadas na evangelização.\n✳️ 10% para o BEM DAS PESSOAS - Demonstrando generosidade ao auxiliar o próximo em momentos de necessidade (cestas básicas, remédios, roupas e calçados) e ao celebrar conquistas (presentes de aniversário, casamento, formatura, etc.).\n✳️ 10% para o BEM FUTURO - Investimentos voltados à construção de riqueza, fazendo o dinheiro trabalhar por você para garantir uma aposentadoria farta e abundante."
     },
     weeklyCheck: {
-      title: "Acompanhamento Semanal",
-      message: "Reserve 10 minutos por semana para revisar suas receitas e despesas cadastradas no FinanFly. Pequenos ajustes evitam surpresas no fim do mês."
+      title: "Lançamento diário e Check-in Semanal",
+      message: "Registre suas finanças assim que elas acontecerem. Depois, reserve apenas 10 minutos no início ou no fim da semana para revisar o resumo de receitas e despesas. Manter os lançamentos em dia é o segredo para evitar surpresas no fim do mês!"
     }
   };
 }
@@ -776,7 +895,7 @@ function refreshUserInBackground(lowerEmail: string) {
     supabase.from('users').select('*').eq('email', lowerEmail).maybeSingle(),
     supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
     supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
-  ]).then(([userRes, profileRes, subRes]) => {
+  ]).then(async ([userRes, profileRes, subRes]) => {
     const userData = userRes.data;
     if (userData) {
       const profileData = profileRes.data;
@@ -785,12 +904,17 @@ function refreshUserInBackground(lowerEmail: string) {
       const localDb = getDb();
       const localUser = localDb.users[lowerEmail];
       
-      // Prioritize admin-saved message from local DB or profiles table
-      const resolvedUserMessage = localUser?.userMessage !== undefined
-        ? (typeof localUser.userMessage === 'string' ? localUser.userMessage.trim() : '')
-        : (profileData?.user_message !== undefined
-            ? (typeof profileData.user_message === 'string' ? profileData.user_message.trim() : '')
-            : '');
+      // Prioritize admin-saved message from Supabase system_settings or profiles table
+      const messagesMap = await getUserMessagesMap();
+      const resolvedUserMessage = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '')
+        ? messagesMap[lowerEmail]
+        : (profileData?.user_message !== undefined && profileData.user_message !== ''
+            ? String(profileData.user_message).trim()
+            : (localUser?.userMessage !== undefined && localUser.userMessage !== ''
+                ? String(localUser.userMessage).trim()
+                : (localUser?.mensagemUsuario !== undefined && localUser.mensagemUsuario !== ''
+                    ? String(localUser.mensagemUsuario).trim()
+                    : '')));
 
       const compiledUser = {
         email: userData.email,
@@ -948,11 +1072,16 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
         const subData = subRes.data;
         const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
 
-        const resolvedUserMessage = localUser?.userMessage !== undefined
-          ? (typeof localUser.userMessage === 'string' ? localUser.userMessage.trim() : '')
-          : (profileData?.user_message !== undefined
-              ? (typeof profileData.user_message === 'string' ? profileData.user_message.trim() : '')
-              : '');
+        const messagesMap = await getUserMessagesMap();
+        const resolvedUserMessage = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '')
+          ? messagesMap[lowerEmail]
+          : (profileData?.user_message !== undefined && profileData.user_message !== ''
+              ? String(profileData.user_message).trim()
+              : (localUser?.userMessage !== undefined && localUser.userMessage !== ''
+                  ? String(localUser.userMessage).trim()
+                  : (localUser?.mensagemUsuario !== undefined && localUser.mensagemUsuario !== ''
+                      ? String(localUser.mensagemUsuario).trim()
+                      : '')));
 
         const compiledUser = {
           email: userData.email,
@@ -1041,11 +1170,14 @@ async function saveUser(user: any): Promise<boolean> {
   const mergedPhone = user.phone !== undefined && user.phone !== '' ? user.phone : (existingLocal.phone || '');
   const mergedCpf = user.cpf !== undefined && user.cpf !== '' ? user.cpf : (existingLocal.cpf || '');
   const mergedPassword = user.password !== undefined && user.password !== '' ? user.password : (existingLocal.password || '');
+  const messagesMap = await getUserMessagesMap();
+  const dbSavedMsg = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '') ? messagesMap[lowerEmail] : undefined;
+
   const mergedUserMessage = user.userMessage !== undefined 
     ? user.userMessage 
     : (user.mensagemUsuario !== undefined 
         ? user.mensagemUsuario 
-        : (existingLocal.userMessage !== undefined ? existingLocal.userMessage : (existingLocal.mensagemUsuario || '')));
+        : (dbSavedMsg !== undefined ? dbSavedMsg : (existingLocal.userMessage !== undefined ? existingLocal.userMessage : (existingLocal.mensagemUsuario || ''))));
 
   const finalUser = {
     ...existingLocal,
@@ -1076,6 +1208,10 @@ async function saveUser(user: any): Promise<boolean> {
     }
   }
   saveDb(db);
+
+  if (mergedUserMessage !== undefined) {
+    saveUserMessageToDatabase(lowerEmail, mergedUserMessage).catch(err => console.error("Error persisting user message in saveUser:", err));
+  }
 
   if (finalUser.subscription && (finalUser.subscription.freePlanUsed || finalUser.subscription.plan === 'gratis')) {
     recordTrialHistory(lowerEmail, finalUser.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
@@ -1356,7 +1492,13 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         supabase.from('annual_planning').select('*').eq('email', lowerEmail),
         supabase.from('shopping_list').select('*').eq('email', lowerEmail),
         supabase.from('action_plans').select('*').eq('email', lowerEmail).order('target_date', { ascending: true }),
-        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false })
+        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
+        supabase.from('trips').select('*').eq('email', lowerEmail),
+        supabase.from('wishes').select('*').eq('email', lowerEmail),
+        supabase.from('investments').select('*').eq('email', lowerEmail),
+        supabase.from('investment_types').select('name').eq('email', lowerEmail),
+        supabase.from('investment_statuses').select('name').eq('email', lowerEmail),
+        supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle()
       ]);
       const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 2500));
       const [
@@ -1369,7 +1511,13 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         annualRes,
         shopRes,
         actPlansRes,
-        defActionsRes
+        defActionsRes,
+        tripsRes,
+        wishesRes,
+        investRes,
+        invTypesRes,
+        invStatusesRes,
+        backupUserDataRes
       ] = await Promise.race([queryPromise, timeoutPromise]);
 
       // If database schema is missing, fall back to monolithic user_data table or local DB
@@ -1489,11 +1637,21 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
           date: r.date,
           status: r.status
         })) : [],
-        trips: localData?.trips || [],
-        wishes: localData?.wishes || [],
-        investments: localData?.investments || [],
-        investmentTypes: (localData?.investmentTypes && localData.investmentTypes.length > 0) ? localData.investmentTypes : [...DEFAULT_INVESTMENT_TYPES],
-        investmentStatuses: (localData?.investmentStatuses && localData.investmentStatuses.length > 0) ? localData.investmentStatuses : [...DEFAULT_INVESTMENT_STATUSES]
+        trips: (tripsRes?.data && tripsRes.data.length > 0)
+          ? tripsRes.data.map((r: any) => ({ id: r.id, name: r.name, expenses: r.expenses || [] }))
+          : (localData?.trips && localData.trips.length > 0 ? localData.trips : (backupUserDataRes?.data?.data?.trips || [])),
+        wishes: (wishesRes?.data && wishesRes.data.length > 0)
+          ? wishesRes.data.map((r: any) => ({ id: r.id, title: r.title, description: r.description, targetDate: r.target_date, value: Number(r.value), status: r.status }))
+          : (localData?.wishes && localData.wishes.length > 0 ? localData.wishes : (backupUserDataRes?.data?.data?.wishes || [])),
+        investments: (investRes?.data && investRes.data.length > 0)
+          ? investRes.data.map((r: any) => ({ id: r.id, name: r.name, type: r.type, date: r.date, value: Number(r.value), status: r.status, notes: r.notes }))
+          : (localData?.investments && localData.investments.length > 0 ? localData.investments : (backupUserDataRes?.data?.data?.investments || [])),
+        investmentTypes: (invTypesRes?.data && invTypesRes.data.length > 0)
+          ? invTypesRes.data.map((r: any) => r.name)
+          : ((localData?.investmentTypes && localData.investmentTypes.length > 0) ? localData.investmentTypes : (backupUserDataRes?.data?.data?.investmentTypes || [...DEFAULT_INVESTMENT_TYPES])),
+        investmentStatuses: (invStatusesRes?.data && invStatusesRes.data.length > 0)
+          ? invStatusesRes.data.map((r: any) => r.name)
+          : ((localData?.investmentStatuses && localData.investmentStatuses.length > 0) ? localData.investmentStatuses : (backupUserDataRes?.data?.data?.investmentStatuses || [...DEFAULT_INVESTMENT_STATUSES]))
       };
 
       const finalResponse = ensureUserHasDefaults(responseData);
@@ -1831,6 +1989,7 @@ async function getAllUsersList(): Promise<any[]> {
         const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.email.toLowerCase().trim(), p]));
         const subsMap = new Map((subsRes.data || []).map((s: any) => [s.email.toLowerCase().trim(), s]));
         const usersMap = new Map<string, any>();
+        const messagesMap = await getUserMessagesMap();
 
         // 1. Process Supabase users
         for (const u of usersData) {
@@ -1840,11 +1999,15 @@ async function getAllUsersList(): Promise<any[]> {
           const localU = localDb.users[lowerU];
           const localUD = localDb.userData ? localDb.userData[lowerU] : undefined;
 
-          const userMsg = localU?.userMessage !== undefined
-            ? (typeof localU.userMessage === 'string' ? localU.userMessage.trim() : '')
-            : (prof?.user_message !== undefined
-                ? (typeof prof.user_message === 'string' ? prof.user_message.trim() : '')
-                : '');
+          const userMsg = (messagesMap[lowerU] !== undefined && messagesMap[lowerU] !== '')
+            ? messagesMap[lowerU]
+            : (prof?.user_message !== undefined && prof.user_message !== ''
+                ? String(prof.user_message).trim()
+                : (localU?.userMessage !== undefined && localU.userMessage !== ''
+                    ? String(localU.userMessage).trim()
+                    : (localU?.mensagemUsuario !== undefined && localU.mensagemUsuario !== ''
+                        ? String(localU.mensagemUsuario).trim()
+                        : '')));
 
           usersMap.set(lowerU, {
             email: u.email,
@@ -1887,9 +2050,12 @@ async function getAllUsersList(): Promise<any[]> {
             const localUD = localDb.userData ? localDb.userData[lowerKey] : undefined;
             const localMsg = (localU.userMessage || localU.mensagemUsuario || '');
             const localDataMsg = (localUD?.userMessage || localUD?.mensagemUsuario || '');
-            const userMsg = (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') ||
+            const fallbackMsg = (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') ||
               (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') ||
               '';
+            const userMsg = (messagesMap[lowerKey] !== undefined && messagesMap[lowerKey] !== '')
+              ? messagesMap[lowerKey]
+              : fallbackMsg;
 
             usersMap.set(lowerKey, {
               ...localU,
@@ -1908,15 +2074,104 @@ async function getAllUsersList(): Promise<any[]> {
   }
 
   // Fallback to local
+  const messagesMap = await getUserMessagesMap();
   return Object.values(localDb.users).map((user: any) => {
     const { password: _, ...rest } = user;
-    return rest;
+    const lower = (user.email || '').toLowerCase().trim();
+    const msg = (messagesMap[lower] !== undefined && messagesMap[lower] !== '')
+      ? messagesMap[lower]
+      : (user.userMessage || user.mensagemUsuario || '');
+    return { ...rest, userMessage: msg, mensagemUsuario: msg };
   });
 }
 
 // ---------------- API ENDPOINTS ----------------
 
-// Supabase Connection Status and Schema Info
+// Supabase Live Schema Audit Function (Safe & Non-Destructive)
+async function auditSupabaseDatabaseSchema() {
+  const client = getSupabaseClient();
+  const results: Array<{
+    name: string;
+    category: "auth" | "finances" | "planning" | "system";
+    description: string;
+    exists: boolean;
+    recordCount: number | null;
+    error?: string;
+  }> = [];
+
+  const existingSet = new Set<string>();
+  const missingTables: string[] = [];
+
+  if (!client) {
+    for (const t of DATABASE_SCHEMA_CATALOG) {
+      results.push({
+        name: t.name,
+        category: t.category,
+        description: t.description,
+        exists: false,
+        recordCount: null,
+        error: "Supabase não conectado"
+      });
+      missingTables.push(t.name);
+    }
+  } else {
+    await Promise.all(DATABASE_SCHEMA_CATALOG.map(async (t) => {
+      try {
+        const { count, error } = await client.from(t.name).select("*", { count: "exact", head: true });
+        if (error && (error.code === "PGRST205" || error.code === "42P01" || error.message?.includes("schema cache"))) {
+          results.push({
+            name: t.name,
+            category: t.category,
+            description: t.description,
+            exists: false,
+            recordCount: null,
+            error: error.message
+          });
+          missingTables.push(t.name);
+        } else {
+          existingSet.add(t.name);
+          results.push({
+            name: t.name,
+            category: t.category,
+            description: t.description,
+            exists: true,
+            recordCount: (count !== null && count !== undefined) ? count : 0
+          });
+        }
+      } catch (err: any) {
+        results.push({
+          name: t.name,
+          category: t.category,
+          description: t.description,
+          exists: false,
+          recordCount: null,
+          error: err?.message
+        });
+        missingTables.push(t.name);
+      }
+    }));
+  }
+
+  results.sort((a, b) => {
+    const idxA = DATABASE_SCHEMA_CATALOG.findIndex(t => t.name === a.name);
+    const idxB = DATABASE_SCHEMA_CATALOG.findIndex(t => t.name === b.name);
+    return idxA - idxB;
+  });
+
+  const { differentialSql, fullSafeSql } = generateSafeSchemaScripts(existingSet, missingTables);
+
+  return {
+    totalRequired: DATABASE_SCHEMA_CATALOG.length,
+    existingCount: existingSet.size,
+    missingCount: missingTables.length,
+    missingTables,
+    tables: results,
+    differentialSql,
+    fullSafeSql
+  };
+}
+
+// Supabase Connection Status and Schema Info (Live Audit & Safe Differential Generator)
 app.get("/api/supabase-status", async (req, res) => {
   const client = getSupabaseClient();
   let active = false;
@@ -1925,17 +2180,15 @@ app.get("/api/supabase-status", async (req, res) => {
 
   if (client) {
     try {
-      const { error } = await client.from('users').select('count', { count: 'exact', head: true });
-      if (!error || error.code === 'PGRST116' || error.code === '42P01') {
+      const { error } = await client.from("users").select("count", { count: "exact", head: true });
+      if (!error || error.code === "PGRST116" || error.code === "42P01") {
         active = true;
-        message = "Conexão com o Supabase estabelecida com sucesso!";
       } else if (error.message?.includes("Invalid API key") || error.hint?.includes("API key")) {
         markSupabaseKeyAsInvalid("Invalid API key");
         active = false;
         message = "Chave de API do Supabase inválida.";
       } else {
         active = true;
-        message = "Conectado ao Supabase (serviço ativo).";
       }
     } catch (err: any) {
       active = false;
@@ -1945,342 +2198,29 @@ app.get("/api/supabase-status", async (req, res) => {
     message = "Supabase não configurado ou chave inválida.";
   }
 
+  const audit = await auditSupabaseDatabaseSchema();
+
+  if (active) {
+    if (audit.missingCount === 0) {
+      message = `Conectado ao Supabase com sucesso! Todas as ${audit.totalRequired} tabelas estão criadas e operacionais.`;
+    } else {
+      message = `Conectado ao Supabase! Detectadas ${audit.existingCount} tabelas ativas e ${audit.missingCount} tabela(s) pendente(s) de criação.`;
+    }
+  }
+
   res.json({
     active,
     url,
     message,
-    schema: `
--- EXECUTE ESTE SCRIPT SQL NO SQL EDITOR DO SEU CONSOLE SUPABASE:
-
--- ----------------- DIAGNÓSTICO E LIMPEZA -----------------
--- Este script irá limpar (DROP) as tabelas antigas se existirem para recriá-las do zero com a estrutura correta.
--- ATENÇÃO: Isso removerá os dados existentes nestas tabelas no seu banco Supabase.
-DROP TABLE IF EXISTS investment_statuses CASCADE;
-DROP TABLE IF EXISTS investment_types CASCADE;
-DROP TABLE IF EXISTS investments CASCADE;
-DROP TABLE IF EXISTS wishes CASCADE;
-DROP TABLE IF EXISTS trips CASCADE;
-DROP TABLE IF EXISTS deficit_actions CASCADE;
-DROP TABLE IF EXISTS action_plans CASCADE;
-DROP TABLE IF EXISTS shopping_list CASCADE;
-DROP TABLE IF EXISTS annual_planning CASCADE;
-DROP TABLE IF EXISTS expenses CASCADE;
-DROP TABLE IF EXISTS incomes CASCADE;
-DROP TABLE IF EXISTS expense_categories CASCADE;
-DROP TABLE IF EXISTS income_categories CASCADE;
-DROP TABLE IF EXISTS payment_statuses CASCADE;
-DROP TABLE IF EXISTS payment_types CASCADE;
-DROP TABLE IF EXISTS subscriptions CASCADE;
-DROP TABLE IF EXISTS trial_history CASCADE;
-DROP TABLE IF EXISTS profiles CASCADE;
-DROP TABLE IF EXISTS user_data CASCADE;
-DROP TABLE IF EXISTS system_settings CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-
--- 1. Tabela de Usuários (Login e credenciais básicas)
-CREATE TABLE IF NOT EXISTS users (
-  email TEXT PRIMARY KEY,
-  password TEXT NOT NULL,
-  role TEXT DEFAULT 'user',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. Tabela de Perfis de Usuários (Dados pessoais)
-CREATE TABLE IF NOT EXISTS profiles (
-  email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  address TEXT,
-  city TEXT,
-  state TEXT,
-  phone TEXT,
-  cpf TEXT,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3. Tabela de Histórico de Período de Experiência (Não apaga ao deletar o usuário)
-CREATE TABLE IF NOT EXISTS trial_history (
-  email TEXT PRIMARY KEY,
-  cpf TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. Tabela de Assinaturas (Status do plano)
-CREATE TABLE IF NOT EXISTS subscriptions (
-  email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
-  plan TEXT DEFAULT 'none',
-  valid_until TIMESTAMPTZ,
-  selected_at TIMESTAMPTZ,
-  free_plan_used BOOLEAN DEFAULT FALSE,
-  approved BOOLEAN DEFAULT FALSE,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 5. Tabela de Tipos de Pagamento
-CREATE TABLE IF NOT EXISTS payment_types (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  UNIQUE (email, name)
-);
-
--- 6. Tabela de Status de Pagamento
-CREATE TABLE IF NOT EXISTS payment_statuses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  UNIQUE (email, name)
-);
-
--- 7. Tabela de Categorias de Receita
-CREATE TABLE IF NOT EXISTS income_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  UNIQUE (email, name)
-);
-
--- 8. Tabela de Categorias de Despesa
-CREATE TABLE IF NOT EXISTS expense_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  UNIQUE (email, name)
-);
-
--- 9. Tabela de Lançamentos de Receitas (Incomes)
-CREATE TABLE IF NOT EXISTS incomes (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  description TEXT NOT NULL,
-  value NUMERIC(15, 2) NOT NULL,
-  category TEXT NOT NULL,
-  status TEXT NOT NULL,
-  payment_type TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 10. Tabela de Lançamentos de Despesas (Expenses)
-CREATE TABLE IF NOT EXISTS expenses (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  description TEXT NOT NULL,
-  value NUMERIC(15, 2) NOT NULL,
-  category TEXT NOT NULL,
-  status TEXT NOT NULL,
-  payment_type TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 11. Tabela de Planejamento Anual
-CREATE TABLE IF NOT EXISTS annual_planning (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  year INTEGER NOT NULL,
-  monthly_budgets JSONB NOT NULL,
-  UNIQUE (email, year)
-);
-
--- 12. Tabela de Lista de Compras (Shopping List)
-CREATE TABLE IF NOT EXISTS shopping_list (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  quantity NUMERIC(12, 2) NOT NULL,
-  price NUMERIC(15, 2) NOT NULL,
-  category TEXT NOT NULL,
-  checked BOOLEAN DEFAULT FALSE,
-  date DATE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 13. Tabela de Metas / Planos de Ação (Action Plans)
-CREATE TABLE IF NOT EXISTS action_plans (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  target_date DATE NOT NULL,
-  value NUMERIC(15, 2) NOT NULL,
-  status TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 14. Tabela de Ações de Déficit / Plano de Melhoria
-CREATE TABLE IF NOT EXISTS deficit_actions (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  cost_center TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  correction_action TEXT NOT NULL,
-  responsible TEXT NOT NULL,
-  date DATE NOT NULL,
-  status TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 15. Tabela de Viagens (Trips)
-CREATE TABLE IF NOT EXISTS trips (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  expenses JSONB DEFAULT '[]'::jsonb,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 16. Tabela de Desejos de Consumo (Wishes)
-CREATE TABLE IF NOT EXISTS wishes (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  target_date DATE,
-  value NUMERIC(15, 2) NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Pendente',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 17. Tabela de Investimentos (Investments)
-CREATE TABLE IF NOT EXISTS investments (
-  id TEXT PRIMARY KEY,
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL,
-  date DATE NOT NULL,
-  value NUMERIC(15, 2) NOT NULL,
-  status TEXT NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 18. Tabela de Tipos de Investimento
-CREATE TABLE IF NOT EXISTS investment_types (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  UNIQUE (email, name)
-);
-
--- 19. Tabela de Status de Investimento
-CREATE TABLE IF NOT EXISTS investment_statuses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT REFERENCES users(email) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  UNIQUE (email, name)
-);
-
--- 20. Tabela de Suporte para Compatibilidade e Backup Monolítico
-CREATE TABLE IF NOT EXISTS user_data (
-  email TEXT PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
-  data JSONB,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 21. Tabela de Configurações Globais do Sistema (Valores dos Planos, Avisos, etc)
-CREATE TABLE IF NOT EXISTS system_settings (
-  key TEXT PRIMARY KEY,
-  value JSONB,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ---------------- CRIAÇÃO DE ÍNDICES DE PERFORMANCE ----------------
-CREATE INDEX IF NOT EXISTS idx_incomes_email_date ON incomes(email, date);
-CREATE INDEX IF NOT EXISTS idx_expenses_email_date ON expenses(email, date);
-CREATE INDEX IF NOT EXISTS idx_shopping_list_email ON shopping_list(email);
-CREATE INDEX IF NOT EXISTS idx_action_plans_email ON action_plans(email);
-CREATE INDEX IF NOT EXISTS idx_deficit_actions_email ON deficit_actions(email);
-CREATE INDEX IF NOT EXISTS idx_trips_email ON trips(email);
-CREATE INDEX IF NOT EXISTS idx_wishes_email ON wishes(email);
-CREATE INDEX IF NOT EXISTS idx_investments_email ON investments(email);
-
--- ---------------- Row Level Security (RLS) & Permissões ----------------
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE trial_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payment_types ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payment_statuses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE income_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE expense_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE incomes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE annual_planning ENABLE ROW LEVEL SECURITY;
-ALTER TABLE shopping_list ENABLE ROW LEVEL SECURITY;
-ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deficit_actions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
-ALTER TABLE wishes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE investments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE investment_types ENABLE ROW LEVEL SECURITY;
-ALTER TABLE investment_statuses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_data ENABLE ROW LEVEL SECURITY;
-ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
-
--- POLÍTICAS DE ACESSO TOTAL PARA REST API E CHAVES DE SERVIÇO / ANON
-DROP POLICY IF EXISTS "Acesso total - users" ON users;
-CREATE POLICY "Acesso total - users" ON users FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - profiles" ON profiles;
-CREATE POLICY "Acesso total - profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - trial_history" ON trial_history;
-CREATE POLICY "Acesso total - trial_history" ON trial_history FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - subscriptions" ON subscriptions;
-CREATE POLICY "Acesso total - subscriptions" ON subscriptions FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - payment_types" ON payment_types;
-CREATE POLICY "Acesso total - payment_types" ON payment_types FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - payment_statuses" ON payment_statuses;
-CREATE POLICY "Acesso total - payment_statuses" ON payment_statuses FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - income_categories" ON income_categories;
-CREATE POLICY "Acesso total - income_categories" ON income_categories FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - expense_categories" ON expense_categories;
-CREATE POLICY "Acesso total - expense_categories" ON expense_categories FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - incomes" ON incomes;
-CREATE POLICY "Acesso total - incomes" ON incomes FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - expenses" ON expenses;
-CREATE POLICY "Acesso total - expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - annual_planning" ON annual_planning;
-CREATE POLICY "Acesso total - annual_planning" ON annual_planning FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - shopping_list" ON shopping_list;
-CREATE POLICY "Acesso total - shopping_list" ON shopping_list FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - action_plans" ON action_plans;
-CREATE POLICY "Acesso total - action_plans" ON action_plans FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - deficit_actions" ON deficit_actions;
-CREATE POLICY "Acesso total - deficit_actions" ON deficit_actions FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - trips" ON trips;
-CREATE POLICY "Acesso total - trips" ON trips FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - wishes" ON wishes;
-CREATE POLICY "Acesso total - wishes" ON wishes FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - investments" ON investments;
-CREATE POLICY "Acesso total - investments" ON investments FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - investment_types" ON investment_types;
-CREATE POLICY "Acesso total - investment_types" ON investment_types FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - investment_statuses" ON investment_statuses;
-CREATE POLICY "Acesso total - investment_statuses" ON investment_statuses FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - user_data" ON user_data;
-CREATE POLICY "Acesso total - user_data" ON user_data FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Acesso total - system_settings" ON system_settings;
-CREATE POLICY "Acesso total - system_settings" ON system_settings FOR ALL USING (true) WITH CHECK (true);
-`
+    totalRequired: audit.totalRequired,
+    existingCount: audit.existingCount,
+    missingCount: audit.missingCount,
+    missingTables: audit.missingTables,
+    tables: audit.tables,
+    // By default, schema returns differentialSql so pasting into Supabase only creates what is missing
+    schema: audit.missingCount > 0 ? audit.differentialSql : audit.fullSafeSql,
+    differentialSql: audit.differentialSql,
+    fullSafeSql: audit.fullSafeSql
   });
 });
 
@@ -3376,9 +3316,11 @@ app.post("/api/admin/edit-user", async (req, res) => {
     if (userMessage !== undefined) {
       user.userMessage = userMessage;
       user.mensagemUsuario = userMessage;
+      await saveUserMessageToDatabase(lowerTargetEmail, userMessage);
     } else if (mensagemUsuario !== undefined) {
       user.userMessage = mensagemUsuario;
       user.mensagemUsuario = mensagemUsuario;
+      await saveUserMessageToDatabase(lowerTargetEmail, mensagemUsuario);
     }
 
     // Handle isBlocked flag change
@@ -3455,6 +3397,35 @@ app.post("/api/admin/edit-user", async (req, res) => {
   } catch (err) {
     console.error("Admin edit-user error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+// Admin saves user custom message directly and persistently
+app.post("/api/admin/save-user-message", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { targetEmail, userMessage, mensagemUsuario } = req.body;
+    if (!targetEmail) {
+      return res.status(400).json({ error: "E-mail de destino obrigatório." });
+    }
+
+    const lowerTargetEmail = targetEmail.toLowerCase().trim();
+    const messageToSave = userMessage !== undefined ? userMessage : (mensagemUsuario !== undefined ? mensagemUsuario : '');
+    await saveUserMessageToDatabase(lowerTargetEmail, messageToSave);
+
+    res.json({ success: true, message: "Mensagem do usuário gravada no banco de dados com sucesso!" });
+  } catch (err) {
+    console.error("Admin save-user-message error:", err);
+    res.status(500).json({ error: "Erro interno ao salvar mensagem." });
   }
 });
 
