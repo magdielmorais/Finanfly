@@ -1,30 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { UserProfile, UserData } from './types';
 import { Login } from './components/Login';
-import { Home } from './components/Home';
-import { Dashboard } from './components/Dashboard';
-import { SubscriptionPage } from './components/SubscriptionPage';
-import { AdminPage } from './components/AdminPage';
-import {
-  ReceitasPage,
-  DespesasPage,
-  ResumoMensalPage,
-  ResumoAnualPage,
-  MetasPage,
-  DesejosPage,
-  AcaoDeficitPage,
-  ListaDeComprasPage,
-  PlanejamentoAnualPage,
-  ListManagerPage,
-  DadosPessoaisPage
-} from './components/Pages';
-import { SuportePage } from './components/SuportePage';
-import { ViagemPage } from './components/ViagemPage';
-import { InvestimentosPage } from './components/InvestimentosPage';
-import { InvestimentosConfigPage } from './components/InvestimentosConfigPage';
-import { ModoAppWebPage } from './components/ModoAppWebPage';
 import { FinanFlyLogo } from './components/FinanFlyLogo';
-import { OfflineModal } from './components/OfflineModal';
+
+// Lazy loading heavy pages and components to drastically reduce initial bundle size
+const Home = lazy(() => import('./components/Home').then(m => ({ default: m.Home })));
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const SubscriptionPage = lazy(() => import('./components/SubscriptionPage').then(m => ({ default: m.SubscriptionPage })));
+const AdminPage = lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
+const SuportePage = lazy(() => import('./components/SuportePage').then(m => ({ default: m.SuportePage })));
+const ViagemPage = lazy(() => import('./components/ViagemPage').then(m => ({ default: m.ViagemPage })));
+const InvestimentosPage = lazy(() => import('./components/InvestimentosPage').then(m => ({ default: m.InvestimentosPage })));
+const InvestimentosConfigPage = lazy(() => import('./components/InvestimentosConfigPage').then(m => ({ default: m.InvestimentosConfigPage })));
+const ModoAppWebPage = lazy(() => import('./components/ModoAppWebPage').then(m => ({ default: m.ModoAppWebPage })));
+const OfflineModal = lazy(() => import('./components/OfflineModal').then(m => ({ default: m.OfflineModal })));
+
+// Lazy loading individual views from Pages.tsx
+const ReceitasPage = lazy(() => import('./components/Pages').then(m => ({ default: m.ReceitasPage })));
+const DespesasPage = lazy(() => import('./components/Pages').then(m => ({ default: m.DespesasPage })));
+const ResumoMensalPage = lazy(() => import('./components/Pages').then(m => ({ default: m.ResumoMensalPage })));
+const ResumoAnualPage = lazy(() => import('./components/Pages').then(m => ({ default: m.ResumoAnualPage })));
+const MetasPage = lazy(() => import('./components/Pages').then(m => ({ default: m.MetasPage })));
+const DesejosPage = lazy(() => import('./components/Pages').then(m => ({ default: m.DesejosPage })));
+const AcaoDeficitPage = lazy(() => import('./components/Pages').then(m => ({ default: m.AcaoDeficitPage })));
+const ListaDeComprasPage = lazy(() => import('./components/Pages').then(m => ({ default: m.ListaDeComprasPage })));
+const PlanejamentoAnualPage = lazy(() => import('./components/Pages').then(m => ({ default: m.PlanejamentoAnualPage })));
+const ListManagerPage = lazy(() => import('./components/Pages').then(m => ({ default: m.ListManagerPage })));
+const DadosPessoaisPage = lazy(() => import('./components/Pages').then(m => ({ default: m.DadosPessoaisPage })));
+
+// Loading spinner fallback for lazy components
+const PageLoadingFallback: React.FC = () => (
+  <div className="flex flex-col items-center justify-center min-h-[350px] w-full py-12 animate-fade-in">
+    <div className="relative flex items-center justify-center">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-blue-500/20 border-t-blue-600 dark:border-blue-400/20 dark:border-t-blue-400" />
+      <div className="absolute h-3.5 w-3.5 rounded-full bg-blue-500/20 animate-pulse" />
+    </div>
+    <span className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
+      Carregando recurso...
+    </span>
+  </div>
+);
 
 import {
   Home as HomeIcon,
@@ -896,7 +911,9 @@ export default function App() {
   if (!currentUser) {
     return (
       <>
-        <OfflineModal />
+        <Suspense fallback={null}>
+          <OfflineModal />
+        </Suspense>
         <Login
           onLoginSuccess={handleLoginSuccess}
           onRedirectToSubscription={handleRedirectToSubscription}
@@ -942,7 +959,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden dark:bg-slate-950 dark:text-slate-100">
-      <OfflineModal />
+      <Suspense fallback={null}>
+        <OfflineModal />
+      </Suspense>
       
       {/* Backdrop overlay for mobile menu - closes menu when clicking outside */}
       {sidebarOpen && (
@@ -1227,7 +1246,9 @@ export default function App() {
 
         {/* Scrollable contents frame */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
-          {renderPageContent()}
+          <Suspense fallback={<PageLoadingFallback />}>
+            {renderPageContent()}
+          </Suspense>
         </div>
       </main>
     </div>

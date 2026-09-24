@@ -97,6 +97,8 @@ export interface TripExpense {
   description: string;
   value: number;
   date?: string; // date of expense
+  paymentType?: string; // Tipo de pagamento (escrita livre ou selecionado)
+  status?: string; // Situação: Pago, Não pago, etc.
 }
 
 export interface Trip {
