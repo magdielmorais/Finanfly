@@ -2857,15 +2857,17 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
       </div>
       </div>
 
-      {/* Janela suspensa com efeito fade para os lançamentos da categoria */}
+      {/* Janela suspensa em modo popup para os lançamentos da categoria */}
       {selectedCategoryModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
           onClick={() => setSelectedCategoryModal(null)}
         >
           <div
-            className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[85vh]"
+            className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
           >
             {/* Header da Janela com X acima para fechar e voltar */}
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-4 bg-slate-50/80 dark:bg-slate-950/60">
