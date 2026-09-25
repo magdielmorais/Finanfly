@@ -50,7 +50,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
   const [copiedSchema, setCopiedSchema] = useState(false);
   const [selectedScriptType, setSelectedScriptType] = useState<'differential' | 'full'>('differential');
-  const [showTableDetails, setShowTableDetails] = useState(false);
+  const [showTableDetails, setShowTableDetails] = useState(true);
 
   const checkSupabaseStatus = async () => {
     setSupabaseStatus(prev => ({ ...prev, loading: true }));
@@ -127,7 +127,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   }, []);
 
   // Active Tab state
-  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios'>('gestao');
+  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios' | 'conexao'>('gestao');
 
   // Reports filters state
   const [reportStateFilter, setReportStateFilter] = useState('all');
@@ -1064,6 +1064,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         >
           <FileText className="h-4 w-4" />
           Relatórios
+        </button>
+        <button
+          onClick={() => setActiveTab('conexao')}
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'conexao'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Database className="h-4 w-4" />
+          Conexão
         </button>
       </div>
 
@@ -2578,8 +2589,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       )}
 
-      {/* Supabase Connection Verification & Real-time Database Audit Card */}
-      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all">
+      {/* Tab: Conexão (Auditoria e Sincronização Segura do Supabase e Catálogo de Tabelas) */}
+      {activeTab === 'conexao' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Supabase Connection Verification & Real-time Database Audit Card */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-all">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
             <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
@@ -2803,6 +2817,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
         </div>
       </div>
+      </div>
+      )}
 
       {/* Custom Confirmation Popup for User Deletion */}
       {userToDelete && (

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info, Smartphone } from 'lucide-react';
+import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info, Smartphone, Menu } from 'lucide-react';
 import { FinanFlyLogo } from './FinanFlyLogo';
 
 interface HomeProps {
   userName: string;
   onNavigate: (page: string) => void;
   isAdmin: boolean;
+  onOpenMenu?: () => void;
 }
 
-export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => {
+export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpenMenu }) => {
   const [isComoComecarOpen, setIsComoComecarOpen] = useState(false);
   const [notices, setNotices] = useState(() => {
     try {
@@ -102,10 +103,23 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
             <p className="text-slate-200 text-base max-w-xl leading-relaxed">
               Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações para melhoria contínua de finanças. Tudo em um único lugar, adaptado para qualquer tela.
             </p>
+
+            <p className="text-blue-300 font-semibold text-sm sm:text-base">
+              Para começar só escolher abaixo.
+            </p>
+
             <div className="pt-2 flex flex-wrap items-center gap-3">
               <button
+                onClick={onOpenMenu}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] active:scale-95 border border-blue-400/30 cursor-pointer"
+                title="Abrir menu suspenso na lateral superior"
+              >
+                <Menu className="h-5 w-5" />
+                <span>Menu</span>
+              </button>
+              <button
                 onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Painel')}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 text-sm font-semibold transition-all border border-slate-700/50 cursor-pointer"
               >
                 Ir para o {isAdmin ? 'Painel Admin' : 'Painel'}
                 <ArrowRight className="h-4 w-4" />
@@ -124,10 +138,6 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin }) => 
                 <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse" />
                 Adicionar Despesas
               </button>
-            </div>
-
-            {/* Botão Modo Celular abaixo de Adicionar Despesas linkado para Modo App Web */}
-            <div className="pt-1">
               <button
                 id="btn-home-modo-celular"
                 onClick={() => onNavigate('Modo app Web')}

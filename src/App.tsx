@@ -564,6 +564,13 @@ export default function App() {
               setCurrentPage(page);
               setSidebarOpen(false);
             }}
+            onOpenMenu={() => {
+              setSidebarOpen(true);
+              const sidebarEl = document.querySelector('aside');
+              if (sidebarEl) {
+                sidebarEl.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
           />
         );
       case 'Painel':
@@ -904,7 +911,20 @@ export default function App() {
         }
         return <AdminPage adminUser={currentUser} />;
       default:
-        return <Home userName={currentUser.name} isAdmin={currentUser.role === 'admin'} onNavigate={setCurrentPage} />;
+        return (
+          <Home
+            userName={currentUser.name}
+            isAdmin={currentUser.role === 'admin'}
+            onNavigate={setCurrentPage}
+            onOpenMenu={() => {
+              setSidebarOpen(true);
+              const sidebarEl = document.querySelector('aside');
+              if (sidebarEl) {
+                sidebarEl.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          />
+        );
     }
   };
 
