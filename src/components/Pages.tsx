@@ -2198,6 +2198,17 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
   const [selectedRealizedCategory, setSelectedRealizedCategory] = useState<string | null>(null);
+  const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
+
+  const formatShortDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}/${month}/${year.slice(-2)}`;
+    }
+    return dateStr;
+  };
 
   const monthsList = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -2313,6 +2324,54 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
     };
   }, [userData.incomes, userData.expenses, userData.annualPlanning, userData.expenseCategories, selectedMonth, selectedYear]);
 
+  const categoryModalLaunches = useMemo(() => {
+    if (!selectedCategoryModal) return [];
+
+    const exps = userData.expenses
+      .filter(exp => {
+        if (!exp.date || exp.category !== selectedCategoryModal) return false;
+        const parts = exp.date.split('-');
+        if (parts.length >= 2) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          return y === selectedYear && m === selectedMonth;
+        }
+        return false;
+      })
+      .map(e => ({
+        id: e.id,
+        date: e.date,
+        description: e.description,
+        value: e.value,
+        type: 'despesa' as const
+      }));
+
+    const incs = userData.incomes
+      .filter(inc => {
+        if (!inc.date || inc.category !== selectedCategoryModal) return false;
+        const parts = inc.date.split('-');
+        if (parts.length >= 2) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          return y === selectedYear && m === selectedMonth;
+        }
+        return false;
+      })
+      .map(i => ({
+        id: i.id,
+        date: i.date,
+        description: i.description,
+        value: i.value,
+        type: 'receita' as const
+      }));
+
+    return [...exps, ...incs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [userData.expenses, userData.incomes, selectedCategoryModal, selectedYear, selectedMonth]);
+
+  const categoryModalTotal = useMemo(() => {
+    return categoryModalLaunches.reduce((sum, item) => sum + item.value, 0);
+  }, [categoryModalLaunches]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800 gap-3">
@@ -2381,7 +2440,12 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
 
       {/* Performance by Category Table */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-xs font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Resumo por Categoria Mensal</h3>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">Resumo por Categoria Mensal</h3>
+          <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-200/50 dark:border-blue-900/40">
+            💡 Clique na categoria para ver os lançamentos
+          </span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs table-fixed">
             <thead>
@@ -2402,8 +2466,17 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
                     : 'text-emerald-600 dark:text-emerald-400';
 
                 return (
-                  <tr key={item.category} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
-                    <td className="py-3 font-bold text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-tight" title={item.category}>{item.category}</td>
+                  <tr 
+                    key={item.category} 
+                    onClick={() => setSelectedCategoryModal(item.category)}
+                    className="hover:bg-blue-50/50 dark:hover:bg-blue-950/20 cursor-pointer transition-colors group"
+                    title={`Clique para ver todos os lançamentos de ${item.category}`}
+                  >
+                    <td className="py-3 font-bold break-words whitespace-normal leading-tight">
+                      <span className="text-blue-600 dark:text-blue-400 group-hover:underline group-hover:text-blue-700 dark:group-hover:text-blue-300 flex items-center gap-1.5 font-bold">
+                        {item.category}
+                      </span>
+                    </td>
                     <td className="py-3 text-right font-mono text-slate-800 dark:text-white">
                       <span className="text-[10px] mr-0.5 opacity-50 font-sans font-normal text-slate-500 dark:text-slate-400">R$</span>
                       <span className="font-bold">{item.budgetedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -2783,6 +2856,107 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
         </div>
       </div>
       </div>
+
+      {/* Janela suspensa com efeito fade para os lançamentos da categoria */}
+      {selectedCategoryModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setSelectedCategoryModal(null)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header da Janela com X acima para fechar e voltar */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-4 bg-slate-50/80 dark:bg-slate-950/60">
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                    Categoria
+                  </span>
+                  <h3 className="text-base font-bold text-slate-800 dark:text-white truncate">
+                    {selectedCategoryModal}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                  {monthsList[selectedMonth]} de {selectedYear} • {categoryModalLaunches.length} {categoryModalLaunches.length === 1 ? 'lançamento' : 'lançamentos'}
+                </p>
+              </div>
+
+              {/* Botão X acima para fechar e voltar */}
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryModal(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+                title="Fechar e voltar"
+                aria-label="Fechar e voltar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Tabela de Lançamentos com data abreviada, Descrição e valor */}
+            <div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1">
+              {categoryModalLaunches.length > 0 ? (
+                <div className="overflow-x-auto border border-slate-150 dark:border-slate-800/80 rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-slate-500 dark:text-slate-400 w-24">
+                          Data
+                        </th>
+                        <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-slate-500 dark:text-slate-400">
+                          Descrição
+                        </th>
+                        <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-slate-500 dark:text-slate-400 text-right w-28">
+                          Valor
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {categoryModalLaunches.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 font-mono font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                            {formatShortDate(item.date)}
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200 break-words">
+                            {item.description || 'Sem descrição'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
+                            R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-slate-400 dark:text-slate-500 text-xs">
+                  <p className="font-semibold text-slate-600 dark:text-slate-300">Nenhum lançamento no período</p>
+                  <p className="mt-1">Não há despesas ou receitas registradas para esta categoria em {monthsList[selectedMonth]} de {selectedYear}.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé com total e botão Voltar */}
+            <div className="border-t border-slate-200 dark:border-slate-800 px-5 py-3 bg-slate-50 dark:bg-slate-950/60 flex items-center justify-between">
+              <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                Total da Categoria:{' '}
+                <span className="font-bold font-mono text-red-600 dark:text-red-400 text-sm">
+                  R$ {categoryModalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryModal(null)}
+                className="px-4 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
