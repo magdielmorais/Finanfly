@@ -110,7 +110,7 @@ input::placeholder, textarea::placeholder {
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 

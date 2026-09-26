@@ -738,7 +738,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                     </div>
                   </div>
                   <div className="mt-2.5">
-                    <h3 className={`text-xl font-bold font-mono ${totals.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    <h3 className={`text-xl font-bold font-mono ${
+                      Math.abs(totals.balance) < 0.005
+                        ? 'text-slate-400 dark:text-slate-500 font-normal'
+                        : totals.balance > 0
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
                       R$ {totals.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
