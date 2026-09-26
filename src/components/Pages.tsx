@@ -1124,8 +1124,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                <th className="py-3.5 px-2 font-semibold whitespace-nowrap w-[76px]">Data</th>
-                <th className="py-3.5 px-3.5 font-semibold w-[210px] min-w-[190px] max-w-[260px]">Descrição</th>
+                <th className="py-3.5 px-1.5 font-semibold whitespace-nowrap w-[68px]">Data</th>
+                <th className="py-3.5 px-3 font-semibold w-[180px] min-w-[165px] max-w-[220px]">Descrição</th>
                 <th className="py-3.5 px-3.5 font-semibold text-right whitespace-nowrap w-[120px]">Valor</th>
                 <th className="py-3.5 px-3 font-semibold whitespace-nowrap w-[130px]">Categoria</th>
                 <th className="py-3.5 px-3 font-semibold whitespace-nowrap w-[130px]">Tipo</th>
@@ -1146,10 +1146,10 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                     className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
                     title="Clique para editar este lançamento"
                   >
-                    <td className="py-3.5 px-2 text-slate-600 dark:text-slate-400 font-mono text-xs sm:text-sm whitespace-nowrap w-[76px]">
+                    <td className="py-3.5 px-1.5 text-slate-600 dark:text-slate-400 font-mono text-xs whitespace-nowrap w-[68px]">
                       {formatShortDate(inc.date)}
                     </td>
-                    <td className="py-3.5 px-3.5 font-semibold text-slate-800 dark:text-slate-100 text-sm w-[210px] min-w-[190px] max-w-[260px] break-words whitespace-normal leading-snug">
+                    <td className="py-3.5 px-3 font-semibold text-slate-800 dark:text-slate-100 text-sm w-[180px] min-w-[165px] max-w-[220px] break-words whitespace-normal leading-snug">
                       {inc.description}
                     </td>
                     <td className="py-3.5 px-3.5 text-right font-mono font-bold text-blue-600 dark:text-blue-400 text-sm whitespace-nowrap w-[120px]">
@@ -2385,14 +2385,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                <th className="py-3.5 px-4 font-semibold whitespace-nowrap w-[110px]">Data</th>
-                <th className="py-3.5 px-4 font-semibold min-w-[200px]">Descrição</th>
-                <th className="py-3.5 px-4 font-semibold whitespace-nowrap w-[150px]">Categoria</th>
-                <th className="py-3.5 px-4 font-semibold whitespace-nowrap w-[120px]">Classificação</th>
-                <th className="py-3.5 px-4 font-semibold whitespace-nowrap w-[160px]">Tipo</th>
-                <th className="py-3.5 px-4 font-semibold whitespace-nowrap w-[140px]">Situação</th>
-                <th className="py-3.5 px-4 font-semibold text-right whitespace-nowrap w-[130px]">Valor</th>
-                <th className="py-3.5 px-4 font-semibold text-right whitespace-nowrap w-[100px]">Ações</th>
+                <th className="py-3.5 px-1.5 font-semibold whitespace-nowrap w-[68px]">Data</th>
+                <th className="py-3.5 px-3 font-semibold w-[180px] min-w-[165px] max-w-[220px]">Descrição</th>
+                <th className="py-3.5 px-3.5 font-semibold text-right whitespace-nowrap w-[120px]">Valor</th>
+                <th className="py-3.5 px-3 font-semibold whitespace-nowrap w-[130px]">Categoria</th>
+                <th className="py-3.5 px-2.5 font-semibold whitespace-nowrap w-[110px]">Classificação</th>
+                <th className="py-3.5 px-3 font-semibold whitespace-nowrap w-[130px]">Tipo</th>
+                <th className="py-3.5 px-2.5 font-semibold whitespace-nowrap w-[120px]">Situação</th>
+                <th className="py-3.5 px-2.5 font-semibold text-right whitespace-nowrap w-[90px]">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -2408,27 +2408,30 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                     className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
                     title="Clique para editar este lançamento"
                   >
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 font-mono text-sm whitespace-nowrap w-[110px]">
+                    <td className="py-3.5 px-1.5 text-slate-600 dark:text-slate-400 font-mono text-xs whitespace-nowrap w-[68px]">
                       {formatShortDate(exp.date)}
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100 text-sm min-w-[200px]">
+                    <td className="py-3.5 px-3 font-semibold text-slate-800 dark:text-slate-100 text-sm w-[180px] min-w-[165px] max-w-[220px] break-words whitespace-normal leading-snug">
                       {exp.description}
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap w-[150px]">
-                      <span className="inline-block bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-3 py-1 rounded-md text-xs font-medium">
+                    <td className="py-3.5 px-3.5 text-right font-mono font-bold text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap w-[120px]">
+                      <span className="text-[11px] font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{exp.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3.5 px-3 whitespace-nowrap w-[130px]">
+                      <span className="inline-block bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-2.5 py-1 rounded-md text-xs font-medium">
                         {exp.category}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap w-[120px]">
-                      <span className="inline-block bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2.5 py-1 rounded-md text-xs font-semibold">
+                    <td className="py-3.5 px-2.5 whitespace-nowrap w-[110px]">
+                      <span className="inline-block bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded-md text-xs font-semibold">
                         {exp.classification || 'Fixo'}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 text-sm whitespace-nowrap w-[160px]">
+                    <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300 text-sm whitespace-nowrap w-[130px]">
                       {exp.paymentType}
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap w-[140px]">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                    <td className="py-3.5 px-2.5 whitespace-nowrap w-[120px]">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
                         exp.status === 'Pago'
                           ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
                           : exp.status === 'Pendente'
@@ -2436,30 +2439,27 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                           : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
                       }`}>{exp.status}</span>
                     </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-bold text-rose-600 dark:text-rose-400 text-sm sm:text-base whitespace-nowrap w-[130px]">
-                      <span className="text-[11px] font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{exp.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap w-[100px]">
-                      <div className="flex items-center justify-end gap-3.5">
+                    <td className="py-3.5 px-2.5 text-right whitespace-nowrap w-[90px]">
+                      <div className="flex items-center justify-end gap-2.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEditStart(exp);
                           }}
-                          className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-800"
+                          className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-800"
                           title="Editar Despesa"
                         >
-                          <Pencil className="h-5 w-5" />
+                          <Pencil className="h-4.5 w-4.5" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(exp.id);
                           }}
-                          className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-red-50 dark:hover:bg-slate-800"
+                          className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-slate-800"
                           title="Excluir Despesa"
                         >
-                          <Trash2 className="h-5 w-5" />
+                          <Trash2 className="h-4.5 w-4.5" />
                         </button>
                       </div>
                     </td>
@@ -4703,7 +4703,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     setReason(action.reason);
     setCorrectionAction(action.correctionAction);
     setResponsible(action.responsible);
-    setDate(action.date);
+    setDate(action.date || new Date().toISOString().split('T')[0]);
     setStatus(action.status);
     setShowAdd(true);
   };
@@ -4729,23 +4729,29 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+      <div className="flex flex-col items-start gap-3.5 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Melhoria financeira</h2>
-          <p className="text-xs text-slate-400">Crie ações corretivas para os centros de custos estourados para gerar aprendizados e melhorias.</p>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Plano de Ação para Déficit Orçamentário <span className="font-normal text-slate-600 dark:text-slate-400">(Não cumprimento do limite financeiro)</span>
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Crie ações de aprendizados para as categorias de custos extrapolados, melhores os hábitos e comportamentos e tenha melhor controle sobre os gastos.</p>
         </div>
         <button
           onClick={() => {
-            if (showAdd) {
-              handleCancelEdit();
-            } else {
-              setShowAdd(true);
-            }
+            setEditingActionId(null);
+            setCostCenter(userData.expenseCategories[0] || 'Outros');
+            setReason('');
+            setCorrectionAction('');
+            setResponsible('');
+            setDate(new Date().toISOString().split('T')[0]);
+            setStatus('Pendente');
+            setShowAdd(true);
           }}
-          className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-500 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-xs font-bold text-white rounded-xl shadow-sm shadow-red-600/15 transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+          id="btn-nova-acao"
         >
           <Plus className="h-4 w-4" />
-          {editingActionId ? 'Editar Ação' : 'Nova ação'}
+          Nova Ação
         </button>
       </div>
 
@@ -4757,7 +4763,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
         >
           <div className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-emerald-500" />
-            <span>Como Lançar Ações de melhoria</span>
+            <span>Como Lançar Ações de Inconsistência Financeira</span>
           </div>
           <span className="text-slate-400">
             {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
@@ -4765,12 +4771,12 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
         </button>
         {showHelp && (
           <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2 animate-fade-in">
-            <p className="font-medium text-slate-700 dark:text-slate-300">As Ações de Melhoria (5W2H simplificado) servem para corrigir desvios quando despesas superam as previsões:</p>
+            <p className="font-medium text-slate-700 dark:text-slate-300">As Ações de aprendizado servem para registrar planos de ação quando despesas superam as previsões ou ocorrem inconsistências:</p>
             <ul className="list-decimal pl-4 space-y-1.5">
-              <li>Clique em <strong className="text-slate-800 dark:text-white">Nova Ação</strong> no canto superior direito para abrir o formulário.</li>
-              <li>Selecione o <strong className="text-slate-800 dark:text-white">Centro de Custo Ocorrido</strong> e digite o <strong className="text-slate-800 dark:text-white">Motivo do Desvio</strong> (por que o gasto ultrapassou o planejado).</li>
+              <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Ação</strong> abaixo do título para abrir a janela.</li>
+              <li>Selecione a <strong className="text-slate-800 dark:text-white">Categoria</strong> e digite o <strong className="text-slate-800 dark:text-white">Motivo do Desvio</strong> (por que o gasto ultrapassou o planejado).</li>
               <li>Descreva a <strong className="text-slate-800 dark:text-white">Ação Corretiva</strong> (o que será executado para conter ou corrigir isso).</li>
-              <li>Defina o <strong className="text-slate-800 dark:text-white">Responsável</strong> pela ação, a <strong className="text-slate-800 dark:text-white">Data Limite de Conclusão</strong> e a <strong className="text-slate-800 dark:text-white">Situação da Ação</strong>.</li>
+              <li>Defina o <strong className="text-slate-800 dark:text-white">Responsável</strong> pela ação, a data de <strong className="text-slate-800 dark:text-white">Execução</strong> e a <strong className="text-slate-800 dark:text-white">Situação da Ação</strong>.</li>
               <li>Clique em <strong className="text-emerald-600 dark:text-emerald-400">Salvar Ação</strong> para concluir.</li>
             </ul>
             <p className="mt-2 text-[11px] bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 p-2.5 rounded-lg">
@@ -4781,172 +4787,227 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
       </div>
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 grid gap-4 sm:grid-cols-2 text-xs">
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Centro de Custo Ocorrido</label>
-            <select
-              value={costCenter}
-              onChange={(e) => setCostCenter(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-            >
-              {userData.expenseCategories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-              <option value="Geral">Geral</option>
-            </select>
-          </div>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleCancelEdit();
+          }}
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                  {editingActionId ? 'Editar Ação de Aprendizado' : 'Nova Ação de Aprendizado'}
+                </h3>
+                {editingActionId && (
+                  <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-bold dark:bg-amber-950/30">
+                    Modo de Edição
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Responsável</label>
-            <input
-              type="text"
-              required
-              placeholder="Ex: João da Silva"
-              value={responsible}
-              onChange={(e) => setResponsible(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-            />
-          </div>
+            <form onSubmit={handleAdd} className="grid gap-4 sm:grid-cols-2 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria</label>
+                <select
+                  value={costCenter}
+                  onChange={(e) => setCostCenter(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                >
+                  {userData.expenseCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="Geral">Geral</option>
+                </select>
+              </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Motivo do Estouro</label>
-            <textarea
-              required
-              placeholder="Ex: Compra de materiais de escritório não planejada devido a quebra de equipamentos antigos."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
-            />
-          </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Responsável</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: João da Silva"
+                  value={responsible}
+                  onChange={(e) => setResponsible(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                />
+              </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Ação de Correção (Aprendizado)</label>
-            <textarea
-              required
-              placeholder="Ex: Revisar a política de manutenção e reservar uma margem de segurança no orçamento de TI."
-              value={correctionAction}
-              onChange={(e) => setCorrectionAction(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
-            />
-          </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Motivo do Estouro</label>
+                <textarea
+                  required
+                  placeholder="Ex: Compra de materiais de escritório não planejada devido a quebra de equipamentos antigos."
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
+                />
+              </div>
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Data de Identificação / Execução</label>
-            <input
-              type="date"
-              required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-            />
-          </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Ação de Correção (Aprendizado)</label>
+                <textarea
+                  required
+                  placeholder="Ex: Revisar a política de manutenção e reservar uma margem de segurança no orçamento de TI."
+                  value={correctionAction}
+                  onChange={(e) => setCorrectionAction(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
+                />
+              </div>
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-            >
-              <option value="Pendente">Pendente</option>
-              <option value="Em Andamento">Em Andamento</option>
-              <option value="Concluído">Concluído</option>
-            </select>
-          </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Execução</label>
+                <input
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                />
+              </div>
 
-          <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={handleCancelEdit}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-red-600 px-5 py-2 font-bold text-white hover:bg-red-500 transition-colors"
-            >
-              {editingActionId ? 'Salvar Alterações' : 'Cadastrar Ação'}
-            </button>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                >
+                  <option value="Pendente">Pendente</option>
+                  <option value="Em Andamento">Em Andamento</option>
+                  <option value="Concluído">Concluído</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2 flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 mt-2">
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-red-600 px-5 py-2 font-bold text-white hover:bg-red-500 transition-colors shadow-sm shadow-red-600/20 cursor-pointer"
+                >
+                  {editingActionId ? 'Salvar Alterações' : 'Cadastrar Ação'}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
+        </div>
       )}
 
       {/* List layout style rows (uma embaixo das outras estilo linhas) */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
-          <thead className="bg-slate-50 dark:bg-slate-950/60 text-slate-400 font-bold uppercase text-[10px]">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left">Centro de Custo</th>
-              <th scope="col" className="px-6 py-3 text-left">Motivo</th>
-              <th scope="col" className="px-6 py-3 text-left">Ação de Correção</th>
-              <th scope="col" className="px-6 py-3 text-left">Responsável</th>
-              <th scope="col" className="px-6 py-3 text-left">Data</th>
-              <th scope="col" className="px-6 py-3 text-left">Status</th>
-              <th scope="col" className="px-6 py-3 text-center w-24">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-            {deficitActions.length === 0 ? (
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden space-y-0">
+        <div className="p-4 sm:p-5 pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-slate-800 dark:text-white text-base">Ações de aprendizado</h3>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+              {deficitActions.length} {deficitActions.length === 1 ? 'ação' : 'ações'}
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-bold uppercase text-xs border-b border-slate-200 dark:border-slate-800 shadow-xs">
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-xs">
-                  Nenhuma ação de melhoria cadastrada.
-                </td>
+                <th scope="col" className="px-3.5 py-3 text-left whitespace-nowrap">Categoria</th>
+                <th scope="col" className="px-3.5 py-3 text-left min-w-[180px]">Motivo</th>
+                <th scope="col" className="px-3.5 py-3 text-left min-w-[200px]">Ação de Correção</th>
+                <th scope="col" className="px-3.5 py-3 text-left whitespace-nowrap">Responsável</th>
+                <th scope="col" className="px-3 py-3 text-left whitespace-nowrap w-[90px]">Execução</th>
+                <th scope="col" className="px-3 py-3 text-left whitespace-nowrap w-[110px]">Status</th>
+                <th scope="col" className="px-3 py-3 text-center whitespace-nowrap w-[80px]">Ações</th>
               </tr>
-            ) : (
-              deficitActions.map((action) => (
-                <tr key={action.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/10">
-                  <td className="px-6 py-4 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
-                    <span className="px-2 py-1 bg-red-50 text-red-700 rounded-md dark:bg-red-950/40 dark:text-red-300 text-[11px]">
-                      {action.costCenter}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400 max-w-xs truncate" title={action.reason}>
-                    {action.reason}
-                  </td>
-                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400 max-w-xs truncate" title={action.correctionAction}>
-                    {action.correctionAction}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium">
-                    {action.responsible}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-slate-500 font-mono">
-                    {action.date ? action.date.split('-').reverse().join('/') : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      action.status === 'Concluído'
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-                        : action.status === 'Em Andamento'
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
-                        : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
-                    }`}>
-                      {action.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-slate-400">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <button
-                        onClick={() => handleStartEdit(action)}
-                        className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                        title="Editar Ação"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(action.id)}
-                        className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
-                        title="Excluir Ação"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 bg-white dark:bg-slate-900">
+              {deficitActions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-sm">
+                    Nenhuma ação de inconsistência financeira cadastrada.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                deficitActions.map((action) => (
+                  <tr
+                    key={action.id}
+                    onClick={() => handleStartEdit(action)}
+                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                    title="Clique para editar este lançamento"
+                  >
+                    <td className="px-3.5 py-3 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
+                      <span className="px-2.5 py-1 bg-red-50 text-red-700 rounded-md dark:bg-red-950/40 dark:text-red-300 text-xs font-semibold">
+                        {action.costCenter}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-3 text-slate-700 dark:text-slate-300 text-sm max-w-xs break-words whitespace-normal leading-snug" title={action.reason}>
+                      {action.reason}
+                    </td>
+                    <td className="px-3.5 py-3 text-slate-700 dark:text-slate-300 text-sm font-medium max-w-sm break-words whitespace-normal leading-snug" title={action.correctionAction}>
+                      {action.correctionAction}
+                    </td>
+                    <td className="px-3.5 py-3 whitespace-nowrap text-slate-800 dark:text-slate-200 font-semibold text-sm">
+                      {action.responsible}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-slate-600 dark:text-slate-400 font-mono text-xs sm:text-sm">
+                      {action.date ? action.date.split('-').reverse().join('/') : '-'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        action.status === 'Concluído'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                          : action.status === 'Em Andamento'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
+                          : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
+                      }`}>
+                        {action.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-center text-slate-400">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(action);
+                          }}
+                          className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-800"
+                          title="Editar Ação"
+                        >
+                          <Pencil className="h-4.5 w-4.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(action.id);
+                          }}
+                          className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-slate-800"
+                          title="Excluir Ação"
+                        >
+                          <Trash2 className="h-4.5 w-4.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

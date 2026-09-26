@@ -666,6 +666,10 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
+      case 'Inconsistência financeira':
+      case 'Plano de Ação para Déficit Orçamentário':
+      case 'Plano de Ação para Inconsistência financeira':
+      case 'P. A. desvio financeiro':
       case 'Melhoria financeira':
       case 'Ação de melhoria':
       case 'Ação para déficit':
@@ -952,7 +956,7 @@ export default function App() {
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
     { name: 'Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
     { name: 'Despesas (Gastos)', icon: TrendingDown, type: 'link' },
-    { name: 'Melhoria financeira', icon: AlertTriangle, type: 'link' },
+    { name: 'Inconsistência financeira', icon: AlertTriangle, type: 'link' },
     { name: 'Investimentos', icon: PiggyBank, type: 'link' },
     { name: 'Objetivos', icon: Target, type: 'link' },
     { name: 'Viagens', icon: Plane, type: 'link' },
@@ -1030,7 +1034,8 @@ export default function App() {
               (item.name === 'Início' && currentPage === 'Home') || 
               (item.name === 'Painel' && currentPage === 'Dashboard') ||
               (item.name === 'Receitas (Ganhos)' && currentPage === 'Receitas') ||
-              (item.name === 'Despesas (Gastos)' && currentPage === 'Despesas');
+              (item.name === 'Despesas (Gastos)' && currentPage === 'Despesas') ||
+              (item.name === 'Inconsistência financeira' && (currentPage === 'P. A. desvio financeiro' || currentPage === 'Melhoria financeira' || currentPage === 'Ação de melhoria' || currentPage === 'Plano de Ação para Inconsistência financeira'));
             return (
               <div key={item.name}>
                 <button
@@ -1048,8 +1053,8 @@ export default function App() {
                   <span>{item.name}</span>
                 </button>
 
-                {/* Highlighted divider line below Melhoria financeira */}
-                {item.name === 'Melhoria financeira' && (
+                {/* Highlighted divider line below Inconsistência financeira */}
+                {(item.name === 'Inconsistência financeira' || item.name === 'P. A. desvio financeiro' || item.name === 'Melhoria financeira') && (
                   <div className="my-2.5 border-b-4 border-slate-700/90 shadow-sm mx-1" />
                 )}
               </div>
