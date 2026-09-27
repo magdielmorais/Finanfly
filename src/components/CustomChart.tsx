@@ -55,166 +55,225 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
     <div className="w-full min-w-0">
       <div 
         data-no-swipe="true"
+        data-chart-scrollable="true"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
         className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
       >
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          style={{ minWidth: '650px' }}
-          className="w-full h-auto font-sans overflow-visible"
-        >
-          {/* Gradients */}
-          <defs>
-            <linearGradient id="incomeBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
-              <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.9" />
-            </linearGradient>
-            <linearGradient id="budgetAnnualBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
-              <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
-            </linearGradient>
-            <linearGradient id="expenseBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
-              <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
-            </linearGradient>
-          </defs>
+        <div className="inline-flex min-w-full" style={{ width: `${width}px` }}>
+          {/* Sticky Left Y-Axis */}
+          <div
+            className="sticky left-0 z-20 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)] pointer-events-none select-none"
+            style={{ width: `${margin.left}px`, height: `${height}px` }}
+          >
+            <svg
+              width={margin.left}
+              height={height}
+              viewBox={`0 0 ${margin.left} ${height}`}
+              className="w-full h-full font-sans"
+            >
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <g key={i}>
+                    <line
+                      x1={margin.left - 5}
+                      y1={y}
+                      x2={margin.left}
+                      y2={y}
+                      stroke="#cbd5e1"
+                      strokeWidth="1"
+                      className="opacity-70 dark:stroke-slate-700"
+                    />
+                    <text
+                      x={margin.left - 8}
+                      y={y + 4}
+                      textAnchor="end"
+                      className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
+                    >
+                      R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    </text>
+                  </g>
+                );
+              })}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={margin.left}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-40 dark:stroke-slate-700"
+              />
+            </svg>
+          </div>
 
-          {/* Grid lines */}
-          {ticks.map((tick, i) => {
-            const y = getY(tick);
-            return (
-              <g key={i}>
-                <line
-                  x1={margin.left}
-                  y1={y}
-                  x2={width - margin.right}
-                  y2={y}
-                  stroke="#cbd5e1"
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
-                  className="opacity-30"
-                />
-                <text
-                  x={margin.left - 8}
-                  y={y + 4}
-                  textAnchor="end"
-                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
-                >
-                  R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                </text>
-              </g>
-            );
-          })}
+          {/* Scrollable Bars Content */}
+          <div
+            className="shrink-0"
+            style={{ width: `${chartWidth + margin.right}px`, height: `${height}px` }}
+          >
+            <svg
+              width={chartWidth + margin.right}
+              height={height}
+              viewBox={`0 0 ${chartWidth + margin.right} ${height}`}
+              className="w-full h-full font-sans overflow-visible"
+            >
+              {/* Gradients */}
+              <defs>
+                <linearGradient id="incomeBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.9" />
+                </linearGradient>
+                <linearGradient id="budgetAnnualBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
+                </linearGradient>
+                <linearGradient id="expenseBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
+                </linearGradient>
+              </defs>
 
-          {/* Bars */}
-          {data.map((d, i) => {
-            const groupCenter = margin.left + (i + 0.5) * groupWidth;
-            // 3 bars layout
-            const totalWidth = 3 * barWidth + 2 * gap;
-            const startX = groupCenter - totalWidth / 2;
+              {/* Grid lines */}
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <line
+                    key={i}
+                    x1={0}
+                    y1={y}
+                    x2={chartWidth + margin.right}
+                    y2={y}
+                    stroke="#cbd5e1"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                    className="opacity-30"
+                  />
+                );
+              })}
 
-            const xInc = startX;
-            const xBud = startX + barWidth + gap;
-            const xExp = startX + 2 * (barWidth + gap);
+              {/* Baseline */}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={chartWidth + margin.right}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-50 dark:stroke-slate-700"
+              />
 
-            const yInc = getY(d.income);
-            const hInc = Math.max(yBaseline - yInc, 2);
+              {/* Bars */}
+              {data.map((d, i) => {
+                const groupCenter = (i + 0.5) * groupWidth;
+                // 3 bars layout
+                const totalWidth = 3 * barWidth + 2 * gap;
+                const startX = groupCenter - totalWidth / 2;
 
-            const yBud = getY(d.budgeted);
-            const hBud = Math.max(yBaseline - yBud, 2);
+                const xInc = startX;
+                const xBud = startX + barWidth + gap;
+                const xExp = startX + 2 * (barWidth + gap);
 
-            const yExp = getY(d.expense);
-            const hExp = Math.max(yBaseline - yExp, 2);
+                const yInc = getY(d.income);
+                const hInc = Math.max(yBaseline - yInc, 2);
 
-            const isHovered = hoveredIndex === i;
+                const yBud = getY(d.budgeted);
+                const hBud = Math.max(yBaseline - yBud, 2);
 
-            return (
-              <g key={i}>
-                {/* Background column hover state */}
-                <rect
-                  x={margin.left + i * groupWidth}
-                  y={margin.top}
-                  width={groupWidth}
-                  height={chartHeight}
-                  fill={isHovered ? '#f1f5f9' : 'transparent'}
-                  className="transition-colors duration-150 dark:fill-slate-800/20"
-                  style={{ opacity: isHovered ? 0.4 : 0 }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                const yExp = getY(d.expense);
+                const hExp = Math.max(yBaseline - yExp, 2);
 
-                {/* Income Bar */}
-                <rect
-                  x={xInc}
-                  y={yInc}
-                  width={barWidth}
-                  height={hInc}
-                  fill="url(#incomeBarGrad)"
-                  rx="3"
-                  ry="3"
-                  className="transition-all duration-300"
-                  style={{
-                    filter: isHovered ? 'brightness(1.05)' : 'none',
-                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                const isHovered = hoveredIndex === i;
 
-                {/* Budget Bar */}
-                <rect
-                  x={xBud}
-                  y={yBud}
-                  width={barWidth}
-                  height={hBud}
-                  fill="url(#budgetAnnualBarGrad)"
-                  rx="3"
-                  ry="3"
-                  className="transition-all duration-300"
-                  style={{
-                    filter: isHovered ? 'brightness(1.05)' : 'none',
-                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                return (
+                  <g key={i}>
+                    {/* Background column hover state */}
+                    <rect
+                      x={i * groupWidth}
+                      y={margin.top}
+                      width={groupWidth}
+                      height={chartHeight}
+                      fill={isHovered ? '#f1f5f9' : 'transparent'}
+                      className="transition-colors duration-150 dark:fill-slate-800/20"
+                      style={{ opacity: isHovered ? 0.4 : 0 }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
 
-                {/* Expense Bar */}
-                <rect
-                  x={xExp}
-                  y={yExp}
-                  width={barWidth}
-                  height={hExp}
-                  fill="url(#expenseBarGrad)"
-                  rx="3"
-                  ry="3"
-                  className="transition-all duration-300"
-                  style={{
-                    filter: isHovered ? 'brightness(1.05)' : 'none',
-                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                    {/* Income Bar */}
+                    <rect
+                      x={xInc}
+                      y={yInc}
+                      width={barWidth}
+                      height={hInc}
+                      fill="url(#incomeBarGrad)"
+                      rx="3"
+                      ry="3"
+                      className="transition-all duration-300"
+                      style={{
+                        filter: isHovered ? 'brightness(1.05)' : 'none',
+                        opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
 
-                {/* X axis labels */}
-                <text
-                  x={groupCenter}
-                  y={height - margin.bottom + 20}
-                  textAnchor="middle"
-                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
-                  }`}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                >
-                  {d.year}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                    {/* Budget Bar */}
+                    <rect
+                      x={xBud}
+                      y={yBud}
+                      width={barWidth}
+                      height={hBud}
+                      fill="url(#budgetAnnualBarGrad)"
+                      rx="3"
+                      ry="3"
+                      className="transition-all duration-300"
+                      style={{
+                        filter: isHovered ? 'brightness(1.05)' : 'none',
+                        opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
+
+                    {/* Expense Bar */}
+                    <rect
+                      x={xExp}
+                      y={yExp}
+                      width={barWidth}
+                      height={hExp}
+                      fill="url(#expenseBarGrad)"
+                      rx="3"
+                      ry="3"
+                      className="transition-all duration-300"
+                      style={{
+                        filter: isHovered ? 'brightness(1.05)' : 'none',
+                        opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
+
+                    {/* X axis labels */}
+                    <text
+                      x={groupCenter}
+                      y={height - margin.bottom + 20}
+                      textAnchor="middle"
+                      className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                        isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
+                      }`}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    >
+                      {d.year}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
       </div>
 
       {/* Fixed Legend below chart */}
@@ -274,8 +333,31 @@ export const TopItemsBarChart: React.FC<{
     itemsToShow = [...itemsToShow, ...expenses];
   }
 
-  // Sort descending by value and get top 10
-  itemsToShow = itemsToShow.sort((a, b) => b.value - a.value).slice(0, 10);
+  // 1. Obter os 10 maiores lançamentos por valor
+  const top10 = [...itemsToShow]
+    .sort((a, b) => (b.value || 0) - (a.value || 0))
+    .slice(0, 10);
+
+  // 2. Classificar por data fazendo com que a data mais atual apareça em cima seguida pelas demais
+  const parseDateSafe = (d?: string): number => {
+    if (!d) return 0;
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(d)) {
+      const [day, month, year] = d.split('/');
+      return new Date(`${year}-${month}-${day}T00:00:00`).getTime() || 0;
+    }
+    const cleanDate = d.includes('T') ? d : `${d}T00:00:00`;
+    const time = new Date(cleanDate).getTime();
+    return isNaN(time) ? 0 : time;
+  };
+
+  itemsToShow = top10.sort((a, b) => {
+    const timeA = parseDateSafe(a.date);
+    const timeB = parseDateSafe(b.date);
+    if (timeB !== timeA) {
+      return timeB - timeA; // data mais atual em cima
+    }
+    return (b.value || 0) - (a.value || 0);
+  });
 
   if (itemsToShow.length === 0) {
     return (
@@ -288,8 +370,8 @@ export const TopItemsBarChart: React.FC<{
   const maxVal = Math.max(...itemsToShow.map(item => item.value), 100);
 
   return (
-    <div className="w-full flex flex-col gap-3">
-      <div className="space-y-3.5 max-h-[380px] overflow-y-auto pr-2">
+    <div className="w-full min-w-0 flex flex-col gap-3">
+      <div className="space-y-3.5 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
         {itemsToShow.map((item, index) => {
           const pct = (item.value / maxVal) * 100;
           const isIncome = item.type === 'receita';
@@ -297,29 +379,35 @@ export const TopItemsBarChart: React.FC<{
           return (
             <div
               key={index}
-              className="group flex flex-col gap-1 cursor-pointer"
+              className="group flex flex-col gap-1 cursor-pointer min-w-0"
               onMouseEnter={() => setHoveredItem(item)}
               onMouseLeave={() => setHoveredItem(null)}
             >
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+              <div className="flex items-center justify-between text-xs gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                     isIncome ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40' : 'bg-red-50 text-red-600 dark:bg-red-950/40'
                   }`}>
                     #{index + 1}
                   </span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300 group-hover:text-blue-600 transition-colors truncate max-w-[150px] sm:max-w-[220px]">
+                  <span
+                    className="font-semibold text-slate-700 dark:text-slate-300 group-hover:text-blue-600 transition-colors truncate min-w-0"
+                    title={item.description}
+                  >
                     {item.description}
                   </span>
-                  <span className="text-[10px] text-slate-400">
-                    {item.date.split('-').reverse().join('/')}
+                  <span className="text-[10px] text-slate-400 shrink-0">
+                    {item.date ? (item.date.includes('/') ? item.date : item.date.split('-').reverse().join('/')) : '-'}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md dark:bg-slate-800 dark:text-slate-400">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md dark:bg-slate-800 dark:text-slate-400 truncate max-w-[100px] sm:max-w-[140px]"
+                    title={item.category}
+                  >
                     {item.category}
                   </span>
-                  <span className={`font-mono font-bold ${isIncome ? 'text-blue-600' : 'text-red-500'}`}>
+                  <span className={`font-mono font-bold whitespace-nowrap ${isIncome ? 'text-blue-600' : 'text-red-500'}`}>
                     R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -341,13 +429,13 @@ export const TopItemsBarChart: React.FC<{
 
       {/* Tooltip detail card */}
       {hoveredItem && (
-        <div className="rounded-lg bg-slate-50 border border-slate-100 p-2.5 text-xs text-slate-600 transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 flex justify-between items-center animate-fade-in">
-          <div>
-            <span className="font-bold text-slate-800 dark:text-slate-100">{hoveredItem.description}</span>
-            <span className="mx-1.5 text-slate-400">|</span>
-            <span>Categoria: {hoveredItem.category}</span>
+        <div className="rounded-lg bg-slate-50 border border-slate-100 p-2.5 text-xs text-slate-600 transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 flex flex-wrap justify-between items-center gap-2 animate-fade-in min-w-0">
+          <div className="min-w-0 flex items-center gap-1.5 truncate">
+            <span className="font-bold text-slate-800 dark:text-slate-100 truncate">{hoveredItem.description}</span>
+            <span className="text-slate-400 shrink-0">|</span>
+            <span className="truncate">Categoria: {hoveredItem.category}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <span>Tipo: {hoveredItem.type === 'receita' ? '🔵 Receita' : '🔴 Despesa'}</span>
             <span className="font-mono font-bold text-slate-900 dark:text-white">
               R$ {hoveredItem.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -403,170 +491,229 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
     <div className="w-full min-w-0">
       <div 
         data-no-swipe="true"
+        data-chart-scrollable="true"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
         className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
       >
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          style={{ minWidth: '750px' }}
-          className="w-full h-auto font-sans overflow-visible"
-        >
-          {/* Gradients */}
-          <defs>
-            <linearGradient id="budgetBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
-              <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.9" />
-            </linearGradient>
-            <linearGradient id="realizedBarGreenGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
-              <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
-            </linearGradient>
-            <linearGradient id="realizedBarRedGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
-              <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
-            </linearGradient>
-            <linearGradient id="balanceBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#64748b" stopOpacity="1" />
-              <stop offset="100%" stopColor="#334155" stopOpacity="0.9" />
-            </linearGradient>
-          </defs>
+        <div className="inline-flex min-w-full" style={{ width: `${width}px` }}>
+          {/* Sticky Left Y-Axis */}
+          <div
+            className="sticky left-0 z-20 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)] pointer-events-none select-none"
+            style={{ width: `${margin.left}px`, height: `${height}px` }}
+          >
+            <svg
+              width={margin.left}
+              height={height}
+              viewBox={`0 0 ${margin.left} ${height}`}
+              className="w-full h-full font-sans"
+            >
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <g key={i}>
+                    <line
+                      x1={margin.left - 5}
+                      y1={y}
+                      x2={margin.left}
+                      y2={y}
+                      stroke="#cbd5e1"
+                      strokeWidth="1"
+                      className="opacity-70 dark:stroke-slate-700"
+                    />
+                    <text
+                      x={margin.left - 8}
+                      y={y + 4}
+                      textAnchor="end"
+                      className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
+                    >
+                      R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    </text>
+                  </g>
+                );
+              })}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={margin.left}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-40 dark:stroke-slate-700"
+              />
+            </svg>
+          </div>
 
-          {/* Grid lines */}
-          {ticks.map((tick, i) => {
-            const y = getY(tick);
-            return (
-              <g key={i}>
-                <line
-                  x1={margin.left}
-                  y1={y}
-                  x2={width - margin.right}
-                  y2={y}
-                  stroke="#cbd5e1"
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
-                  className="opacity-30"
-                />
-                <text
-                  x={margin.left - 8}
-                  y={y + 4}
-                  textAnchor="end"
-                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
-                >
-                  R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                </text>
-              </g>
-            );
-          })}
+          {/* Scrollable Bars Content */}
+          <div
+            className="shrink-0"
+            style={{ width: `${chartWidth + margin.right}px`, height: `${height}px` }}
+          >
+            <svg
+              width={chartWidth + margin.right}
+              height={height}
+              viewBox={`0 0 ${chartWidth + margin.right} ${height}`}
+              className="w-full h-full font-sans overflow-visible"
+            >
+              {/* Gradients */}
+              <defs>
+                <linearGradient id="budgetBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.9" />
+                </linearGradient>
+                <linearGradient id="realizedBarGreenGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
+                </linearGradient>
+                <linearGradient id="realizedBarRedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
+                </linearGradient>
+                <linearGradient id="balanceBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#64748b" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#334155" stopOpacity="0.9" />
+                </linearGradient>
+              </defs>
 
-          {/* Bars */}
-          {data.map((d, i) => {
-            const groupCenter = margin.left + (i + 0.5) * groupWidth;
-            const totalWidth = 3 * barWidth + 2 * gap;
-            const startX = groupCenter - totalWidth / 2;
+              {/* Grid lines */}
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <line
+                    key={i}
+                    x1={0}
+                    y1={y}
+                    x2={chartWidth + margin.right}
+                    y2={y}
+                    stroke="#cbd5e1"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                    className="opacity-30"
+                  />
+                );
+              })}
 
-            const xBudget = startX;
-            const xRealized = startX + barWidth + gap;
-            const xBalance = startX + 2 * (barWidth + gap);
+              {/* Baseline */}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={chartWidth + margin.right}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-50 dark:stroke-slate-700"
+              />
 
-            const yBudget = getY(d.budgeted);
-            const hBudget = Math.max(yBaseline - yBudget, 2);
+              {/* Bars */}
+              {data.map((d, i) => {
+                const groupCenter = (i + 0.5) * groupWidth;
+                const totalWidth = 3 * barWidth + 2 * gap;
+                const startX = groupCenter - totalWidth / 2;
 
-            const yRealized = getY(d.realized);
-            const hRealized = Math.max(yBaseline - yRealized, 2);
+                const xBudget = startX;
+                const xRealized = startX + barWidth + gap;
+                const xBalance = startX + 2 * (barWidth + gap);
 
-            const positiveBalance = Math.max(d.balance, 0);
-            const yBalance = getY(positiveBalance);
-            const hBalance = Math.max(yBaseline - yBalance, 2);
+                const yBudget = getY(d.budgeted);
+                const hBudget = Math.max(yBaseline - yBudget, 2);
 
-            const isHovered = hoveredIndex === i;
+                const yRealized = getY(d.realized);
+                const hRealized = Math.max(yBaseline - yRealized, 2);
 
-            return (
-              <g key={i}>
-                {/* Background column hover state */}
-                <rect
-                  x={margin.left + i * groupWidth}
-                  y={margin.top}
-                  width={groupWidth}
-                  height={chartHeight}
-                  fill={isHovered ? '#f1f5f9' : 'transparent'}
-                  className="transition-colors duration-150 dark:fill-slate-800/20"
-                  style={{ opacity: isHovered ? 0.4 : 0 }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                const positiveBalance = Math.max(d.balance, 0);
+                const yBalance = getY(positiveBalance);
+                const hBalance = Math.max(yBaseline - yBalance, 2);
 
-                {/* Budget Bar (Orçado) */}
-                <rect
-                  x={xBudget}
-                  y={yBudget}
-                  width={barWidth}
-                  height={hBudget}
-                  fill="url(#budgetBarGrad)"
-                  rx="2"
-                  ry="2"
-                  className="transition-all duration-300"
-                  style={{
-                    filter: isHovered ? 'brightness(1.05)' : 'none',
-                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                const isHovered = hoveredIndex === i;
 
-                {/* Realized Bar (Realizado) */}
-                <rect
-                  x={xRealized}
-                  y={yRealized}
-                  width={barWidth}
-                  height={hRealized}
-                  fill={d.realized <= d.budgeted ? "url(#realizedBarGreenGrad)" : "url(#realizedBarRedGrad)"}
-                  rx="2"
-                  ry="2"
-                  className="transition-all duration-300"
-                  style={{
-                    filter: isHovered ? 'brightness(1.05)' : 'none',
-                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                return (
+                  <g key={i}>
+                    {/* Background column hover state */}
+                    <rect
+                      x={i * groupWidth}
+                      y={margin.top}
+                      width={groupWidth}
+                      height={chartHeight}
+                      fill={isHovered ? '#f1f5f9' : 'transparent'}
+                      className="transition-colors duration-150 dark:fill-slate-800/20"
+                      style={{ opacity: isHovered ? 0.4 : 0 }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
 
-                {/* Saldo Bar */}
-                <rect
-                  x={xBalance}
-                  y={yBalance}
-                  width={barWidth}
-                  height={hBalance}
-                  fill="url(#balanceBarGrad)"
-                  rx="2"
-                  ry="2"
-                  className="transition-all duration-300"
-                  style={{
-                    filter: isHovered ? 'brightness(1.05)' : 'none',
-                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                    {/* Budget Bar (Orçado) */}
+                    <rect
+                      x={xBudget}
+                      y={yBudget}
+                      width={barWidth}
+                      height={hBudget}
+                      fill="url(#budgetBarGrad)"
+                      rx="2"
+                      ry="2"
+                      className="transition-all duration-300"
+                      style={{
+                        filter: isHovered ? 'brightness(1.05)' : 'none',
+                        opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
 
-                {/* X axis labels */}
-                <text
-                  x={groupCenter}
-                  y={height - margin.bottom + 20}
-                  textAnchor="middle"
-                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
-                  }`}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                >
-                  {d.month}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                    {/* Realized Bar (Realizado) */}
+                    <rect
+                      x={xRealized}
+                      y={yRealized}
+                      width={barWidth}
+                      height={hRealized}
+                      fill={d.realized <= d.budgeted ? "url(#realizedBarGreenGrad)" : "url(#realizedBarRedGrad)"}
+                      rx="2"
+                      ry="2"
+                      className="transition-all duration-300"
+                      style={{
+                        filter: isHovered ? 'brightness(1.05)' : 'none',
+                        opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
+
+                    {/* Saldo Bar */}
+                    <rect
+                      x={xBalance}
+                      y={yBalance}
+                      width={barWidth}
+                      height={hBalance}
+                      fill="url(#balanceBarGrad)"
+                      rx="2"
+                      ry="2"
+                      className="transition-all duration-300"
+                      style={{
+                        filter: isHovered ? 'brightness(1.05)' : 'none',
+                        opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
+
+                    {/* X axis labels */}
+                    <text
+                      x={groupCenter}
+                      y={height - margin.bottom + 20}
+                      textAnchor="middle"
+                      className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                        isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
+                      }`}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    >
+                      {d.month}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
       </div>
 
       {/* Fixed Legend below chart */}
@@ -906,115 +1053,174 @@ export const Investment5YearTotalChart: React.FC<{
     <div className="w-full min-w-0">
       <div 
         data-no-swipe="true"
+        data-chart-scrollable="true"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
         className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
       >
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          style={{ minWidth: '650px' }}
-          className="w-full h-auto font-sans overflow-visible"
-        >
-          <defs>
-            <linearGradient id="invTotalGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
-              <stop offset="100%" stopColor="#5b21b6" stopOpacity="0.9" />
-            </linearGradient>
-          </defs>
+        <div className="inline-flex min-w-full" style={{ width: `${width}px` }}>
+          {/* Sticky Left Y-Axis */}
+          <div
+            className="sticky left-0 z-20 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)] pointer-events-none select-none"
+            style={{ width: `${margin.left}px`, height: `${height}px` }}
+          >
+            <svg
+              width={margin.left}
+              height={height}
+              viewBox={`0 0 ${margin.left} ${height}`}
+              className="w-full h-full font-sans"
+            >
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <g key={i}>
+                    <line
+                      x1={margin.left - 5}
+                      y1={y}
+                      x2={margin.left}
+                      y2={y}
+                      stroke="#cbd5e1"
+                      strokeWidth="1"
+                      className="opacity-70 dark:stroke-slate-700"
+                    />
+                    <text
+                      x={margin.left - 8}
+                      y={y + 4}
+                      textAnchor="end"
+                      className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
+                    >
+                      R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    </text>
+                  </g>
+                );
+              })}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={margin.left}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-40 dark:stroke-slate-700"
+              />
+            </svg>
+          </div>
 
-          {/* Grid lines */}
-          {ticks.map((tick, i) => {
-            const y = getY(tick);
-            return (
-              <g key={i}>
-                <line
-                  x1={margin.left}
-                  y1={y}
-                  x2={width - margin.right}
-                  y2={y}
-                  stroke="#cbd5e1"
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
-                  className="opacity-30"
-                />
-                <text
-                  x={margin.left - 8}
-                  y={y + 4}
-                  textAnchor="end"
-                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
-                >
-                  R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                </text>
-              </g>
-            );
-          })}
+          {/* Scrollable Bars Content */}
+          <div
+            className="shrink-0"
+            style={{ width: `${chartWidth + margin.right}px`, height: `${height}px` }}
+          >
+            <svg
+              width={chartWidth + margin.right}
+              height={height}
+              viewBox={`0 0 ${chartWidth + margin.right} ${height}`}
+              className="w-full h-full font-sans overflow-visible"
+            >
+              <defs>
+                <linearGradient id="invTotalGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#5b21b6" stopOpacity="0.9" />
+                </linearGradient>
+              </defs>
 
-          {/* Bars */}
-          {data.map((d, i) => {
-            const groupCenter = margin.left + (i + 0.5) * groupWidth;
-            const x = groupCenter - barWidth / 2;
-            const y = getY(d.total);
-            const h = Math.max(yBaseline - y, d.total > 0 ? 3 : 0);
-            const isHovered = hoveredIndex === i;
+              {/* Grid lines */}
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <line
+                    key={i}
+                    x1={0}
+                    y1={y}
+                    x2={chartWidth + margin.right}
+                    y2={y}
+                    stroke="#cbd5e1"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                    className="opacity-30"
+                  />
+                );
+              })}
 
-            return (
-              <g key={i}>
-                <rect
-                  x={margin.left + i * groupWidth}
-                  y={margin.top}
-                  width={groupWidth}
-                  height={chartHeight}
-                  fill={isHovered ? '#f1f5f9' : 'transparent'}
-                  className="transition-colors duration-150 dark:fill-slate-800/20"
-                  style={{ opacity: isHovered ? 0.4 : 0 }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+              {/* Baseline */}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={chartWidth + margin.right}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-50 dark:stroke-slate-700"
+              />
 
-                <rect
-                  x={x}
-                  y={y}
-                  width={barWidth}
-                  height={h}
-                  fill="url(#invTotalGrad)"
-                  rx="4"
-                  ry="4"
-                  className="transition-all duration-300 cursor-pointer"
-                  style={{
-                    filter: isHovered ? 'brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none',
-                    opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1
-                  }}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+              {/* Bars */}
+              {data.map((d, i) => {
+                const groupCenter = (i + 0.5) * groupWidth;
+                const x = groupCenter - barWidth / 2;
+                const y = getY(d.total);
+                const h = Math.max(yBaseline - y, d.total > 0 ? 3 : 0);
+                const isHovered = hoveredIndex === i;
 
-                {d.total > 0 && (
-                  <text
-                    x={groupCenter}
-                    y={y - 6}
-                    textAnchor="middle"
-                    className="fill-purple-700 dark:fill-purple-300 text-[10px] font-bold font-mono"
-                  >
-                    R$ {d.total >= 1000000 ? `${(d.total / 1000000).toFixed(1)}M` : d.total >= 1000 ? `${(d.total / 1000).toFixed(1)}k` : d.total.toFixed(0)}
-                  </text>
-                )}
+                return (
+                  <g key={i}>
+                    <rect
+                      x={i * groupWidth}
+                      y={margin.top}
+                      width={groupWidth}
+                      height={chartHeight}
+                      fill={isHovered ? '#f1f5f9' : 'transparent'}
+                      className="transition-colors duration-150 dark:fill-slate-800/20"
+                      style={{ opacity: isHovered ? 0.4 : 0 }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
 
-                <text
-                  x={groupCenter}
-                  y={height - margin.bottom + 20}
-                  textAnchor="middle"
-                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
-                    isHovered ? 'fill-purple-600 dark:fill-purple-400' : 'fill-slate-700 dark:fill-slate-200'
-                  }`}
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                >
-                  {d.year}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={barWidth}
+                      height={h}
+                      fill="url(#invTotalGrad)"
+                      rx="4"
+                      ry="4"
+                      className="transition-all duration-300 cursor-pointer"
+                      style={{
+                        filter: isHovered ? 'brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none',
+                        opacity: hoveredIndex !== null && !isHovered ? 0.6 : 1
+                      }}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
+
+                    {d.total > 0 && (
+                      <text
+                        x={groupCenter}
+                        y={y - 6}
+                        textAnchor="middle"
+                        className="fill-purple-700 dark:fill-purple-300 text-[10px] font-bold font-mono"
+                      >
+                        R$ {d.total >= 1000000 ? `${(d.total / 1000000).toFixed(1)}M` : d.total >= 1000 ? `${(d.total / 1000).toFixed(1)}k` : d.total.toFixed(0)}
+                      </text>
+                    )}
+
+                    <text
+                      x={groupCenter}
+                      y={height - margin.bottom + 20}
+                      textAnchor="middle"
+                      className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                        isHovered ? 'fill-purple-600 dark:fill-purple-400' : 'fill-slate-700 dark:fill-slate-200'
+                      }`}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    >
+                      {d.year}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
       </div>
 
       {hoveredIndex !== null && data[hoveredIndex] && (
@@ -1066,105 +1272,164 @@ export const Investment5YearStackedChart: React.FC<{
     <div className="w-full min-w-0">
       <div 
         data-no-swipe="true"
+        data-chart-scrollable="true"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
         className="relative w-full overflow-x-auto pb-3 custom-scrollbar"
       >
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          style={{ minWidth: '650px' }}
-          className="w-full h-auto font-sans overflow-visible"
-        >
-          {/* Grid lines */}
-          {ticks.map((tick, i) => {
-            const y = getY(tick);
-            return (
-              <g key={i}>
-                <line
-                  x1={margin.left}
-                  y1={y}
-                  x2={width - margin.right}
-                  y2={y}
-                  stroke="#cbd5e1"
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
-                  className="opacity-30"
-                />
-                <text
-                  x={margin.left - 8}
-                  y={y + 4}
-                  textAnchor="end"
-                  className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
-                >
-                  R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Stacked Bars */}
-          {data.map((d, i) => {
-            const groupCenter = margin.left + (i + 0.5) * groupWidth;
-            const x = groupCenter - barWidth / 2;
-            const isHovered = hoveredYearIndex === i;
-
-            let currentStackY = yBaseline;
-
-            return (
-              <g key={i} onMouseEnter={() => setHoveredYearIndex(i)} onMouseLeave={() => setHoveredYearIndex(null)}>
-                <rect
-                  x={margin.left + i * groupWidth}
-                  y={margin.top}
-                  width={groupWidth}
-                  height={chartHeight}
-                  fill={isHovered ? '#f1f5f9' : 'transparent'}
-                  className="transition-colors duration-150 dark:fill-slate-800/20"
-                  style={{ opacity: isHovered ? 0.4 : 0 }}
-                />
-
-                {categories.map((cat) => {
-                  const val = d.totalsMap[cat] || 0;
-                  if (val <= 0) return null;
-
-                  const segHeight = (val / roundedMax) * chartHeight;
-                  const segY = currentStackY - segHeight;
-                  currentStackY = segY;
-
-                  const itemColor = colorMap[cat]?.color || '#64748b';
-
-                  return (
-                    <rect
-                      key={cat}
-                      x={x}
-                      y={segY}
-                      width={barWidth}
-                      height={segHeight}
-                      fill={itemColor}
-                      rx="1"
-                      ry="1"
-                      className="transition-all duration-200 cursor-pointer"
-                      style={{
-                        filter: isHovered ? 'brightness(1.1)' : 'none',
-                        opacity: hoveredYearIndex !== null && !isHovered ? 0.6 : 1
-                      }}
+        <div className="inline-flex min-w-full" style={{ width: `${width}px` }}>
+          {/* Sticky Left Y-Axis */}
+          <div
+            className="sticky left-0 z-20 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)] pointer-events-none select-none"
+            style={{ width: `${margin.left}px`, height: `${height}px` }}
+          >
+            <svg
+              width={margin.left}
+              height={height}
+              viewBox={`0 0 ${margin.left} ${height}`}
+              className="w-full h-full font-sans"
+            >
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <g key={i}>
+                    <line
+                      x1={margin.left - 5}
+                      y1={y}
+                      x2={margin.left}
+                      y2={y}
+                      stroke="#cbd5e1"
+                      strokeWidth="1"
+                      className="opacity-70 dark:stroke-slate-700"
                     />
-                  );
-                })}
+                    <text
+                      x={margin.left - 8}
+                      y={y + 4}
+                      textAnchor="end"
+                      className="fill-slate-600 dark:fill-slate-300 text-[11px] font-semibold font-mono"
+                    >
+                      R$ {tick.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                    </text>
+                  </g>
+                );
+              })}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={margin.left}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-40 dark:stroke-slate-700"
+              />
+            </svg>
+          </div>
 
-                <text
-                  x={groupCenter}
-                  y={height - margin.bottom + 20}
-                  textAnchor="middle"
-                  className={`text-[11px] font-bold transition-colors cursor-pointer ${
-                    isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
-                  }`}
-                >
-                  {d.year}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+          {/* Scrollable Bars Content */}
+          <div
+            className="shrink-0"
+            style={{ width: `${chartWidth + margin.right}px`, height: `${height}px` }}
+          >
+            <svg
+              width={chartWidth + margin.right}
+              height={height}
+              viewBox={`0 0 ${chartWidth + margin.right} ${height}`}
+              className="w-full h-full font-sans overflow-visible"
+            >
+              {/* Grid lines */}
+              {ticks.map((tick, i) => {
+                const y = getY(tick);
+                return (
+                  <line
+                    key={i}
+                    x1={0}
+                    y1={y}
+                    x2={chartWidth + margin.right}
+                    y2={y}
+                    stroke="#cbd5e1"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                    className="opacity-30"
+                  />
+                );
+              })}
+
+              {/* Baseline */}
+              <line
+                x1={0}
+                y1={yBaseline}
+                x2={chartWidth + margin.right}
+                y2={yBaseline}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+                className="opacity-50 dark:stroke-slate-700"
+              />
+
+              {/* Stacked Bars */}
+              {data.map((d, i) => {
+                const groupCenter = (i + 0.5) * groupWidth;
+                const x = groupCenter - barWidth / 2;
+                const isHovered = hoveredYearIndex === i;
+
+                let currentStackY = yBaseline;
+
+                return (
+                  <g key={i} onMouseEnter={() => setHoveredYearIndex(i)} onMouseLeave={() => setHoveredYearIndex(null)}>
+                    <rect
+                      x={i * groupWidth}
+                      y={margin.top}
+                      width={groupWidth}
+                      height={chartHeight}
+                      fill={isHovered ? '#f1f5f9' : 'transparent'}
+                      className="transition-colors duration-150 dark:fill-slate-800/20"
+                      style={{ opacity: isHovered ? 0.4 : 0 }}
+                    />
+
+                    {categories.map((cat) => {
+                      const val = d.totalsMap[cat] || 0;
+                      if (val <= 0) return null;
+
+                      const segHeight = (val / roundedMax) * chartHeight;
+                      const segY = currentStackY - segHeight;
+                      currentStackY = segY;
+
+                      const itemColor = colorMap[cat]?.color || '#64748b';
+
+                      return (
+                        <rect
+                          key={cat}
+                          x={x}
+                          y={segY}
+                          width={barWidth}
+                          height={segHeight}
+                          fill={itemColor}
+                          rx="1"
+                          ry="1"
+                          className="transition-all duration-200 cursor-pointer"
+                          style={{
+                            filter: isHovered ? 'brightness(1.1)' : 'none',
+                            opacity: hoveredYearIndex !== null && !isHovered ? 0.6 : 1
+                          }}
+                        />
+                      );
+                    })}
+
+                    <text
+                      x={groupCenter}
+                      y={height - margin.bottom + 20}
+                      textAnchor="middle"
+                      className={`text-[11px] font-bold transition-colors cursor-pointer ${
+                        isHovered ? 'fill-blue-600 dark:fill-blue-400' : 'fill-slate-700 dark:fill-slate-200'
+                      }`}
+                    >
+                      {d.year}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
       </div>
 
       {/* Legend below chart */}

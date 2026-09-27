@@ -4654,12 +4654,22 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
 
   const deficitActions = userData.deficitActions || [];
 
-  // Initialize Cost Center to first category
   React.useEffect(() => {
     if (userData.expenseCategories && userData.expenseCategories.length > 0 && !costCenter) {
       setCostCenter(userData.expenseCategories[0]);
     }
   }, [userData.expenseCategories, costCenter]);
+
+  // Close popup with Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showAdd) {
+        handleCancelEdit();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showAdd]);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -4786,129 +4796,144 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
         )}
       </div>
 
-      {showAdd && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) handleCancelEdit();
-          }}
-        >
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-                <h3 className="font-bold text-slate-800 dark:text-white text-base">
-                  {editingActionId ? 'Editar Ação de Aprendizado' : 'Nova Ação de Aprendizado'}
-                </h3>
-                {editingActionId && (
-                  <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-bold dark:bg-amber-950/30">
-                    Modo de Edição
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Fechar"
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showAdd && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={handleCancelEdit}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-md overflow-y-auto cursor-pointer"
+            >
+              {/* Janela Popup com borda levemente destacada, cantos levemente arredondados e animação suave */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-5 sm:p-6 max-w-2xl w-full shadow-2xl ring-1 ring-slate-900/10 dark:ring-white/10 max-h-[90vh] overflow-y-auto cursor-default my-auto"
               >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+                <div className="pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                      <AlertTriangle className="h-4 w-4" />
+                    </div>
+                    <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                      {editingActionId ? 'Editar Ação de Aprendizado' : 'Nova Ação de Aprendizado'}
+                    </h3>
+                    {editingActionId && (
+                      <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-bold dark:bg-amber-950/30">
+                        Modo de Edição
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Fechar"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
 
-            <form onSubmit={handleAdd} className="grid gap-4 sm:grid-cols-2 text-xs">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria</label>
-                <select
-                  value={costCenter}
-                  onChange={(e) => setCostCenter(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                >
-                  {userData.expenseCategories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                  <option value="Geral">Geral</option>
-                </select>
-              </div>
+                <form onSubmit={handleAdd} className="grid gap-4 sm:grid-cols-2 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria</label>
+                    <select
+                      value={costCenter}
+                      onChange={(e) => setCostCenter(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    >
+                      {userData.expenseCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      <option value="Geral">Geral</option>
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Responsável</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: João da Silva"
-                  value={responsible}
-                  onChange={(e) => setResponsible(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Responsável</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: João da Silva"
+                      value={responsible}
+                      onChange={(e) => setResponsible(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    />
+                  </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Motivo do Estouro</label>
-                <textarea
-                  required
-                  placeholder="Ex: Compra de materiais de escritório não planejada devido a quebra de equipamentos antigos."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
-                />
-              </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Motivo do Estouro</label>
+                    <textarea
+                      required
+                      placeholder="Ex: Compra de materiais de escritório não planejada devido a quebra de equipamentos antigos."
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
+                    />
+                  </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Ação de Correção (Aprendizado)</label>
-                <textarea
-                  required
-                  placeholder="Ex: Revisar a política de manutenção e reservar uma margem de segurança no orçamento de TI."
-                  value={correctionAction}
-                  onChange={(e) => setCorrectionAction(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
-                />
-              </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Ação de Correção (Aprendizado)</label>
+                    <textarea
+                      required
+                      placeholder="Ex: Revisar a política de manutenção e reservar uma margem de segurança no orçamento de TI."
+                      value={correctionAction}
+                      onChange={(e) => setCorrectionAction(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white h-20"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Execução</label>
-                <input
-                  type="date"
-                  required
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Execução</label>
+                    <input
+                      type="date"
+                      required
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                >
-                  <option value="Pendente">Pendente</option>
-                  <option value="Em Andamento">Em Andamento</option>
-                  <option value="Concluído">Concluído</option>
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Status</label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as any)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    >
+                      <option value="Pendente">Pendente</option>
+                      <option value="Em Andamento">Em Andamento</option>
+                      <option value="Concluído">Concluído</option>
+                    </select>
+                  </div>
 
-              <div className="sm:col-span-2 flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 mt-2">
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-red-600 px-5 py-2 font-bold text-white hover:bg-red-500 transition-colors shadow-sm shadow-red-600/20 cursor-pointer"
-                >
-                  {editingActionId ? 'Salvar Alterações' : 'Cadastrar Ação'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+                  <div className="sm:col-span-2 flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 mt-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-red-600 px-5 py-2 font-bold text-white hover:bg-red-500 transition-colors shadow-sm shadow-red-600/20 cursor-pointer"
+                    >
+                      {editingActionId ? 'Salvar Alterações' : 'Cadastrar Ação'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
 
       {/* List layout style rows (uma embaixo das outras estilo linhas) */}
@@ -5316,6 +5341,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
   const [activeMonthForDetails, setActiveMonthForDetails] = useState<number | null>(null);
   const [localCategoryBudgets, setLocalCategoryBudgets] = useState<{ [category: string]: string }>({});
   const [detailSuccess, setDetailSuccess] = useState(false);
+  const [confirmCopyMonthIdx, setConfirmCopyMonthIdx] = useState<number | null>(null);
 
   const monthsList = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -5546,23 +5572,23 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <button
               onClick={() => setActiveMonthForDetails(null)}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 mt-0.5"
               title="Voltar"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div>
               <h2 className="text-xl font-bold text-slate-800 dark:text-white">Orçamento Detalhado</h2>
-              <p className="text-xs text-slate-400">{monthName} de {selectedYear} • Planejamento de Despesas</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] uppercase font-bold text-slate-400">Total Orçado</div>
-            <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">
-              R$ {liveTotalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              <p className="text-xs text-slate-400 mt-0.5">{monthName} de {selectedYear} • Planejamento de Despesas</p>
+              <div className="flex items-baseline gap-2 mt-2.5">
+                <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Total Orçado:</span>
+                <span className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">
+                  R$ {liveTotalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -5689,8 +5715,8 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
             <p className="font-medium text-slate-700 dark:text-slate-200">Siga estes passos simples para estruturar seu orçamento anual:</p>
             <ul className="list-decimal pl-4 space-y-1.5">
               <li>No filtro central, selecione o <strong className="text-slate-800 dark:text-white">ano de exercício</strong> desejado.</li>
-              <li>Na seção de limites mensais, estipule sua <strong className="text-slate-800 dark:text-white">Receita estimativa (R$)</strong> e seu limite máximo de <strong className="text-slate-800 dark:text-white">Despesa Orçada</strong> para cada mês do ano.</li>
-              <li>Para detalhar despesas específicas de forma granular por categoria, utilize o botão <strong className="text-slate-800 dark:text-white">Orçar por Categoria</strong> destacado abaixo. Ele permite que você associe limites de gastos individuais para cada uma das suas categorias cadastradas.</li>
+              <li>Na seção de limites mensais, acompanhe o limite de <strong className="text-slate-800 dark:text-white">Orçado mensal (R$)</strong> para cada mês do ano.</li>
+              <li>Para detalhar despesas específicas de forma granular por categoria, utilize o botão centralizado <strong className="text-slate-800 dark:text-white">Orçar por Categoria</strong> posicionado abaixo da quantidade de categorias. Ele permite que você associe limites de gastos individuais para cada uma das suas categorias cadastradas.</li>
               <li>Sempre clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Planejamento</strong> após realizar ajustes gerais ou detalhados.</li>
             </ul>
           </div>
@@ -5702,18 +5728,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {monthsList.map((m, idx) => {
             const currentBudget = currentPlanning.monthlyBudgets.find(b => b.month === idx) || { incomeBudget: 0, expenseBudget: 0, categoryBudgets: [] };
-            const monthRealIncome = userData.incomes
-              .filter(inc => {
-                if (!inc.date) return false;
-                const parts = inc.date.split('-');
-                if (parts.length >= 2) {
-                  const y = parseInt(parts[0], 10);
-                  const m = parseInt(parts[1], 10) - 1;
-                  return y === selectedYear && m === idx;
-                }
-                return false;
-              })
-              .reduce((sum, item) => sum + item.value, 0);
 
             const hasDetailedBudgets = currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0;
             const detailedSum = hasDetailedBudgets
@@ -5725,52 +5739,39 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                 <div>
                   <div className="font-bold text-slate-800 dark:text-slate-200 uppercase border-b border-slate-200/60 pb-1.5 mb-2.5 dark:border-slate-800/60">{m}</div>
                   
-                  <div className="space-y-2.5">
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Receita estimativa (R$)</label>
-                      <input
-                        type="text"
-                        value={`R$ ${monthRealIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                        disabled={true}
-                        className="w-full rounded-lg border px-3 py-2 font-mono text-sm text-slate-600 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
-                        title="Preenchido automaticamente com o total de receitas reais do mês"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Orçado mensal (R$)</label>
-                      <input
-                        type="text"
-                        value={`R$ ${detailedSum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                        disabled={true}
-                        className="w-full rounded-lg border px-3 py-2 font-mono text-sm text-slate-600 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
-                        title="Calculado a partir do orçamento detalhado"
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Orçado mensal (R$)</label>
+                    <input
+                      type="text"
+                      value={`R$ ${detailedSum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                      disabled={true}
+                      className="w-full rounded-lg border px-3 py-2 font-mono text-sm text-slate-600 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
+                      title="Calculado a partir do orçamento detalhado por categoria"
+                    />
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 mt-2">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
+                <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 mt-2 flex flex-col items-center">
+                  <div className="flex flex-col items-center gap-1.5 text-center w-full">
+                    <span className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 font-medium">
                       {currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0
                         ? `${currentBudget.categoryBudgets.length} categoria(s)`
                         : 'Nenhum detalhe'}
                     </span>
                     <button
                       onClick={() => openDetailedBudget(idx)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow shadow-blue-500/20 transition-all shrink-0 hover:scale-105"
+                      className="w-4/5 max-w-[220px] mx-auto flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-bold text-white shadow shadow-blue-500/20 transition-all hover:scale-[1.01] min-h-[42px]"
                     >
-                      <Sliders className="h-3.5 w-3.5" />
+                      <Sliders className="h-4 w-4 shrink-0" />
                       Orçar por categoria
                     </button>
                   </div>
                   <button
-                    onClick={() => copyPreviousMonthBudget(idx)}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/80"
+                    onClick={() => setConfirmCopyMonthIdx(idx)}
+                    className="w-4/5 max-w-[220px] mx-auto flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/80 min-h-[42px]"
                     title={idx === 0 ? "Copiar do Dezembro do ano anterior" : "Copiar do mês anterior"}
                   >
-                    <Copy className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                    <Copy className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" />
                     Copiar do mês anterior
                   </button>
                 </div>
@@ -5779,6 +5780,56 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
           })}
         </div>
       </div>
+
+      {/* Confirmation Modal for Copiar do mês anterior (Portal to body so it centers in current screen viewport) */}
+      {typeof document !== 'undefined' && confirmCopyMonthIdx !== null && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setConfirmCopyMonthIdx(null);
+            }
+          }}
+        >
+          <div
+            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xl overflow-hidden p-6 space-y-5 animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center space-y-2.5">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Copiar orçamento do mês anterior?
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                Tem certeza que deseja copiar o orçamento do mês anterior? Se houver dados no mês atual, eles serão sobrescritos.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmCopyMonthIdx(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+              >
+                Não
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  copyPreviousMonthBudget(confirmCopyMonthIdx);
+                  setConfirmCopyMonthIdx(null);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01]"
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

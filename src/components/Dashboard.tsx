@@ -547,7 +547,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
     }));
   }, [userData.expenses]);
 
-  // 4. Combined transactions sorted by date descending (for Recent Activity list)
+  // 4. Combined transactions sorted by date descending (data mais atual em cima seguida pelas demais)
   const recentTransactions = useMemo(() => {
     let combined: any[] = [];
     if (recentFilter === 'Todos' || recentFilter === 'Receitas') {
@@ -556,13 +556,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
     if (recentFilter === 'Todos' || recentFilter === 'Despesas') {
       combined = [...combined, ...userData.expenses.map(exp => ({ ...exp, type: 'despesa' as const }))];
     }
+
+    const parseDateSafe = (d?: string): number => {
+      if (!d) return 0;
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(d)) {
+        const [day, month, year] = d.split('/');
+        return new Date(`${year}-${month}-${day}T00:00:00`).getTime() || 0;
+      }
+      const cleanDate = d.includes('T') ? d : `${d}T00:00:00`;
+      const time = new Date(cleanDate).getTime();
+      return isNaN(time) ? 0 : time;
+    };
+
     return combined
       .sort((a, b) => {
-        const timeA = a.date ? new Date(a.date).getTime() : 0;
-        const timeB = b.date ? new Date(b.date).getTime() : 0;
-        return timeB - timeA;
+        const timeA = parseDateSafe(a.date);
+        const timeB = parseDateSafe(b.date);
+        if (timeB !== timeA) {
+          return timeB - timeA; // data mais atual em cima
+        }
+        return (b.value || 0) - (a.value || 0);
       })
-      .slice(0, 5);
+      .slice(0, 10);
   }, [userData.incomes, userData.expenses, recentFilter]);
 
   return (
@@ -947,7 +962,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 </div>
 
                 {/* Top 10 Items Card */}
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden w-full">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
                     <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
                       <Filter className="h-4 w-4 text-blue-500" />
@@ -1043,7 +1058,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                               {isIncome ? '+' : '-'} R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </p>
                             <p className="text-[9px] text-slate-400 font-mono">
-                              {item.date.split('-').reverse().join('/')}
+                              {item.date ? (item.date.includes('/') ? item.date : item.date.split('-').reverse().join('/')) : '-'}
                             </p>
                           </div>
                         </div>
