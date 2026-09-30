@@ -3535,7 +3535,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
 
       {/* Explanatory footnote */}
       <div className="text-[11px] text-slate-500 italic dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
-        *o cálculo se dá pelo orçamento total configurado em Planejamento anual menos o Realizado total lançado em Despesas conforme o ano escolhido. Receitas total é só comparativo para o Orçado, se está acima ou abaixo do que foi previsto.
+        *o cálculo se dá pelo orçamento total configurado em Orçamento anual menos o Realizado total lançado em Despesas conforme o ano escolhido. Receitas total é só comparativo para o Orçado, se está acima ou abaixo do que foi previsto.
       </div>
 
       {/* Monthly grid breakdown with comparison to budget */}
@@ -5620,7 +5620,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
-            Planejamento Anual
+            Orçamento Anual
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Defina e acompanhe seu teto de gastos orçados por categoria em cada mês do ano.
@@ -5649,7 +5649,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
             ) : (
               <>
                 <Check className="h-4 w-4" />
-                <span>Salvar Planejamento</span>
+                <span>Salvar Orçamento</span>
               </>
             )}
           </button>
@@ -5727,7 +5727,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         >
           <div className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-blue-500" />
-            <span>Como Funciona a Tabela de Planejamento Anual</span>
+            <span>Como Funciona a Tabela de Orçamento Anual</span>
           </div>
           <span className="text-slate-400">
             {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}

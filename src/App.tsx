@@ -143,8 +143,6 @@ export default function App() {
   // Auto collapse submenus whenever navigating away from their pages
   useEffect(() => {
     const isConfigPage = [
-      'Planejamento anual',
-      'Plano anual',
       'Tipo de recebimento',
       'Tipos de recebimento',
       'Tipo de pagamento',
@@ -695,7 +693,9 @@ export default function App() {
       case 'Suporte':
         return <SuportePage />;
       
-      // Configuration Submenus
+      // Configuration / Annual Budget
+      case 'Orçamento anual':
+      case 'Orçamento Anual':
       case 'Planejamento anual':
       case 'Plano anual':
         if (!userData) return null;
@@ -956,6 +956,7 @@ export default function App() {
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
     { name: 'Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
     { name: 'Despesas (Gastos)', icon: TrendingDown, type: 'link' },
+    { name: 'Orçamento anual', icon: FileText, type: 'link' },
     { name: 'Inconsistência financeira', icon: AlertTriangle, type: 'link' },
     { name: 'Investimentos', icon: PiggyBank, type: 'link' },
     { name: 'Objetivos', icon: Target, type: 'link' },
@@ -965,7 +966,6 @@ export default function App() {
   ];
 
   const configSubmenus = [
-    { name: 'Planejamento anual', icon: FileText },
     { name: 'Tipo de recebimento', icon: Wallet },
     { name: 'Tipo de pagamento', icon: CreditCard },
     { name: 'Situação de recebimento', icon: CheckCircle2 },
@@ -1035,6 +1035,7 @@ export default function App() {
               (item.name === 'Painel' && currentPage === 'Dashboard') ||
               (item.name === 'Receitas (Ganhos)' && currentPage === 'Receitas') ||
               (item.name === 'Despesas (Gastos)' && currentPage === 'Despesas') ||
+              (item.name === 'Orçamento anual' && (currentPage === 'Orçamento anual' || currentPage === 'Orçamento Anual' || currentPage === 'Planejamento anual' || currentPage === 'Plano anual' || currentPage === 'Planejamento Anual')) ||
               (item.name === 'Inconsistência financeira' && (currentPage === 'P. A. desvio financeiro' || currentPage === 'Melhoria financeira' || currentPage === 'Ação de melhoria' || currentPage === 'Plano de Ação para Inconsistência financeira'));
             return (
               <div key={item.name}>
