@@ -12,6 +12,59 @@ interface PageProps {
   onUpdateUserProfile: (name: string, address: string, phone: string, city?: string, state?: string, cpf?: string) => void;
 }
 
+// ======================== BRAZILIAN CURRENCY FORMATTERS ========================
+// Automatic thousand separators (.) and decimal comma (,) e.g. 1.500,00
+export const parsePtBrNumber = (val: string | number | undefined): number => {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return val;
+  const clean = String(val).replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  return parseFloat(clean) || 0;
+};
+
+export const formatPtBrCurrency = (val: number): string => {
+  if (!val || val === 0) return '';
+  return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+export const formatPtBrLiveInput = (raw: string): string => {
+  if (!raw) return '';
+  const val = raw.trim();
+  if (!val) return '';
+
+  // If user typed dot at the end (e.g. from numpad), treat as decimal comma
+  if (val.endsWith('.')) {
+    const digitsInt = val.slice(0, -1).replace(/\D/g, '');
+    const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
+    return `${formattedInt},`;
+  }
+
+  // If input contains a comma
+  if (val.includes(',')) {
+    const [intStr, ...rest] = val.split(',');
+    const decStr = rest.join('').replace(/\D/g, '').slice(0, 2);
+    const digitsInt = intStr.replace(/\D/g, '');
+    const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
+    if (val.endsWith(',') && decStr.length === 0) {
+      return `${formattedInt},`;
+    }
+    return decStr.length > 0 ? `${formattedInt},${decStr}` : formattedInt;
+  }
+
+  // If string has a single dot and was entered as a decimal (e.g. from keypad 1500.5 or 50.25)
+  const dotParts = val.split('.');
+  if (dotParts.length === 2 && dotParts[1].length <= 2 && (dotParts[0].length !== 3 || dotParts[1].length !== 3)) {
+    const digitsInt = dotParts[0].replace(/\D/g, '');
+    const decStr = dotParts[1].replace(/\D/g, '').slice(0, 2);
+    const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
+    return `${formattedInt},${decStr}`;
+  }
+
+  // Only integer digits: format with automatic thousand dots (.)
+  const digitsOnly = val.replace(/\D/g, '');
+  if (!digitsOnly) return '';
+  return parseInt(digitsOnly, 10).toLocaleString('pt-BR');
+};
+
 // ======================== RECEITAS PAGE ========================
 export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -201,6 +254,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !value) return;
+    const numValue = parsePtBrNumber(value);
+    if (numValue <= 0) return;
 
     if (editingIncomeId) {
       // Edit mode
@@ -210,7 +265,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             ...inc,
             date,
             description,
-            value: parseFloat(value),
+            value: numValue,
             category,
             paymentType,
             status
@@ -230,7 +285,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
         id: 'inc-' + Date.now(),
         date,
         description,
-        value: parseFloat(value),
+        value: numValue,
         category,
         paymentType,
         status
@@ -255,7 +310,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setEditingIncomeId(inc.id);
     setDate(inc.date);
     setDescription(inc.description);
-    setValue(String(inc.value));
+    setValue(formatPtBrCurrency(inc.value));
     setCategory(inc.category);
     setPaymentType(inc.paymentType);
     setStatus(inc.status);
@@ -542,7 +597,23 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
-            <input type="number" required step="0.01" placeholder="R$ 1500,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+            <input
+              type="text"
+              inputMode="decimal"
+              required
+              placeholder="0,00"
+              value={value}
+              onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+              onBlur={() => {
+                if (value && value.trim()) {
+                  const num = parsePtBrNumber(value);
+                  if (num > 0) {
+                    setValue(formatPtBrCurrency(num));
+                  }
+                }
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+            />
           </div>
           <div>
             <div className="flex items-center justify-between">
@@ -1421,6 +1492,8 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !value) return;
+    const parsedVal = parsePtBrNumber(value);
+    if (parsedVal <= 0) return;
 
     if (editingExpenseId) {
       // Edit mode
@@ -1430,7 +1503,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             ...exp,
             date,
             description,
-            value: parseFloat(value),
+            value: parsedVal,
             category,
             paymentType,
             status,
@@ -1447,7 +1520,6 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       setEditingExpenseId(null);
     } else {
       // Create mode
-      const parsedVal = parseFloat(value);
       if (installments > 1) {
         const newExpensesList: Expense[] = [];
         const baseTimestamp = Date.now();
@@ -1496,7 +1568,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setEditingExpenseId(exp.id);
     setDate(exp.date);
     setDescription(exp.description);
-    setValue(String(exp.value));
+    setValue(formatPtBrCurrency(exp.value));
     setCategory(exp.category);
     setPaymentType(exp.paymentType);
     setStatus(exp.status);
@@ -1790,7 +1862,23 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
-              <input type="number" required step="0.01" placeholder="R$ 150,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+              <input
+                type="text"
+                inputMode="decimal"
+                required
+                placeholder="0,00"
+                value={value}
+                onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                onBlur={() => {
+                  if (value && value.trim()) {
+                    const num = parsePtBrNumber(value);
+                    if (num > 0) {
+                      setValue(formatPtBrCurrency(num));
+                    }
+                  }
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+              />
             </div>
             {!editingExpenseId && (
               <div>
@@ -5373,57 +5461,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
     );
   }, [userData.expenseCategories]);
-
-  // Brazilian currency helpers: automatic thousand separators (.) and decimal comma (,)
-  const parsePtBrNumber = (val: string | undefined): number => {
-    if (!val) return 0;
-    const clean = String(val).replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
-    return parseFloat(clean) || 0;
-  };
-
-  const formatPtBrCurrency = (val: number): string => {
-    if (!val || val === 0) return '';
-    return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  const formatPtBrLiveInput = (raw: string): string => {
-    if (!raw) return '';
-    const val = raw.trim();
-    if (!val) return '';
-
-    // If user typed dot at the end (e.g. from numpad), treat as decimal comma
-    if (val.endsWith('.')) {
-      const digitsInt = val.slice(0, -1).replace(/\D/g, '');
-      const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
-      return `${formattedInt},`;
-    }
-
-    // If input contains a comma
-    if (val.includes(',')) {
-      const [intStr, ...rest] = val.split(',');
-      const decStr = rest.join('').replace(/\D/g, '').slice(0, 2);
-      const digitsInt = intStr.replace(/\D/g, '');
-      const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
-      if (val.endsWith(',') && decStr.length === 0) {
-        return `${formattedInt},`;
-      }
-      return decStr.length > 0 ? `${formattedInt},${decStr}` : formattedInt;
-    }
-
-    // If string has a single dot and was entered as a decimal (e.g. from keypad 1500.5 or 50.25)
-    const dotParts = val.split('.');
-    if (dotParts.length === 2 && dotParts[1].length <= 2 && (dotParts[0].length !== 3 || dotParts[1].length !== 3)) {
-      const digitsInt = dotParts[0].replace(/\D/g, '');
-      const decStr = dotParts[1].replace(/\D/g, '').slice(0, 2);
-      const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
-      return `${formattedInt},${decStr}`;
-    }
-
-    // Only integer digits: format with automatic thousand dots (.)
-    const digitsOnly = val.replace(/\D/g, '');
-    if (!digitsOnly) return '';
-    return parseInt(digitsOnly, 10).toLocaleString('pt-BR');
-  };
 
   // Load existing budgets into local state when selectedYear or userData.annualPlanning changes
   useEffect(() => {
