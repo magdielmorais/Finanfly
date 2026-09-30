@@ -1220,6 +1220,25 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [classification, setClassification] = useState<'Fixo' | 'Variável' | 'Eventual'>('Fixo');
   const [search, setSearch] = useState('');
 
+  // Listas suspensas ordenadas em ordem crescente alfabética (A para Z)
+  const sortedExpenseCategories = useMemo(() => {
+    return [...(userData.expenseCategories || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+  }, [userData.expenseCategories]);
+
+  const sortedPaymentTypes = useMemo(() => {
+    return [...(userData.paymentTypes || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+  }, [userData.paymentTypes]);
+
+  const sortedPaymentStatuses = useMemo(() => {
+    return [...(userData.paymentStatuses || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+  }, [userData.paymentStatuses]);
+
   // Category, Payment Type and Payment Status Management States
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -1681,9 +1700,9 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 setValue('');
                 setInstallments(1);
                 setDate(new Date().toISOString().split('T')[0]);
-                setCategory(userData.expenseCategories[0] || 'Outros');
-                setPaymentType(userData.paymentTypes[0] || 'Pix');
-                setStatus(userData.paymentStatuses[0] || 'Pendente');
+                setCategory(sortedExpenseCategories[0] || 'Outros');
+                setPaymentType(sortedPaymentTypes[0] || 'Pix');
+                setStatus(sortedPaymentStatuses[0] || 'Pendente');
                 setClassification('Fixo');
                 setShowManageCategories(false);
                 setShowManagePaymentTypes(false);
@@ -1807,7 +1826,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 </button>
               </div>
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-                {userData.expenseCategories.map(cat => (
+                {sortedExpenseCategories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
@@ -1828,7 +1847,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 </button>
               </div>
               <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-                {userData.paymentTypes.map(pt => (
+                {sortedPaymentTypes.map(pt => (
                   <option key={pt} value={pt}>{pt}</option>
                 ))}
               </select>
@@ -1849,7 +1868,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 </button>
               </div>
               <select value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-                {userData.paymentStatuses.map(ps => (
+                {sortedPaymentStatuses.map(ps => (
                   <option key={ps} value={ps}>{ps}</option>
                 ))}
               </select>
@@ -2330,7 +2349,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
                 >
                   <option value="all">Todas as Situações</option>
-                  {userData.paymentStatuses.map((st) => (
+                  {sortedPaymentStatuses.map((st) => (
                     <option key={st} value={st}>
                       {st}
                     </option>
@@ -5336,214 +5355,159 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
 
 // ======================== PLANEJAMENTO ANUAL ========================
 export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
   const [showHelp, setShowHelp] = useState(false);
-  const [activeMonthForDetails, setActiveMonthForDetails] = useState<number | null>(null);
-  const [localCategoryBudgets, setLocalCategoryBudgets] = useState<{ [category: string]: string }>({});
-  const [detailSuccess, setDetailSuccess] = useState(false);
+  const [localBudgets, setLocalBudgets] = useState<Record<string, string>>({});
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [confirmCopyMonthIdx, setConfirmCopyMonthIdx] = useState<number | null>(null);
 
-  const monthsList = [
+  const monthsShort = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const monthsFull = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
 
-  // Load budgets for this year, create default array of 12 if not exists
-  const currentPlanning = useMemo(() => {
-    let yearPlan = userData.annualPlanning.find(p => p.year === selectedYear);
-    if (!yearPlan) {
-      yearPlan = {
-        year: selectedYear,
-        monthlyBudgets: Array.from({ length: 12 }, (_, idx) => ({
-          month: idx,
-          incomeBudget: 0,
-          expenseBudget: 0,
-          categoryBudgets: []
-        }))
-      };
-    }
-    return yearPlan;
-  }, [userData.annualPlanning, selectedYear]);
-
-  const handleBudgetChange = (monthIdx: number, field: 'incomeBudget' | 'expenseBudget', val: string) => {
-    const floatVal = parseFloat(val) || 0;
-    
-    // Find if the selected year's record already exists in list
-    const existingYearPlanIdx = userData.annualPlanning.findIndex(p => p.year === selectedYear);
-    let updatedPlanningList = [...userData.annualPlanning];
-
-    if (existingYearPlanIdx !== -1) {
-      // Modifying existing year record
-      const updatedBudgets = updatedPlanningList[existingYearPlanIdx].monthlyBudgets.map(b => {
-        if (b.month === monthIdx) {
-          return { ...b, [field]: floatVal };
-        }
-        return b;
-      });
-      updatedPlanningList[existingYearPlanIdx] = {
-        ...updatedPlanningList[existingYearPlanIdx],
-        monthlyBudgets: updatedBudgets
-      };
-    } else {
-      // Adding new year record
-      const defaultBudgets = Array.from({ length: 12 }, (_, idx) => ({
-        month: idx,
-        incomeBudget: idx === monthIdx ? (field === 'incomeBudget' ? floatVal : 0) : 0,
-        expenseBudget: idx === monthIdx ? (field === 'expenseBudget' ? floatVal : 0) : 0,
-        categoryBudgets: []
-      }));
-      updatedPlanningList.push({
-        year: selectedYear,
-        monthlyBudgets: defaultBudgets
-      });
-    }
-
-    onUpdateUserData({
-      annualPlanning: updatedPlanningList
-    });
-  };
-
-  const copyPreviousMonthBudget = (monthIdx: number) => {
-    const targetYear = monthIdx === 0 ? selectedYear - 1 : selectedYear;
-    const prevMonthIdx = monthIdx === 0 ? 11 : monthIdx - 1;
-
-    const yearPlan = userData.annualPlanning.find(p => p.year === targetYear);
-    if (!yearPlan) return;
-
-    const prevMonthBudget = yearPlan.monthlyBudgets.find(b => b.month === prevMonthIdx);
-    if (!prevMonthBudget || !prevMonthBudget.categoryBudgets || prevMonthBudget.categoryBudgets.length === 0) {
-      return;
-    }
-
-    const copiedCategories = prevMonthBudget.categoryBudgets.filter(cb =>
-      userData.expenseCategories.includes(cb.category)
+  // Available categories sorted alphabetically for clean and organized table display
+  const categories = useMemo(() => {
+    return [...(userData.expenseCategories || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
     );
+  }, [userData.expenseCategories]);
 
-    if (copiedCategories.length === 0) return;
+  // Brazilian currency helpers: automatic thousand separators (.) and decimal comma (,)
+  const parsePtBrNumber = (val: string | undefined): number => {
+    if (!val) return 0;
+    const clean = String(val).replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+    return parseFloat(clean) || 0;
+  };
 
-    const sum = copiedCategories.reduce((s, item) => s + item.budgetedValue, 0);
+  const formatPtBrCurrency = (val: number): string => {
+    if (!val || val === 0) return '';
+    return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
-    const existingYearPlanIdx = userData.annualPlanning.findIndex(p => p.year === selectedYear);
-    let updatedPlanningList = [...userData.annualPlanning];
+  const formatPtBrLiveInput = (raw: string): string => {
+    if (!raw) return '';
+    const val = raw.trim();
+    if (!val) return '';
 
-    if (existingYearPlanIdx !== -1) {
-      const updatedBudgets = updatedPlanningList[existingYearPlanIdx].monthlyBudgets.map(b => {
-        if (b.month === monthIdx) {
-          return {
-            ...b,
-            expenseBudget: sum,
-            categoryBudgets: copiedCategories
-          };
+    // If user typed dot at the end (e.g. from numpad), treat as decimal comma
+    if (val.endsWith('.')) {
+      const digitsInt = val.slice(0, -1).replace(/\D/g, '');
+      const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
+      return `${formattedInt},`;
+    }
+
+    // If input contains a comma
+    if (val.includes(',')) {
+      const [intStr, ...rest] = val.split(',');
+      const decStr = rest.join('').replace(/\D/g, '').slice(0, 2);
+      const digitsInt = intStr.replace(/\D/g, '');
+      const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
+      if (val.endsWith(',') && decStr.length === 0) {
+        return `${formattedInt},`;
+      }
+      return decStr.length > 0 ? `${formattedInt},${decStr}` : formattedInt;
+    }
+
+    // If string has a single dot and was entered as a decimal (e.g. from keypad 1500.5 or 50.25)
+    const dotParts = val.split('.');
+    if (dotParts.length === 2 && dotParts[1].length <= 2 && (dotParts[0].length !== 3 || dotParts[1].length !== 3)) {
+      const digitsInt = dotParts[0].replace(/\D/g, '');
+      const decStr = dotParts[1].replace(/\D/g, '').slice(0, 2);
+      const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
+      return `${formattedInt},${decStr}`;
+    }
+
+    // Only integer digits: format with automatic thousand dots (.)
+    const digitsOnly = val.replace(/\D/g, '');
+    if (!digitsOnly) return '';
+    return parseInt(digitsOnly, 10).toLocaleString('pt-BR');
+  };
+
+  // Load existing budgets into local state when selectedYear or userData.annualPlanning changes
+  useEffect(() => {
+    const yearPlan = userData.annualPlanning?.find(p => p.year === selectedYear);
+    const newBudgets: Record<string, string> = {};
+
+    if (yearPlan && yearPlan.monthlyBudgets) {
+      yearPlan.monthlyBudgets.forEach(mb => {
+        if (mb.categoryBudgets) {
+          mb.categoryBudgets.forEach(cb => {
+            if (cb.budgetedValue > 0) {
+              newBudgets[`${cb.category}__${mb.month}`] = formatPtBrCurrency(cb.budgetedValue);
+            }
+          });
         }
-        return b;
-      });
-      updatedPlanningList[existingYearPlanIdx] = {
-        ...updatedPlanningList[existingYearPlanIdx],
-        monthlyBudgets: updatedBudgets
-      };
-    } else {
-      const defaultBudgets = Array.from({ length: 12 }, (_, idx) => {
-        if (idx === monthIdx) {
-          return {
-            month: idx,
-            incomeBudget: 0,
-            expenseBudget: sum,
-            categoryBudgets: copiedCategories
-          };
-        }
-        return {
-          month: idx,
-          incomeBudget: 0,
-          expenseBudget: 0,
-          categoryBudgets: []
-        };
-      });
-      updatedPlanningList.push({
-        year: selectedYear,
-        monthlyBudgets: defaultBudgets
       });
     }
 
-    onUpdateUserData({
-      annualPlanning: updatedPlanningList
-    });
-  };
+    setLocalBudgets(newBudgets);
+  }, [selectedYear, userData.annualPlanning]);
 
-  const openDetailedBudget = (monthIdx: number) => {
-    const monthBudget = currentPlanning.monthlyBudgets.find(b => b.month === monthIdx);
-    const existingDetails = monthBudget?.categoryBudgets || [];
-    
-    const initialVals: { [category: string]: string } = {};
-    userData.expenseCategories.forEach(cat => {
-      const found = existingDetails.find(db => db.category === cat);
-      initialVals[cat] = found ? String(found.budgetedValue) : '';
-    });
-    
-    setLocalCategoryBudgets(initialVals);
-    setActiveMonthForDetails(monthIdx);
-  };
-
-  const handleLocalCategoryValueChange = (cat: string, val: string) => {
-    setLocalCategoryBudgets(prev => ({
+  // Handle cell value change (updates local state immediately with auto thousands and commas)
+  const handleCellChange = (category: string, monthIdx: number, val: string) => {
+    const formatted = formatPtBrLiveInput(val);
+    setLocalBudgets(prev => ({
       ...prev,
-      [cat]: val
+      [`${category}__${monthIdx}`]: formatted
     }));
   };
 
-  const saveDetailedBudget = () => {
-    if (activeMonthForDetails === null) return;
-    
-    const list: { category: string; budgetedValue: number }[] = [];
-    let sum = 0;
-    
-    userData.expenseCategories.forEach(cat => {
-      const rawVal = localCategoryBudgets[cat];
-      const val = parseFloat(rawVal) || 0;
-      if (val > 0) {
-        list.push({ category: cat, budgetedValue: val });
-        sum += val;
-      }
+  // Normalize to 2 decimal places on blur (e.g. 1.500 -> 1.500,00) and save
+  const handleCellBlur = (category: string, monthIdx: number) => {
+    const key = `${category}__${monthIdx}`;
+    const current = localBudgets[key];
+    if (current && current.trim()) {
+      const num = parsePtBrNumber(current);
+      const normalized = formatPtBrCurrency(num);
+      const next = { ...localBudgets, [key]: normalized };
+      setLocalBudgets(next);
+      commitBudgets(next);
+    } else {
+      commitBudgets();
+    }
+  };
+
+  // Commit changes to annualPlanning in userData
+  const commitBudgets = (budgetsToCommit = localBudgets) => {
+    setSaveStatus('saving');
+
+    const yearPlanIdx = userData.annualPlanning.findIndex(p => p.year === selectedYear);
+    const existingYearPlan = yearPlanIdx !== -1 ? userData.annualPlanning[yearPlanIdx] : null;
+
+    const monthlyBudgets = Array.from({ length: 12 }, (_, monthIdx) => {
+      const existingMb = existingYearPlan?.monthlyBudgets.find(b => b.month === monthIdx);
+      const categoryBudgetsList: { category: string; budgetedValue: number }[] = [];
+      let monthSum = 0;
+
+      categories.forEach(cat => {
+        const raw = budgetsToCommit[`${cat}__${monthIdx}`];
+        const val = parsePtBrNumber(raw);
+        if (val > 0) {
+          categoryBudgetsList.push({ category: cat, budgetedValue: val });
+          monthSum += val;
+        }
+      });
+
+      return {
+        month: monthIdx,
+        incomeBudget: existingMb?.incomeBudget || 0,
+        expenseBudget: monthSum, // Automatically updated to sum of all categories!
+        categoryBudgets: categoryBudgetsList
+      };
     });
 
-    // We will update the annualPlanning list
-    const existingYearPlanIdx = userData.annualPlanning.findIndex(p => p.year === selectedYear);
     let updatedPlanningList = [...userData.annualPlanning];
-
-    if (existingYearPlanIdx !== -1) {
-      const updatedBudgets = updatedPlanningList[existingYearPlanIdx].monthlyBudgets.map(b => {
-        if (b.month === activeMonthForDetails) {
-          return {
-            ...b,
-            expenseBudget: sum, // update total expense budget automatically to the sum!
-            categoryBudgets: list
-          };
-        }
-        return b;
-      });
-      updatedPlanningList[existingYearPlanIdx] = {
-        ...updatedPlanningList[existingYearPlanIdx],
-        monthlyBudgets: updatedBudgets
+    if (yearPlanIdx !== -1) {
+      updatedPlanningList[yearPlanIdx] = {
+        ...updatedPlanningList[yearPlanIdx],
+        monthlyBudgets
       };
     } else {
-      const defaultBudgets = Array.from({ length: 12 }, (_, idx) => {
-        if (idx === activeMonthForDetails) {
-          return {
-            month: idx,
-            incomeBudget: 0,
-            expenseBudget: sum,
-            categoryBudgets: list
-          };
-        }
-        return {
-          month: idx,
-          incomeBudget: 0,
-          expenseBudget: 0,
-          categoryBudgets: []
-        };
-      });
       updatedPlanningList.push({
         year: selectedYear,
-        monthlyBudgets: defaultBudgets
+        monthlyBudgets
       });
     }
 
@@ -5551,148 +5515,207 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       annualPlanning: updatedPlanningList
     });
 
-    setDetailSuccess(true);
+    setSaveStatus('saved');
     setTimeout(() => {
-      setDetailSuccess(false);
-      setActiveMonthForDetails(null);
-    }, 1500);
+      setSaveStatus('idle');
+    }, 2500);
   };
 
-  // Calculate live sum in detailed budget screen
-  const liveTotalBudgeted = useMemo(() => {
+  // Replicate first non-empty value of a category across all 12 months
+  const copyCategoryToAllMonths = (cat: string) => {
+    let sourceVal = '';
+    for (let m = 0; m < 12; m++) {
+      if (localBudgets[`${cat}__${m}`]) {
+        sourceVal = localBudgets[`${cat}__${m}`];
+        break;
+      }
+    }
+    if (!sourceVal) return;
+
+    const next = { ...localBudgets };
+    for (let m = 0; m < 12; m++) {
+      next[`${cat}__${m}`] = sourceVal;
+    }
+    setLocalBudgets(next);
+    commitBudgets(next);
+  };
+
+  // Copy values from previous month
+  const copyFromPreviousMonth = (targetMonthIdx: number) => {
+    const sourceMonthIdx = targetMonthIdx === 0 ? 11 : targetMonthIdx - 1;
+    const sourceYear = targetMonthIdx === 0 ? selectedYear - 1 : selectedYear;
+
+    const next = { ...localBudgets };
+
+    if (sourceYear === selectedYear) {
+      categories.forEach(cat => {
+        const val = localBudgets[`${cat}__${sourceMonthIdx}`] || '';
+        next[`${cat}__${targetMonthIdx}`] = val;
+      });
+    } else {
+      const prevYearPlan = userData.annualPlanning.find(p => p.year === sourceYear);
+      const decBudget = prevYearPlan?.monthlyBudgets.find(b => b.month === 11);
+      categories.forEach(cat => {
+        const found = decBudget?.categoryBudgets?.find(cb => cb.category === cat);
+        next[`${cat}__${targetMonthIdx}`] = found && found.budgetedValue > 0 ? formatPtBrCurrency(found.budgetedValue) : '';
+      });
+    }
+
+    setLocalBudgets(next);
+    commitBudgets(next);
+  };
+
+  // Calculations
+  const getCategoryAnnualTotal = (cat: string) => {
     let sum = 0;
-    userData.expenseCategories.forEach(cat => {
-      sum += parseFloat(localCategoryBudgets[cat]) || 0;
+    for (let m = 0; m < 12; m++) {
+      sum += parsePtBrNumber(localBudgets[`${cat}__${m}`]);
+    }
+    return sum;
+  };
+
+  const getMonthTotal = (monthIdx: number) => {
+    let sum = 0;
+    categories.forEach(cat => {
+      sum += parsePtBrNumber(localBudgets[`${cat}__${monthIdx}`]);
     });
     return sum;
-  }, [localCategoryBudgets, userData.expenseCategories]);
+  };
 
-  if (activeMonthForDetails !== null) {
-    const monthName = monthsList[activeMonthForDetails];
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
-          <div className="flex items-start gap-3">
-            <button
-              onClick={() => setActiveMonthForDetails(null)}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 mt-0.5"
-              title="Voltar"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-white">Orçamento Detalhado</h2>
-              <p className="text-xs text-slate-400 mt-0.5">{monthName} de {selectedYear} • Planejamento de Despesas</p>
-              <div className="flex items-baseline gap-2 mt-2.5">
-                <span className="text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Total Orçado:</span>
-                <span className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">
-                  R$ {liveTotalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+  const grandAnnualTotal = useMemo(() => {
+    let sum = 0;
+    for (let m = 0; m < 12; m++) {
+      categories.forEach(cat => {
+        sum += parsePtBrNumber(localBudgets[`${cat}__${m}`]);
+      });
+    }
+    return sum;
+  }, [localBudgets, categories]);
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 max-w-2xl mx-auto space-y-6">
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white">Definir Orçamento por Despesa Cadastrada</h3>
-            <p className="text-xs text-slate-400 mt-1">Preencha o valor planejado para cada despesa. Itens zerados ou vazios não serão contabilizados.</p>
-          </div>
+  const monthlyAverageBudget = useMemo(() => {
+    return grandAnnualTotal / 12;
+  }, [grandAnnualTotal]);
 
-          {userData.expenseCategories.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-              <Sliders className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs text-slate-500">Nenhuma despesa ou categoria de despesa cadastrada no sistema.</p>
-              <p className="text-[10px] text-slate-400 mt-1">Cadastre categorias de despesa na tela de Lançamento de Despesas.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[450px] overflow-y-auto pr-2 space-y-3 pt-1">
-              {userData.expenseCategories.map((cat, idx) => (
-                <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 first:pt-0">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-blue-500" />
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{cat}</span>
-                  </div>
-                  <div className="flex items-center gap-2 sm:w-48 shrink-0">
-                    <span className="text-xs text-slate-400 font-bold uppercase shrink-0">Orçado:</span>
-                    <div className="relative w-full">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">R$</span>
-                      <input
-                        type="number"
-                        placeholder="0,00"
-                        value={localCategoryBudgets[cat] || ''}
-                        onChange={(e) => handleLocalCategoryValueChange(cat, e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 font-mono text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+  const monthsWeeks = useMemo(() => {
+    return Array.from({ length: 12 }, (_, mIdx) => {
+      // Quantidade de semanas completas no mês (quintas-feiras segundo a norma ISO-8601: entre 4 e 5)
+      const lastDay = new Date(selectedYear, mIdx + 1, 0).getDate();
+      let thursdays = 0;
+      for (let d = 1; d <= lastDay; d++) {
+        if (new Date(selectedYear, mIdx, d).getDay() === 4) {
+          thursdays++;
+        }
+      }
+      return thursdays;
+    });
+  }, [selectedYear]);
 
-          <div className="border-t border-slate-100 pt-4 dark:border-slate-800 flex items-center justify-between">
-            <button
-              onClick={() => setActiveMonthForDetails(null)}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={saveDetailedBudget}
-              disabled={detailSuccess}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold text-white transition-all shadow-sm ${
-                detailSuccess ? 'bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              {detailSuccess ? (
-                <>
-                  <Check className="h-4 w-4 animate-scale-up" />
-                  Salvo com Sucesso!
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4" />
-                  Salvar Orçamento
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const totalYearWeeks = useMemo(() => {
+    return monthsWeeks.reduce((acc, curr) => acc + curr, 0);
+  }, [monthsWeeks]);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Planejamento Anual</h2>
-        <p className="text-xs text-slate-400 mt-1">Defina suas metas de ganho e teto máximo de gastos para cada mês do ano.</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+            Planejamento Anual
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Defina e acompanhe seu teto de gastos orçados por categoria em cada mês do ano.
+          </p>
+        </div>
+
+        {/* Action button to save changes manually */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => commitBudgets()}
+            disabled={saveStatus === 'saving'}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-white rounded-xl shadow-sm transition-all cursor-pointer ${
+              saveStatus === 'saved'
+                ? 'bg-emerald-600 shadow-emerald-500/20'
+                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0'
+            }`}
+          >
+            {saveStatus === 'saved' ? (
+              <>
+                <Check className="h-4 w-4" />
+                <span>Salvo com Sucesso!</span>
+              </>
+            ) : saveStatus === 'saving' ? (
+              <span>Salvando...</span>
+            ) : (
+              <>
+                <Check className="h-4 w-4" />
+                <span>Salvar Planejamento</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Centered Year Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 py-3.5 px-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm text-center">
-        <label className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100">
-          Escolha o ano:
-        </label>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm">
         <div className="flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-blue-500 shrink-0" />
+          <label className="text-sm font-bold text-slate-800 dark:text-slate-100">
+            Ano de Exercício:
+          </label>
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-2 text-sm font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-inner"
+            className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3.5 py-1.5 text-sm font-extrabold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-inner ml-1"
           >
-            {[2022, 2023, 2024, 2025, 2026, 2027].map(y => (
+            {[2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
           <button
             type="button"
             onClick={() => setSelectedYear(new Date().getFullYear())}
-            className="p-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:bg-slate-950 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-            title="Limpar filtro (voltar para o ano atual)"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors dark:bg-slate-950 dark:hover:bg-blue-950/30"
+            title="Voltar para o ano atual"
           >
-            <Trash2 className="h-4 w-4" />
+            Hoje
           </button>
+        </div>
+
+        {/* Quick hint badge */}
+        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>Valores orçados salvos automaticamente ao preencher</span>
+        </div>
+      </div>
+
+      {/* KPI Cards: Total Anual, Média Mensal, Categorias */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+            Total Orçado Anual ({selectedYear})
+          </span>
+          <span className="text-xl sm:text-2xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1 block">
+            {grandAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </span>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+            Média Mensal Orçada
+          </span>
+          <span className="text-xl sm:text-2xl font-bold font-mono text-slate-800 dark:text-slate-200 mt-1 block">
+            {monthlyAverageBudget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </span>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+            Categorias Ativas na Tabela
+          </span>
+          <span className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-200 mt-1 block">
+            {categories.length} {categories.length === 1 ? 'categoria' : 'categorias'}
+          </span>
         </div>
       </div>
 
@@ -5700,11 +5723,11 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
         <button
           onClick={() => setShowHelp(!showHelp)}
-          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs sm:text-sm text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs sm:text-sm text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-blue-500" />
-            <span>Como Configurar o Planejamento Anual</span>
+            <span>Como Funciona a Tabela de Planejamento Anual</span>
           </div>
           <span className="text-slate-400">
             {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
@@ -5712,74 +5735,233 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         </button>
         {showHelp && (
           <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-2 animate-fade-in">
-            <p className="font-medium text-slate-700 dark:text-slate-200">Siga estes passos simples para estruturar seu orçamento anual:</p>
+            <p className="font-medium text-slate-700 dark:text-slate-200">
+              Gerencie todo o seu orçamento de despesas em uma única matriz intuitiva:
+            </p>
             <ul className="list-decimal pl-4 space-y-1.5">
-              <li>No filtro central, selecione o <strong className="text-slate-800 dark:text-white">ano de exercício</strong> desejado.</li>
-              <li>Na seção de limites mensais, acompanhe o limite de <strong className="text-slate-800 dark:text-white">Orçado mensal (R$)</strong> para cada mês do ano.</li>
-              <li>Para detalhar despesas específicas de forma granular por categoria, utilize o botão centralizado <strong className="text-slate-800 dark:text-white">Orçar por Categoria</strong> posicionado abaixo da quantidade de categorias. Ele permite que você associe limites de gastos individuais para cada uma das suas categorias cadastradas.</li>
-              <li>Sempre clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Planejamento</strong> após realizar ajustes gerais ou detalhados.</li>
+              <li>
+                <strong className="text-slate-800 dark:text-white">Coluna Fixa de Categorias:</strong> Na lateral esquerda, todas as suas categorias de despesas aparecem fixas. Conforme você cadastra novas categorias no sistema, elas entram automaticamente nesta tabela.
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-white">Meses de Jan a Dez:</strong> Cada coluna representa um mês do ano de exercício selecionado. Você pode rolar a tabela na horizontal para ver todos os meses mantendo as categorias sempre visíveis.
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-white">Edição Direta:</strong> Digite o valor planejado diretamente na célula do mês e categoria desejada. O valor é salvo automaticamente ao mudar de campo ou clicar no botão Salvar.
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-white">Atalhos Práticos:</strong>
+                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                  <li>Clique em <em>Replicar ano</em> ao passar o mouse sobre a categoria para preencher todos os 12 meses com o mesmo valor.</li>
+                  <li>Clique em <em>Copiar ant.</em> no cabeçalho do mês para clonar os valores do mês anterior com apenas 1 clique.</li>
+                </ul>
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-white">Comparação Realizado vs Orçado:</strong> Os valores orçados alimentados nesta tabela são sincronizados imediatamente com o Painel/Dashboard e Relatórios para comparação com seus gastos reais.
+              </li>
             </ul>
           </div>
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-wider">Definição de Limites por Mês</h3>
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-          {monthsList.map((m, idx) => {
-            const currentBudget = currentPlanning.monthlyBudgets.find(b => b.month === idx) || { incomeBudget: 0, expenseBudget: 0, categoryBudgets: [] };
-
-            const hasDetailedBudgets = currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0;
-            const detailedSum = hasDetailedBudgets
-              ? currentBudget.categoryBudgets.reduce((sum, item) => sum + item.budgetedValue, 0)
-              : 0;
-
-            return (
-              <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800/80 dark:bg-slate-900/40 text-xs sm:text-sm space-y-3 flex flex-col justify-between">
-                <div>
-                  <div className="font-bold text-slate-800 dark:text-slate-200 uppercase border-b border-slate-200/60 pb-1.5 mb-2.5 dark:border-slate-800/60">{m}</div>
-                  
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Orçado mensal (R$)</label>
-                    <input
-                      type="text"
-                      value={`R$ ${detailedSum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                      disabled={true}
-                      className="w-full rounded-lg border px-3 py-2 font-mono text-sm text-slate-600 bg-slate-100 dark:bg-slate-900/60 cursor-not-allowed border-slate-200 dark:border-slate-800"
-                      title="Calculado a partir do orçamento detalhado por categoria"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 mt-2 flex flex-col items-center">
-                  <div className="flex flex-col items-center gap-1.5 text-center w-full">
-                    <span className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 font-medium">
-                      {currentBudget.categoryBudgets && currentBudget.categoryBudgets.length > 0
-                        ? `${currentBudget.categoryBudgets.length} categoria(s)`
-                        : 'Nenhum detalhe'}
-                    </span>
-                    <button
-                      onClick={() => openDetailedBudget(idx)}
-                      className="w-4/5 max-w-[220px] mx-auto flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-bold text-white shadow shadow-blue-500/20 transition-all hover:scale-[1.01] min-h-[42px]"
-                    >
-                      <Sliders className="h-4 w-4 shrink-0" />
-                      Orçar por categoria
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => setConfirmCopyMonthIdx(idx)}
-                    className="w-4/5 max-w-[220px] mx-auto flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/80 min-h-[42px]"
-                    title={idx === 0 ? "Copiar do Dezembro do ano anterior" : "Copiar do mês anterior"}
-                  >
-                    <Copy className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                    Copiar do mês anterior
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+      {/* Main Table Container with Fixed Category Column & Horizontal Scroll */}
+      {categories.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 p-12 text-center">
+          <Sliders className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-800 dark:text-white">
+            Nenhuma categoria de despesa cadastrada
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+            Cadastre categorias de despesa em <strong>Lançamento de Despesas</strong> para que elas apareçam automaticamente nesta tabela.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+              Matriz Orçamentária Anual • {selectedYear}
+            </h3>
+            <span className="text-xs text-slate-400">
+              Role horizontalmente e verticalmente para navegar entre meses e categorias
+            </span>
+          </div>
+
+          <div className="overflow-auto custom-scrollbar relative max-w-full max-h-[580px] sm:max-h-[640px]">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b-2 border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/90">
+                  {/* Sticky Category Column Header (pinned top & left) */}
+                  <th
+                    className="sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-800 p-2 sm:p-2.5 font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs sm:text-sm border-r-2 border-b-2 border-slate-200 dark:border-slate-700 w-[110px] min-w-[100px] max-w-[120px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.08)] break-words [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal leading-tight align-middle"
+                    style={{ verticalAlign: 'middle' }}
+                  >
+                    <div className="flex flex-col justify-between h-full min-h-[70px]">
+                      <div className="pb-1 mb-1 border-b border-slate-200/80 dark:border-slate-700/80 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Semanas
+                      </div>
+                      <div className="flex items-center justify-start flex-1 font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                        Categoria
+                      </div>
+                    </div>
+                  </th>
+
+                  {/* Months Columns (Jan a Dez) - Sticky Top with Weeks Line */}
+                  {monthsShort.map((m, idx) => (
+                    <th
+                      key={idx}
+                      className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 p-1.5 text-center min-w-[76px] w-[80px] border-r border-b-2 border-slate-200/70 dark:border-slate-700"
+                    >
+                      {/* Linha superior: Semanas completas (4 ou 5) */}
+                      <div className="pb-1 mb-1 border-b border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center">
+                        <span
+                          className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs sm:text-[13px] font-black text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/80 border border-blue-200/80 dark:border-blue-800/70 whitespace-nowrap leading-tight"
+                          title={`${monthsWeeks[idx]} semanas completas em ${monthsFull[idx]} de ${selectedYear}`}
+                        >
+                          {monthsWeeks[idx]} sem.
+                        </span>
+                      </div>
+                      <div className="font-extrabold text-slate-800 dark:text-white uppercase text-xs sm:text-sm leading-tight">
+                        {m}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-medium leading-tight truncate">
+                        {monthsFull[idx]}
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmCopyMonthIdx(idx)}
+                          className="inline-flex items-center justify-center gap-1 text-[10px] sm:text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 px-1 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 dark:hover:bg-blue-900/90 border border-blue-200 dark:border-blue-800 shadow-xs transition-all hover:scale-[1.02] cursor-pointer w-full"
+                          title={idx === 0 ? "Copiar de Dezembro do ano anterior" : `Copiar valores de ${monthsShort[idx - 1]}`}
+                        >
+                          <Copy className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                          <span className="leading-tight text-center">Copiar anterior</span>
+                        </button>
+                      </div>
+                    </th>
+                  ))}
+
+                  {/* Total Column Header - Sticky Top */}
+                  <th
+                    className="sticky top-0 z-20 bg-slate-200 dark:bg-slate-700 p-2 sm:p-2.5 text-right font-black text-slate-800 dark:text-white uppercase text-xs sm:text-sm min-w-[120px] border-l-2 border-b-2 border-slate-300 dark:border-slate-600 align-middle"
+                    style={{ verticalAlign: 'middle' }}
+                  >
+                    <div className="flex flex-col justify-between h-full min-h-[70px]">
+                      <div className="pb-1 mb-1 border-b border-slate-300/80 dark:border-slate-600/80 text-xs sm:text-[13px] font-black text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                        {totalYearWeeks} semanas
+                      </div>
+                      <div className="flex items-center justify-end flex-1 font-black text-slate-800 dark:text-white text-xs sm:text-sm">
+                        Total Anual
+                      </div>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {categories.map((cat) => {
+                  const catAnnualTotal = getCategoryAnnualTotal(cat);
+                  return (
+                    <tr
+                      key={cat}
+                      className="group hover:bg-blue-50/20 dark:hover:bg-blue-950/10 transition-colors"
+                    >
+                      {/* Sticky Category Name Cell - Centered Vertically with Auto Wrap */}
+                      <td
+                        className="sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-blue-50/30 dark:group-hover:bg-slate-900 p-2 sm:p-2.5 font-bold text-slate-900 dark:text-white border-r-2 border-slate-200 dark:border-slate-700 w-[110px] min-w-[100px] max-w-[120px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)] transition-colors align-middle break-words [overflow-wrap:anywhere]"
+                        style={{ verticalAlign: 'middle' }}
+                      >
+                        <div className="flex flex-col justify-center items-start min-w-0 py-0.5 w-full">
+                          <div className="flex items-start gap-1.5 min-w-0 w-full">
+                            <div className="h-2 w-2 rounded-full bg-blue-500 shrink-0 mt-1" />
+                            <span
+                              className="break-words [overflow-wrap:anywhere] [word-break:break-word] hyphens-auto whitespace-normal leading-snug font-bold text-sm sm:text-[15px] text-slate-900 dark:text-white min-w-0 flex-1"
+                              title={cat}
+                              lang="pt-BR"
+                            >
+                              {cat}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyCategoryToAllMonths(cat)}
+                            className="max-h-0 opacity-0 overflow-hidden group-hover:max-h-6 group-hover:opacity-100 text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded border border-blue-200/60 dark:border-blue-800/40 transition-all duration-150 self-start cursor-pointer group-hover:mt-1 ml-3.5"
+                            title="Replicar o valor do primeiro mês preenchido para todos os 12 meses"
+                          >
+                            Replicar ano
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* 12 Monthly Editable Input Cells */}
+                      {monthsShort.map((_, mIdx) => {
+                        const key = `${cat}__${mIdx}`;
+                        const val = localBudgets[key] ?? '';
+                        const numVal = parsePtBrNumber(val);
+
+                        return (
+                          <td
+                            key={mIdx}
+                            className="p-1 border-r border-slate-100 dark:border-slate-800/60 text-center min-w-[76px] w-[80px] align-middle"
+                            style={{ verticalAlign: 'middle' }}
+                          >
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0,00"
+                                value={val}
+                                onChange={(e) => handleCellChange(cat, mIdx, e.target.value)}
+                                onBlur={() => handleCellBlur(cat, mIdx)}
+                                className={`w-full rounded-md border py-1.5 px-1 text-right font-mono text-xs sm:text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900 ${
+                                  numVal > 0
+                                    ? 'border-blue-300 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/20 text-slate-900 dark:text-white'
+                                    : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 text-slate-400 dark:text-slate-500'
+                                }`}
+                              />
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      {/* Annual Category Total */}
+                      <td
+                        className="p-2 sm:p-2.5 text-right font-mono font-black text-sm sm:text-base text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-950/30 border-l-2 border-slate-200 dark:border-slate-700 whitespace-nowrap align-middle min-w-[120px]"
+                        style={{ verticalAlign: 'middle' }}
+                      >
+                        {catAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                  <td
+                    className="sticky left-0 bottom-0 z-30 bg-slate-100 dark:bg-slate-800 p-2.5 font-black text-slate-900 dark:text-white uppercase tracking-wider text-xs sm:text-sm border-r-2 border-slate-300 dark:border-slate-700 w-[110px] min-w-[100px] max-w-[120px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.1)] break-words [overflow-wrap:anywhere] whitespace-normal leading-tight align-middle"
+                    style={{ verticalAlign: 'middle' }}
+                  >
+                    Total Mensal
+                  </td>
+                  {monthsShort.map((_, mIdx) => (
+                    <td
+                      key={mIdx}
+                      className="sticky bottom-0 z-20 bg-slate-100 dark:bg-slate-800 p-1.5 text-right font-mono font-bold text-xs sm:text-sm text-blue-600 dark:text-blue-400 border-r border-slate-200 dark:border-slate-700 whitespace-nowrap min-w-[76px] w-[80px] align-middle"
+                      style={{ verticalAlign: 'middle' }}
+                    >
+                      {getMonthTotal(mIdx).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </td>
+                  ))}
+                  <td
+                    className="sticky bottom-0 z-20 bg-blue-100 dark:bg-blue-950 p-2 sm:p-2.5 text-right font-mono font-black text-sm sm:text-base text-blue-700 dark:text-blue-300 border-l-2 border-slate-300 dark:border-slate-700 whitespace-nowrap min-w-[120px] align-middle"
+                    style={{ verticalAlign: 'middle' }}
+                  >
+                    {grandAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal for Copiar do mês anterior (Portal to body so it centers in current screen viewport) */}
       {typeof document !== 'undefined' && confirmCopyMonthIdx !== null && createPortal(
@@ -5803,7 +5985,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                 Copiar orçamento do mês anterior?
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                Tem certeza que deseja copiar o orçamento do mês anterior? Se houver dados no mês atual, eles serão sobrescritos.
+                Tem certeza que deseja copiar os valores do mês anterior para {monthsFull[confirmCopyMonthIdx]}? Se houver valores cadastrados, eles serão sobrescritos.
               </p>
             </div>
 
@@ -5818,7 +6000,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
               <button
                 type="button"
                 onClick={() => {
-                  copyPreviousMonthBudget(confirmCopyMonthIdx);
+                  copyFromPreviousMonth(confirmCopyMonthIdx);
                   setConfirmCopyMonthIdx(null);
                 }}
                 className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01]"
