@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish } from '../types';
 import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { MonthlyExpenseTrendChart } from './CustomChart';
 
 interface PageProps {
   userData: UserData;
@@ -17,7 +18,36 @@ interface PageProps {
 export const parsePtBrNumber = (val: string | number | undefined): number => {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') return val;
-  const clean = String(val).replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  const str = String(val).trim();
+  if (!str) return 0;
+
+  // 1. Se contém vírgula, a vírgula é o separador decimal oficial brasileiro (ex: 1.500,50 ou 1500,50)
+  if (str.includes(',')) {
+    const clean = str.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+    return parseFloat(clean) || 0;
+  }
+
+  // 2. Se contém ponto: verificar se é separador de milhar (ex: 1.000, 1.500, 10.000, 1.000.000)
+  if (str.includes('.')) {
+    const parts = str.split('.');
+    const lastPart = parts[parts.length - 1];
+    // Se o último bloco tem exatamente 3 dígitos e temos múltiplos blocos, é separador de milhar
+    if (lastPart.length === 3 && parts.length >= 2) {
+      const clean = str.replace(/\./g, '').replace(/[^\d]/g, '');
+      return parseFloat(clean) || 0;
+    }
+    // Se tem apenas 2 blocos e o último tem 1 ou 2 dígitos (ex: 15.5 ou 1500.50 colado de teclado US), trata como decimal
+    if (lastPart.length <= 2 && parts.length === 2) {
+      const clean = str.replace(/[^\d.]/g, '');
+      return parseFloat(clean) || 0;
+    }
+    // Caso padrão com pontos: remove pontos de milhar
+    const clean = str.replace(/\./g, '').replace(/[^\d]/g, '');
+    return parseFloat(clean) || 0;
+  }
+
+  // 3. Apenas dígitos inteiros
+  const clean = str.replace(/[^\d]/g, '');
   return parseFloat(clean) || 0;
 };
 
@@ -31,14 +61,7 @@ export const formatPtBrLiveInput = (raw: string): string => {
   const val = raw.trim();
   if (!val) return '';
 
-  // If user typed dot at the end (e.g. from numpad), treat as decimal comma
-  if (val.endsWith('.')) {
-    const digitsInt = val.slice(0, -1).replace(/\D/g, '');
-    const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
-    return `${formattedInt},`;
-  }
-
-  // If input contains a comma
+  // 1. Se o valor contém vírgula (separador decimal brasileiro)
   if (val.includes(',')) {
     const [intStr, ...rest] = val.split(',');
     const decStr = rest.join('').replace(/\D/g, '').slice(0, 2);
@@ -47,19 +70,19 @@ export const formatPtBrLiveInput = (raw: string): string => {
     if (val.endsWith(',') && decStr.length === 0) {
       return `${formattedInt},`;
     }
-    return decStr.length > 0 ? `${formattedInt},${decStr}` : formattedInt;
+    return decStr.length > 0 ? `${formattedInt},${decStr}` : `${formattedInt},`;
   }
 
-  // If string has a single dot and was entered as a decimal (e.g. from keypad 1500.5 or 50.25)
-  const dotParts = val.split('.');
-  if (dotParts.length === 2 && dotParts[1].length <= 2 && (dotParts[0].length !== 3 || dotParts[1].length !== 3)) {
-    const digitsInt = dotParts[0].replace(/\D/g, '');
-    const decStr = dotParts[1].replace(/\D/g, '').slice(0, 2);
-    const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
-    return `${formattedInt},${decStr}`;
+  // 2. Se o usuário acabou de digitar um ponto no final (separador de milhar), mantém o ponto
+  // sem converter erroneamente para vírgula, permitindo digitar 1.000 ou 1.500
+  if (val.endsWith('.')) {
+    const digitsInt = val.replace(/\D/g, '');
+    if (!digitsInt) return '';
+    const formattedInt = parseInt(digitsInt, 10).toLocaleString('pt-BR');
+    return `${formattedInt}.`;
   }
 
-  // Only integer digits: format with automatic thousand dots (.)
+  // 3. Formatação automática de milhar com ponto para números inteiros (ex: 1000 -> 1.000)
   const digitsOnly = val.replace(/\D/g, '');
   if (!digitsOnly) return '';
   return parseInt(digitsOnly, 10).toLocaleString('pt-BR');
@@ -597,23 +620,28 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              required
-              placeholder="0,00"
-              value={value}
-              onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
-              onBlur={() => {
-                if (value && value.trim()) {
-                  const num = parsePtBrNumber(value);
-                  if (num > 0) {
-                    setValue(formatPtBrCurrency(num));
+            <div className="relative mt-1">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                R$
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                required
+                placeholder="0,00"
+                value={value}
+                onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                onBlur={() => {
+                  if (value && value.trim()) {
+                    const num = parsePtBrNumber(value);
+                    if (num > 0) {
+                      setValue(formatPtBrCurrency(num));
+                    }
                   }
-                }
-              }}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
-            />
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+              />
+            </div>
           </div>
           <div>
             <div className="flex items-center justify-between">
@@ -775,14 +803,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   ) : (
                     <>
                       <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{cat}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-3.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingCategory(cat);
                             setEditCategoryValue(cat);
                           }}
-                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                           title="Editar Categoria"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -790,7 +818,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => handleDeleteCategory(cat)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                           title="Excluir Categoria"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -888,14 +916,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   ) : (
                     <>
                       <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{pt}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-3.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingReceiptType(pt);
                             setEditReceiptTypeValue(pt);
                           }}
-                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                           title="Editar Tipo de Recebimento"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -903,7 +931,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => handleDeleteReceiptType(pt)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                           title="Excluir Tipo de Recebimento"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -1001,14 +1029,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   ) : (
                     <>
                       <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{ps}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-3.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingReceiptStatus(ps);
                             setEditReceiptStatusValue(ps);
                           }}
-                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                           title="Editar Situação de Recebimento"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -1016,7 +1044,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => handleDeleteReceiptStatus(ps)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                           title="Excluir Situação de Recebimento"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -1862,23 +1890,28 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                required
-                placeholder="0,00"
-                value={value}
-                onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
-                onBlur={() => {
-                  if (value && value.trim()) {
-                    const num = parsePtBrNumber(value);
-                    if (num > 0) {
-                      setValue(formatPtBrCurrency(num));
+              <div className="relative mt-1">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                  R$
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  required
+                  placeholder="0,00"
+                  value={value}
+                  onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                  onBlur={() => {
+                    if (value && value.trim()) {
+                      const num = parsePtBrNumber(value);
+                      if (num > 0) {
+                        setValue(formatPtBrCurrency(num));
+                      }
                     }
-                  }
-                }}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
-              />
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                />
+              </div>
             </div>
             {!editingExpenseId && (
               <div>
@@ -2072,14 +2105,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   ) : (
                     <>
                       <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{cat}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-3.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingCategory(cat);
                             setEditCategoryValue(cat);
                           }}
-                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                           title="Editar Categoria de Despesa"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -2087,7 +2120,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => handleDeleteCategory(cat)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                           title="Excluir Categoria de Despesa"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -2185,14 +2218,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   ) : (
                     <>
                       <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{pt}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-3.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingPaymentType(pt);
                             setEditPaymentTypeValue(pt);
                           }}
-                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                           title="Editar Tipo de Pagamento"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -2200,7 +2233,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => handleDeletePaymentType(pt)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                           title="Excluir Tipo de Pagamento"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -2298,14 +2331,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                   ) : (
                     <>
                       <span className="text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm break-all">{ps}</span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-3.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingPaymentStatus(ps);
                             setEditPaymentStatusValue(ps);
                           }}
-                          className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                           title="Editar Situação de Pagamento"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -2313,7 +2346,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           type="button"
                           onClick={() => handleDeletePaymentStatus(ps)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                           title="Excluir Situação de Pagamento"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -2723,6 +2756,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
     const realizedPieSlices = realizedCategoriesList.filter(item => item.value > 0);
 
     return {
+      expenses,
       sumIncome,
       sumExpense,
       sumBudget,
@@ -2923,6 +2957,14 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
           </table>
         </div>
       </div>
+
+      {/* Gráfico de Tendência de Gastos (Evolução Acumulada Dia a Dia) */}
+      <MonthlyExpenseTrendChart
+        expenses={monthData.expenses}
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        monthName={monthsList[selectedMonth]}
+      />
 
       {/* Seção com Separadores e Gráficos Tipo Pizza: Orçado e Realizado */}
       <div className="space-y-4 pt-2">
@@ -6172,14 +6214,14 @@ export const ListManagerPage: React.FC<{
                 ) : (
                   <>
                     <span>{item}</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-4 sm:gap-5">
                       <button
                         type="button"
                         onClick={() => {
                           setEditingItem(item);
                           setEditValue(item);
                         }}
-                        className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors cursor-pointer"
                         title="Editar"
                       >
                         <Pencil className="h-4 w-4" />
@@ -6187,7 +6229,7 @@ export const ListManagerPage: React.FC<{
                       <button
                         type="button"
                         onClick={() => handleDelete(item)}
-                        className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors cursor-pointer"
                         title="Excluir"
                       >
                         <Trash2 className="h-4 w-4" />

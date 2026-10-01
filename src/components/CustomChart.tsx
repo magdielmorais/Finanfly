@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { TrendingDown, Calendar, ArrowLeft, ArrowRight, Activity, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 
 // Pure React & SVG Interactive Charts - Styled with Tailwind CSS
 // 100% responsive, compatible with React 19, and beautifully animated.
@@ -1679,6 +1680,552 @@ export const InvestmentMonthlyDonutChart: React.FC<{
     </div>
   </div>
 );
+};
+
+// ======================== MONTHLY EXPENSE TREND CHART ========================
+// Gráfico de linha mostrando os gastos dia a dia e a soma acumulada ao longo do mês
+// com eixo vertical fixo na lateral esquerda durante a rolagem horizontal
+export interface DailyTrendPoint {
+  day: number;
+  dateStr: string;
+  weekday: string;
+  isWeekend: boolean;
+  dayTotal: number;
+  accumulated: number;
+  count: number;
+}
+
+export const MonthlyExpenseTrendChart: React.FC<{
+  expenses: { date: string; value: number; description?: string; category?: string }[];
+  selectedYear: number;
+  selectedMonth: number; // 0-11
+  monthName: string;
+}> = ({ expenses, selectedYear, selectedMonth, monthName }) => {
+  const [hoveredDay, setHoveredDay] = useState<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    const updateWidth = () => {
+      if (el) {
+        setContainerWidth(el.clientWidth);
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Quantidade de dias no mês selecionado
+  const daysInMonth = useMemo(() => {
+    return new Date(selectedYear, selectedMonth + 1, 0).getDate();
+  }, [selectedYear, selectedMonth]);
+
+  // Cálculo diário e soma acumulada dia a dia
+  const { dailyData, totalMonthExpense, peakDay, peakAmount, dailyAverage, activeDaysCount } = useMemo(() => {
+    let acc = 0;
+    let maxDayExpense = 0;
+    let maxDay = 1;
+    let activeDays = 0;
+
+    const points: DailyTrendPoint[] = [];
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayExpenses = (expenses || []).filter(e => {
+        if (!e.date) return false;
+        const parts = e.date.split('-');
+        if (parts.length >= 3) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          return y === selectedYear && m === selectedMonth && day === d;
+        }
+        return false;
+      });
+
+      const dayTotal = dayExpenses.reduce((sum, e) => sum + e.value, 0);
+      acc += dayTotal;
+
+      if (dayTotal > 0) {
+        activeDays++;
+        if (dayTotal > maxDayExpense) {
+          maxDayExpense = dayTotal;
+          maxDay = d;
+        }
+      }
+
+      const dateObj = new Date(selectedYear, selectedMonth, d);
+      const dayOfWeekNum = dateObj.getDay();
+      const isWeekend = dayOfWeekNum === 0 || dayOfWeekNum === 6;
+      const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+
+      points.push({
+        day: d,
+        dateStr: `${String(d).padStart(2, '0')}/${String(selectedMonth + 1).padStart(2, '0')}`,
+        weekday,
+        isWeekend,
+        dayTotal,
+        accumulated: acc,
+        count: dayExpenses.length
+      });
+    }
+
+    return {
+      dailyData: points,
+      totalMonthExpense: acc,
+      peakDay: maxDay,
+      peakAmount: maxDayExpense,
+      dailyAverage: daysInMonth > 0 ? acc / daysInMonth : 0,
+      activeDaysCount: activeDays
+    };
+  }, [expenses, selectedYear, selectedMonth, daysInMonth]);
+
+  // Dimensões do gráfico (pequeno e compacto)
+  const chartHeight = 165;
+  const topPadding = 16;
+  const bottomPadding = 16;
+  const plotHeight = chartHeight - topPadding - bottomPadding;
+
+  // Largura reduzida do eixo Y (apenas 38px) para maximizar a área útil dos dados na tela
+  const yAxisWidth = 38;
+
+  // Largura calculada para exibir muito mais dias na tela de uma só vez:
+  // Passo compacto de 17px por dia (para 31 dias = apenas 527px).
+  // Se o container da tela for maior, expande para preencher fluidamente sem rolagem.
+  const minDayStep = 17;
+  const minChartWidth = daysInMonth * minDayStep;
+  const availableWidth = containerWidth > yAxisWidth ? containerWidth - yAxisWidth : 0;
+  const chartWidth = availableWidth > minChartWidth ? availableWidth : minChartWidth;
+  const hasOverflow = availableWidth > 0 && chartWidth > availableWidth;
+
+  // Formatação ultra compacta dos números do eixo Y para caber perfeitamente em 38px
+  const formatYTickCompact = (val: number) => {
+    if (val <= 0) return '0';
+    if (val >= 1000000) {
+      const m = val / 1000000;
+      return `${m % 1 === 0 ? m : m.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}M`;
+    }
+    if (val >= 1000) {
+      const k = val / 1000;
+      return `${k % 1 === 0 ? k : k.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`;
+    }
+    return `${Math.round(val)}`;
+  };
+
+  // Valor máximo para a escala do eixo Y
+  const maxVal = Math.max(totalMonthExpense, 100);
+  const roundFactor = maxVal > 10000 ? 2000 : maxVal > 5000 ? 1000 : maxVal > 1000 ? 500 : 100;
+  const niceMax = Math.ceil(maxVal / roundFactor) * roundFactor;
+
+  const getY = (val: number) => {
+    return topPadding + plotHeight - (val / niceMax) * plotHeight;
+  };
+
+  const yTicksCount = 4;
+  const yTicks = Array.from({ length: yTicksCount + 1 }, (_, i) => {
+    const val = (niceMax * (yTicksCount - i)) / yTicksCount;
+    const yPos = getY(val);
+    return { val, yPos };
+  });
+
+  // Coordenadas dos pontos diários
+  const pointsWithCoords = useMemo(() => {
+    const colWidth = chartWidth / daysInMonth;
+    return dailyData.map((d) => {
+      const x = (d.day - 0.5) * colWidth;
+      const y = getY(d.accumulated);
+      const barY = getY(d.dayTotal);
+      const barHeight = Math.max(0, getY(0) - barY);
+      return {
+        ...d,
+        x,
+        y,
+        barY,
+        barHeight,
+        colWidth
+      };
+    });
+  }, [dailyData, chartWidth, daysInMonth, niceMax]);
+
+  // Caminho da linha acumulada
+  const linePath = useMemo(() => {
+    if (pointsWithCoords.length === 0) return '';
+    return pointsWithCoords
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+      .join(' ');
+  }, [pointsWithCoords]);
+
+  // Área preenchida sob a curva
+  const areaPath = useMemo(() => {
+    if (pointsWithCoords.length === 0) return '';
+    const firstX = pointsWithCoords[0].x.toFixed(1);
+    const lastX = pointsWithCoords[pointsWithCoords.length - 1].x.toFixed(1);
+    const baseY = getY(0).toFixed(1);
+    return `${linePath} L ${lastX} ${baseY} L ${firstX} ${baseY} Z`;
+  }, [linePath, pointsWithCoords]);
+
+  // Ações de rolagem rápida
+  const scrollTo = (position: 'start' | 'end') => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        left: position === 'start' ? 0 : scrollContainerRef.current.scrollWidth,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const hoveredItem = hoveredDay ? pointsWithCoords.find(p => p.day === hoveredDay) : null;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 w-full animate-fade-in">
+      {/* Header do Gráfico */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-1 rounded-full bg-rose-600 dark:bg-rose-400" />
+            <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+              Tendência de Gastos
+            </h3>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              · {monthName} de {selectedYear}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+            Evolução dia a dia da soma acumulada para identificar períodos de maior desembolso
+          </p>
+        </div>
+
+        {/* Botões de rolagem rápida e legenda concisa */}
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+          <div className="hidden md:flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 mr-2">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2.5 h-0.5 bg-rose-600 dark:bg-rose-400 rounded-full" />
+              Soma Acumulada
+            </span>
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-xs bg-amber-400/80 dark:bg-amber-400/60" />
+              Gasto do Dia
+            </span>
+          </div>
+          {hasOverflow && (
+            <>
+              <button
+                type="button"
+                onClick={() => scrollTo('start')}
+                className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-md transition-colors cursor-pointer"
+                title="Rolar para o início do mês (Dia 1)"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                Início
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollTo('end')}
+                className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-md transition-colors cursor-pointer"
+                title="Rolar para o final do mês"
+              >
+                Fim
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* KPI Cards / Indicadores rápidos de Tendência */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-3">
+        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Acumulado</span>
+          <span className="text-xs sm:text-sm font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums">
+            R$ {totalMonthExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Média Diária</span>
+          <span className="text-xs sm:text-sm font-bold font-mono text-slate-700 dark:text-slate-200 tabular-nums">
+            R$ {dailyAverage.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
+          </span>
+        </div>
+        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Pico de Gasto</span>
+          <span className="text-xs sm:text-sm font-bold font-mono text-amber-600 dark:text-amber-400 tabular-nums">
+            {peakAmount > 0 ? `Dia ${peakDay} (R$ ${peakAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})` : 'R$ 0,00'}
+          </span>
+        </div>
+        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Dias com Despesas</span>
+          <span className="text-xs sm:text-sm font-bold font-mono text-slate-700 dark:text-slate-200 tabular-nums">
+            {activeDaysCount} de {daysInMonth} dias
+          </span>
+        </div>
+      </div>
+
+      {/* Caixa de inspeção interativa ativa ao passar o mouse / tocar */}
+      {hoveredItem ? (
+        <div className="mb-2 p-2 px-3 rounded-lg bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/40 flex flex-wrap items-center justify-between text-xs text-rose-950 dark:text-rose-200 animate-fade-in gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-bold bg-rose-200/80 dark:bg-rose-900/60 text-rose-900 dark:text-rose-200 px-2 py-0.5 rounded text-[11px]">
+              Dia {hoveredItem.day} ({hoveredItem.weekday})
+            </span>
+            <span className="font-medium text-slate-600 dark:text-slate-300">
+              Gasto no dia: <strong className="font-mono text-slate-900 dark:text-white">R$ {hoveredItem.dayTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+              {hoveredItem.count > 0 && <span className="text-[10px] text-slate-500 ml-1">({hoveredItem.count} lanç.)</span>}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-slate-600 dark:text-slate-300">
+              Acumulado até o dia: <strong className="font-mono text-rose-600 dark:text-rose-400 font-bold">R$ {hoveredItem.accumulated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            </span>
+            <span className="font-bold text-[11px] text-rose-700 dark:text-rose-300 bg-white/70 dark:bg-slate-900/70 px-1.5 py-0.5 rounded border border-rose-200/50 dark:border-rose-800/40 font-mono">
+              {totalMonthExpense > 0 ? ((hoveredItem.accumulated / totalMonthExpense) * 100).toFixed(1) : '0'}%
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-2 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 px-1">
+          <span>💡 Passe o cursor ou toque nos dias para inspecionar os valores pontuais e acumulados.</span>
+          <span className="hidden sm:inline">Role a barra para navegar pelo mês mantendo o eixo Y fixo à esquerda.</span>
+        </div>
+      )}
+
+      {/* Container do Gráfico com Rolagem Horizontal e Eixo Y Fixo à Esquerda */}
+      <div className="relative rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 overflow-hidden shadow-xs">
+        <div
+          ref={scrollContainerRef}
+          className="overflow-x-auto custom-scrollbar select-none"
+          style={{ scrollBehavior: 'smooth' }}
+        >
+          <div className="flex" style={{ width: 'max-content', minWidth: '100%' }}>
+            {/* Eixo Vertical Y (Fixo na Lateral Esquerda durante a rolagem com largura reduzida para 38px) */}
+            <div
+              className="sticky left-0 z-20 shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs border-r border-slate-200 dark:border-slate-800 shadow-[2px_0_6px_rgba(0,0,0,0.03)] dark:shadow-[2px_0_8px_rgba(0,0,0,0.35)]"
+              style={{ width: `${yAxisWidth}px`, height: `${chartHeight + 36}px` }}
+            >
+              {/* Rótulo do Eixo Y no Topo */}
+              <div className="pt-1 flex items-center justify-center text-[8px] font-bold text-slate-400 uppercase tracking-tight">
+                R$
+              </div>
+
+              {/* Ticks e Valores de Escala */}
+              <div className="relative w-full" style={{ height: `${chartHeight}px` }}>
+                {yTicks.map((tick, idx) => (
+                  <div
+                    key={`ytick-${idx}`}
+                    className="absolute right-0 flex items-center justify-end pr-0.5 text-[8.5px] font-mono font-medium text-slate-500 dark:text-slate-400"
+                    style={{
+                      top: `${tick.yPos}px`,
+                      transform: 'translateY(-50%)',
+                      width: '100%'
+                    }}
+                  >
+                    <span className="truncate pr-0.5 text-right">
+                      {formatYTickCompact(tick.val)}
+                    </span>
+                    <span className="w-1 h-px bg-slate-300 dark:bg-slate-700 shrink-0" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Espaço correspondente ao rodapé do eixo X */}
+              <div className="h-9 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-center text-[8px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/50 dark:bg-slate-950/50">
+                Dia
+              </div>
+            </div>
+
+            {/* Corpo do Gráfico com Curva SVG e Linha do Tempo */}
+            <div className="relative shrink-0 flex flex-col" style={{ width: `${chartWidth}px` }}>
+              <svg
+                width={chartWidth}
+                height={chartHeight}
+                className="overflow-visible"
+              >
+                <defs>
+                  {/* Gradiente da área acumulada */}
+                  <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.22" />
+                    <stop offset="70%" stopColor="#f43f5e" stopOpacity="0.06" />
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.00" />
+                  </linearGradient>
+
+                  {/* Gradiente das barras diárias */}
+                  <linearGradient id="dailyBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.1" />
+                  </linearGradient>
+                </defs>
+
+                {/* Linhas de Grade Horizontais */}
+                {yTicks.map((tick, idx) => (
+                  <line
+                    key={`grid-line-${idx}`}
+                    x1="0"
+                    y1={tick.yPos}
+                    x2={chartWidth}
+                    y2={tick.yPos}
+                    stroke="currentColor"
+                    className="text-slate-200/80 dark:text-slate-800/80"
+                    strokeDasharray={idx === yTicks.length - 1 ? undefined : "3 3"}
+                    strokeWidth={idx === yTicks.length - 1 ? "1.5" : "1"}
+                  />
+                ))}
+
+                {/* Destaque sutil de finais de semana */}
+                {pointsWithCoords.map((p) => {
+                  if (!p.isWeekend) return null;
+                  return (
+                    <rect
+                      key={`weekend-bg-${p.day}`}
+                      x={p.x - p.colWidth / 2}
+                      y={topPadding}
+                      width={p.colWidth}
+                      height={plotHeight}
+                      className="fill-slate-100/50 dark:fill-slate-800/30"
+                    />
+                  );
+                })}
+
+                {/* Barras de Gasto no Dia (na base do gráfico) */}
+                {pointsWithCoords.map((p) => {
+                  if (p.dayTotal <= 0) return null;
+                  const barW = Math.max(5, Math.min(8, p.colWidth * 0.42));
+                  return (
+                    <rect
+                      key={`bar-${p.day}`}
+                      x={p.x - barW / 2}
+                      y={p.barY}
+                      width={barW}
+                      height={p.barHeight}
+                      rx={1.5}
+                      fill="url(#dailyBarGradient)"
+                      stroke="#d97706"
+                      strokeWidth={0.6}
+                      strokeOpacity={0.7}
+                      className="transition-opacity"
+                    />
+                  );
+                })}
+
+                {/* Área Preenchida da Tendência Acumulada */}
+                {areaPath && (
+                  <path
+                    d={areaPath}
+                    fill="url(#trendAreaGradient)"
+                  />
+                )}
+
+                {/* Linha Contínua da Soma Acumulada */}
+                {linePath && (
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke="#e11d48"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="dark:stroke-rose-400"
+                  />
+                )}
+
+                {/* Marcadores nos dias com despesas */}
+                {pointsWithCoords.map((p) => {
+                  if (p.dayTotal <= 0) return null;
+                  const isHovered = hoveredDay === p.day;
+                  return (
+                    <circle
+                      key={`dot-${p.day}`}
+                      cx={p.x}
+                      cy={p.y}
+                      r={isHovered ? 4.5 : 2.5}
+                      className="fill-rose-600 dark:fill-rose-400 stroke-white dark:stroke-slate-900 transition-all cursor-pointer"
+                      strokeWidth={1.5}
+                    />
+                  );
+                })}
+
+                {/* Indicador Vertical e Ponto Ativo em Hover */}
+                {hoveredItem && (
+                  <g pointerEvents="none">
+                    <line
+                      x1={hoveredItem.x}
+                      y1={topPadding}
+                      x2={hoveredItem.x}
+                      y2={getY(0)}
+                      stroke="#e11d48"
+                      strokeWidth={1.2}
+                      strokeDasharray="2 2"
+                      className="dark:stroke-rose-400 opacity-80"
+                    />
+                    <circle
+                      cx={hoveredItem.x}
+                      cy={hoveredItem.y}
+                      r={5}
+                      className="fill-rose-600 dark:fill-rose-400 stroke-white dark:stroke-slate-900 shadow-md"
+                      strokeWidth={2}
+                    />
+                  </g>
+                )}
+
+                {/* Zonas Invisíveis de Toque / Hover por Coluna de Dia */}
+                {pointsWithCoords.map((p) => (
+                  <rect
+                    key={`trigger-${p.day}`}
+                    x={p.x - p.colWidth / 2}
+                    y={0}
+                    width={p.colWidth}
+                    height={chartHeight}
+                    fill="transparent"
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHoveredDay(p.day)}
+                    onMouseLeave={() => setHoveredDay(null)}
+                    onClick={() => setHoveredDay(prev => prev === p.day ? null : p.day)}
+                  />
+                ))}
+              </svg>
+
+              {/* Eixo X com Dias do Mês (1 a 28/29/30/31) */}
+              <div
+                className="flex border-t border-slate-200/90 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 h-9"
+                style={{ width: `${chartWidth}px` }}
+              >
+                {pointsWithCoords.map((p) => {
+                  const isHovered = hoveredDay === p.day;
+                  return (
+                    <div
+                      key={`day-col-${p.day}`}
+                      style={{ width: `${p.colWidth}px` }}
+                      onMouseEnter={() => setHoveredDay(p.day)}
+                      onMouseLeave={() => setHoveredDay(null)}
+                      onClick={() => setHoveredDay(prev => prev === p.day ? null : p.day)}
+                      className={`flex flex-col items-center justify-center cursor-pointer transition-colors border-r border-slate-100/80 dark:border-slate-800/40 ${
+                        isHovered
+                          ? 'bg-rose-100/80 text-rose-800 dark:bg-rose-950/70 dark:text-rose-200 font-bold'
+                          : p.isWeekend
+                            ? 'text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-950/20'
+                            : 'text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      <span className={`text-[9px] leading-none font-mono ${p.dayTotal > 0 ? 'font-black text-slate-900 dark:text-white' : ''}`}>
+                        {p.day}
+                      </span>
+                      <span className="text-[7px] uppercase tracking-tighter opacity-70 leading-none mt-0.5">
+                        {p.weekday.slice(0, 3)}
+                      </span>
+                      {p.dayTotal > 0 && (
+                        <span className="mt-0.5 w-1 h-1 rounded-full bg-rose-500 dark:bg-rose-400" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 

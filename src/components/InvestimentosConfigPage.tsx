@@ -338,14 +338,14 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
                         <span className="h-2 w-2 rounded-full bg-blue-500" />
                         <span className="font-bold text-slate-800 dark:text-slate-200">{t}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-4 sm:gap-5">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingType(t);
                             setEditTypeValue(t);
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors cursor-pointer"
                           title="Editar Nome"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
@@ -353,7 +353,7 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
                         <button
                           type="button"
                           onClick={() => handleDeleteType(t)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors cursor-pointer"
                           title="Excluir Tipo"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -450,14 +450,14 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
                         <span className="h-2 w-2 rounded-full bg-emerald-500" />
                         <span className="font-bold text-slate-800 dark:text-slate-200">{s}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-4 sm:gap-5">
                         <button
                           type="button"
                           onClick={() => {
                             setEditingStatus(s);
                             setEditStatusValue(s);
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-400 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-400 transition-colors cursor-pointer"
                           title="Editar Nome"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
@@ -465,7 +465,7 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
                         <button
                           type="button"
                           onClick={() => handleDeleteStatus(s)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors cursor-pointer"
                           title="Excluir Status"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
