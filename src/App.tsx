@@ -3,6 +3,7 @@ import { UserProfile, UserData } from './types';
 import { Login } from './components/Login';
 import { FinanFlyLogo } from './components/FinanFlyLogo';
 import { getUserInitials } from './utils/userUtils';
+import { FloatingMenuButton } from './components/FloatingMenuButton';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
 const Home = lazy(() => import('./components/Home').then(m => ({ default: m.Home })));
@@ -987,6 +988,12 @@ export default function App() {
       <Suspense fallback={null}>
         <OfflineModal />
       </Suspense>
+
+      {/* Botão de menu flutuante e arrastável para iPhones e dispositivos móveis */}
+      <FloatingMenuButton
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(prev => !prev)}
+      />
       
       {/* Backdrop overlay for mobile menu - closes menu when clicking outside */}
       {sidebarOpen && (
