@@ -1039,8 +1039,8 @@ export default function App() {
         />
       )}
 
-      {/* SIDEBAR NAVIGATION - Responsive Drawer com largura reduzida */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-56 sm:w-64 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
+      {/* SIDEBAR NAVIGATION - Responsive Drawer com largura ajustada */}
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 sm:w-72 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Brand logo */}
@@ -1056,7 +1056,7 @@ export default function App() {
             <FinanFlyLogo size={32} rounded="rounded-lg" shadow className="transition-transform group-hover:scale-105" />
             <div>
               <span className="text-base font-extrabold text-white tracking-tight block leading-tight">FinanFly</span>
-              <span className="text-[8px] text-slate-300 font-medium tracking-wider uppercase block">Finanças Inteligente</span>
+              <span className="text-[9.5px] text-slate-300 font-medium tracking-wider uppercase block">Finanças Inteligente</span>
             </div>
           </div>
           {/* Close button for mobile */}

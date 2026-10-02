@@ -806,8 +806,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
     {/* Manage Categories Popup Modal */}
     {showManageCategories && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+        onClick={() => setShowManageCategories(false)}
+      >
+        <div 
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Categorias de Receita</h3>
             <button
@@ -919,8 +925,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
     {/* Manage Receipt Types Popup Modal */}
     {showManageReceiptTypes && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+        onClick={() => setShowManageReceiptTypes(false)}
+      >
+        <div 
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Tipos de Recebimento</h3>
             <button
@@ -1032,8 +1044,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
     {/* Manage Receipt Statuses Popup Modal */}
     {showManageReceiptStatuses && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+        onClick={() => setShowManageReceiptStatuses(false)}
+      >
+        <div 
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Situações de Recebimento</h3>
             <button
@@ -1517,6 +1535,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   const yearOptions = useMemo(() => {
@@ -1846,11 +1865,13 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
       if (selectedMonth !== 'all' && !e.date.startsWith(selectedMonth)) return false;
 
+      if (selectedCategory !== 'all' && e.category !== selectedCategory) return false;
+
       if (selectedStatus !== 'all' && e.status !== selectedStatus) return false;
 
       return true;
     });
-  }, [userData.expenses, search, selectedMonth, selectedYear, selectedStatus]);
+  }, [userData.expenses, search, selectedMonth, selectedYear, selectedCategory, selectedStatus]);
 
   const total = useMemo(() => {
     return filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
@@ -2199,8 +2220,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
     {/* Manage Categories Popup Modal */}
     {showManageCategories && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+        onClick={() => setShowManageCategories(false)}
+      >
+        <div 
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Categorias de Despesa</h3>
             <button
@@ -2312,8 +2339,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
     {/* Manage Payment Types Popup Modal */}
     {showManagePaymentTypes && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+        onClick={() => setShowManagePaymentTypes(false)}
+      >
+        <div 
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Tipos de Pagamento</h3>
             <button
@@ -2425,8 +2458,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
     {/* Manage Payment Statuses Popup Modal */}
     {showManagePaymentStatuses && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+        onClick={() => setShowManagePaymentStatuses(false)}
+      >
+        <div 
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Gerenciar Situações de Pagamento</h3>
             <button
@@ -2622,13 +2661,38 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               )}
             </div>
 
-            {/* Status Filter Dropdown */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            {/* Category and Status Filters Column (Categoria acima do filtro de Situação) */}
+            <div className="flex flex-col items-start gap-1.5">
+              {/* Category Filter Dropdown */}
+              <div className="relative w-full">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  title="Filtrar por Categoria"
+                >
+                  <option value="all">Todas as Categorias</option>
+                  {sortedExpenseCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                  <Tag className="h-3.5 w-3.5 text-slate-400" />
+                </span>
+                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                  ▼
+                </span>
+              </div>
+
+              {/* Status Filter Dropdown (Situação abaixo do filtro de Categoria) */}
+              <div className="relative w-full">
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  className="w-full rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  title="Filtrar por Situação"
                 >
                   <option value="all">Todas as Situações</option>
                   {sortedPaymentStatuses.map((st) => (
@@ -2647,16 +2711,17 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             </div>
 
             {/* Clear Filters Button */}
-            {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedStatus !== 'all') && (
+            {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all') && (
               <button
                 type="button"
                 onClick={() => {
                   setSearch('');
                   setSelectedYear('all');
                   setSelectedMonth('all');
+                  setSelectedCategory('all');
                   setSelectedStatus('all');
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40"
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 cursor-pointer"
                 title="Limpar todos os filtros"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -4382,8 +4447,15 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={handleCancelEdit}
+        >
+          <form 
+            onSubmit={handleAdd} 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down cursor-default"
+          >
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
               {editingPlanId ? 'Editar Objetivo' : 'Cadastrar Novo Objetivo'}
             </h3>
@@ -4790,8 +4862,15 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={handleCancelEdit}
+        >
+          <form 
+            onSubmit={handleAdd} 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down cursor-default"
+          >
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
               {editingWishId ? 'Editar Desejo' : 'Cadastrar Novo Desejo'}
             </h3>
@@ -5134,7 +5213,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
                 exit={{ opacity: 0, scale: 0.95, y: 15 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 onClick={(e) => e.stopPropagation()}
-                className="relative bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-5 sm:p-6 max-w-2xl w-full shadow-2xl ring-1 ring-slate-900/10 dark:ring-white/10 max-h-[90vh] overflow-y-auto cursor-default my-auto"
+                className="relative bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-5 sm:p-6 max-w-2xl w-full shadow-2xl ring-1 ring-slate-900/10 dark:ring-white/10 max-h-[90vh] overflow-y-auto cursor-default m-auto"
               >
                 <div className="pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -5485,8 +5564,15 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={() => setShowAdd(false)}
+        >
+          <form 
+            onSubmit={handleAdd} 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-xs animate-slide-down cursor-default"
+          >
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white pb-2 border-b border-slate-100 dark:border-slate-800">
               Adicionar Novo Item à Lista de Compras
             </h3>
@@ -6854,8 +6940,14 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
 
       {/* Delete Account Confirmation Modal */}
       {showDeleteConfirmModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-md w-full space-y-6">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={() => setShowDeleteConfirmModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-md w-full space-y-6 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="text-center space-y-3">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400">
                 <AlertTriangle className="h-6 w-6 animate-pulse" />

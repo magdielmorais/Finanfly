@@ -483,8 +483,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
 
       {/* Remember Password Modal */}
       {showRememberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={() => setShowRememberModal(false)}
+        >
+          <div 
+            className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Shield className="h-4 w-4 text-blue-500" />

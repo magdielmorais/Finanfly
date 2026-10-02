@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { BookOpen, TrendingUp, TrendingDown, Shield, BarChart3, ShoppingBag, Settings, BadgePercent, ArrowRight, PlusCircle, ChevronDown, ChevronUp, Info, Smartphone, Menu, Sliders, Check, X, RotateCcw } from 'lucide-react';
 import { FinanFlyLogo } from './FinanFlyLogo';
 
@@ -146,70 +148,70 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
               Para começar só escolher abaixo.
             </p>
 
-            {/* Botões de Ações Rápidas */}
-            <div className="pt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-w-xl">
+            {/* Botões de Ações Rápidas - largura no limite das letras e alinhado à esquerda */}
+            <div className="pt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-w-xl justify-items-start items-start">
               {/* Par 1: Menu e Ir para o Painel (abaixo do Menu) */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 items-start">
                 <button
                   onClick={onOpenMenu}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2.5 text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01] active:scale-95 border border-blue-400/30 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01] active:scale-95 border border-blue-400/30 cursor-pointer"
                   title="Abrir menu de navegação lateral"
                 >
-                  <Menu className="h-4 w-4" />
+                  <Menu className="h-4 w-4 shrink-0" />
                   <span>Menu</span>
                 </button>
                 <button
                   onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Painel')}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 text-sm font-semibold transition-all border border-slate-700/50 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-sm font-semibold transition-all border border-slate-700/50 cursor-pointer"
                   title={`Ir para o ${isAdmin ? 'Painel Admin' : 'Painel'}`}
                 >
                   <span>Ir para o {isAdmin ? 'Painel Admin' : 'Painel'}</span>
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 shrink-0" />
                 </button>
               </div>
 
               {/* Par 2: Adicionar Receitas e Adicionar Despesas abaixo */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 items-start">
                 <button
                   onClick={() => onNavigate('Receitas (Ganhos)')}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
                   title="Cadastrar novas receitas"
                 >
-                  <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse" />
+                  <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse shrink-0" />
                   <span>Adicionar Receitas</span>
                 </button>
                 <button
                   onClick={() => onNavigate('Despesas (Gastos)')}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
                   title="Cadastrar novas despesas"
                 >
-                  <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse" />
+                  <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse shrink-0" />
                   <span>Adicionar Despesas</span>
                 </button>
               </div>
 
               {/* Par 3: Modo Celular e Menu Suspenso colocado abaixo dele */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 items-start">
                 <button
                   id="btn-home-modo-celular"
                   onClick={() => onNavigate('Modo app Web')}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2.5 text-sm font-bold shadow-md shadow-emerald-950/25 transition-all hover:scale-[1.01] active:scale-100 border border-emerald-400/40 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 text-sm font-bold shadow-md shadow-emerald-950/25 transition-all hover:scale-[1.01] active:scale-100 border border-emerald-400/40 cursor-pointer"
                   title="Acessar instruções do Modo Celular / PWA"
                 >
-                  <Smartphone className="h-4 w-4 text-emerald-100" />
+                  <Smartphone className="h-4 w-4 text-emerald-100 shrink-0" />
                   <span>Modo Celular</span>
                 </button>
                 <button
                   id="btn-home-menu-suspenso"
                   onClick={() => setIsMenuSuspensoModalOpen(true)}
-                  className={`w-full inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-bold shadow-md transition-all hover:scale-[1.01] active:scale-100 border cursor-pointer ${
+                  className={`w-fit inline-flex items-center justify-start gap-2 rounded-lg px-3 py-2 text-sm font-bold shadow-md transition-all hover:scale-[1.01] active:scale-100 border cursor-pointer ${
                     localFloatingMenuEnabled
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-blue-400/40 shadow-blue-900/25'
                       : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/60'
                   }`}
                   title="Ativar ou desativar o Menu Suspenso flutuante na tela"
                 >
-                  <Sliders className="h-4 w-4 text-blue-200" />
+                  <Sliders className="h-4 w-4 text-blue-200 shrink-0" />
                   <span>Menu suspenso</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold uppercase ${
                     localFloatingMenuEnabled
@@ -318,140 +320,160 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
         </div>
       </div>
 
-      {/* Modal / Popup de Configuração do Menu Suspenso (largura reduzida) */}
-      {isMenuSuspensoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/30">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/30">
-                  <div className="flex flex-col items-center justify-center gap-1 w-4 h-4">
-                    <span className="w-3.5 h-0.5 bg-white rounded-full" />
-                    <span className="w-4 h-0.5 bg-white rounded-full" />
-                    <span className="w-3.5 h-0.5 bg-white rounded-full" />
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-800 dark:text-white">
-                    Menu Suspenso (Botão Flutuante)
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Ativação e visibilidade no celular / iPhone
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsMenuSuspensoModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+      {/* Modal / Popup de Configuração do Menu Suspenso - Centralizado no viewport com portal e fechar ao clicar no fundo esmaecido */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isMenuSuspensoModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setIsMenuSuspensoModalOpen(false)}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto cursor-pointer"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col cursor-default m-auto"
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-5 space-y-4">
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                O <strong>Menu Suspenso</strong> é um botão flutuante com 3 barrinhas criado para facilitar a navegação em celulares e iPhones, permitindo abrir o menu de qualquer tela mesmo quando a barra superior estiver bloqueada pelo sistema ou notch.
-              </p>
-
-              <div className="space-y-2.5">
-                {/* Opção Ativar */}
-                <div
-                  onClick={() => setLocalFloatingMenuEnabled(true)}
-                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3.5 ${
-                    localFloatingMenuEnabled
-                      ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 dark:border-blue-500 shadow-xs'
-                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                  }`}
-                >
-                  <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                    localFloatingMenuEnabled
-                      ? 'border-blue-600 bg-blue-600 text-white'
-                      : 'border-slate-300 dark:border-slate-700'
-                  }`}>
-                    {localFloatingMenuEnabled && <Check className="h-3 w-3 stroke-[3]" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-800 dark:text-white">
-                        Ativar Menu Suspenso
-                      </span>
-                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                        Recomendado
-                      </span>
+                {/* Modal Header */}
+                <div className="px-4 py-3.5 sm:px-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/30 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/30 shrink-0">
+                      <div className="flex flex-col items-center justify-center gap-0.5 w-4 h-4">
+                        <span className="w-3.5 h-0.5 bg-white rounded-full" />
+                        <span className="w-4 h-0.5 bg-white rounded-full" />
+                        <span className="w-3.5 h-0.5 bg-white rounded-full" />
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      O botão com as 3 barrinhas ficará flutuando na tela em smartphones e iPhones, e pode ser arrastado livremente para onde preferir.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Opção Desativar */}
-                <div
-                  onClick={() => setLocalFloatingMenuEnabled(false)}
-                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3.5 ${
-                    !localFloatingMenuEnabled
-                      ? 'border-slate-600 bg-slate-100/80 dark:bg-slate-800/70 dark:border-slate-500 shadow-xs'
-                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                  }`}
-                >
-                  <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                    !localFloatingMenuEnabled
-                      ? 'border-slate-600 bg-slate-600 text-white dark:border-slate-400 dark:bg-slate-400 dark:text-slate-900'
-                      : 'border-slate-300 dark:border-slate-700'
-                  }`}>
-                    {!localFloatingMenuEnabled && <Check className="h-3 w-3 stroke-[3]" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-800 dark:text-white">
-                        Desativar Menu Suspenso
-                      </span>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-tight">
+                        Menu Suspenso (Flutuante)
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Ativação no celular / iPhone
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Oculta completamente o botão flutuante da tela. Você poderá reativá-lo por aqui sempre que desejar.
-                    </p>
                   </div>
-                </div>
-              </div>
-
-              {/* Botão extra para redefinir posição padrão se ativado */}
-              {localFloatingMenuEnabled && (
-                <div className="pt-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-                  <span>Posição personalizada?</span>
                   <button
                     type="button"
-                    onClick={handleResetFloatingPosition}
-                    className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
+                    onClick={() => setIsMenuSuspensoModalOpen(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Fechar janela"
                   >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>Redefinir posição padrão</span>
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
-              )}
-            </div>
 
-            {/* Modal Actions */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setIsMenuSuspensoModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSaveFloatingMenu(localFloatingMenuEnabled)}
-                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-md shadow-blue-600/25 transition-all cursor-pointer"
-              >
-                Salvar Escolha
-              </button>
-            </div>
-          </div>
-        </div>
+                {/* Modal Content */}
+                <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 custom-scrollbar">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                    O <strong>Menu Suspenso</strong> é um botão flutuante com 3 barrinhas para celulares e iPhones, permitindo abrir o menu de qualquer posição da tela.
+                  </p>
+
+                  <div className="space-y-2">
+                    {/* Opção Ativar */}
+                    <div
+                      onClick={() => setLocalFloatingMenuEnabled(true)}
+                      className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${
+                        localFloatingMenuEnabled
+                          ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 dark:border-blue-500 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className={`mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border ${
+                        localFloatingMenuEnabled
+                          ? 'border-blue-600 bg-blue-600 text-white'
+                          : 'border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {localFloatingMenuEnabled && <Check className="h-3 w-3 stroke-[3]" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">
+                            Ativar Menu Suspenso
+                          </span>
+                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                            Recomendado
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Botão flutuante livremente arrastável pela tela.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Opção Desativar */}
+                    <div
+                      onClick={() => setLocalFloatingMenuEnabled(false)}
+                      className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${
+                        !localFloatingMenuEnabled
+                          ? 'border-slate-600 bg-slate-100/80 dark:bg-slate-800/70 dark:border-slate-500 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className={`mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border ${
+                        !localFloatingMenuEnabled
+                          ? 'border-slate-600 bg-slate-600 text-white dark:border-slate-400 dark:bg-slate-400 dark:text-slate-900'
+                          : 'border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {!localFloatingMenuEnabled && <Check className="h-3 w-3 stroke-[3]" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">
+                            Desativar Menu Suspenso
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Oculta o botão flutuante da tela.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botão extra para redefinir posição padrão se ativado */}
+                  {localFloatingMenuEnabled && (
+                    <div className="pt-0.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1">
+                      <span>Posição alterada?</span>
+                      <button
+                        type="button"
+                        onClick={handleResetFloatingPosition}
+                        className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Redefinir posição padrão</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Actions */}
+                <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsMenuSuspensoModalOpen(false)}
+                    className="px-3.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveFloatingMenu(localFloatingMenuEnabled)}
+                    className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-md shadow-blue-600/25 transition-all cursor-pointer"
+                  >
+                    Salvar Escolha
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );

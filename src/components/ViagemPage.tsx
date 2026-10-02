@@ -571,13 +571,17 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       {/* ========================================================================= */}
       <AnimatePresence>
         {activeTrip && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in cursor-pointer"
+            onClick={() => setActiveTripId(null)}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.2 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[92vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[92vh] overflow-hidden cursor-default"
               id="janela-suspensa-viagem"
             >
               {/* Modal Header */}
@@ -913,12 +917,16 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       {/* ========================================================================= */}
       <AnimatePresence>
         {showTripForm && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in cursor-pointer"
+            onClick={() => setShowTripForm(false)}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-md w-full space-y-4 text-xs"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-md w-full space-y-4 text-xs cursor-default"
               id="form-cadastro-viagem"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -981,12 +989,16 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       {/* ========================================================================= */}
       <AnimatePresence>
         {showExpenseForm && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+          <div 
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in cursor-pointer"
+            onClick={resetExpenseForm}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-lg w-full space-y-4 text-xs"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-lg w-full space-y-4 text-xs cursor-default"
               id="form-despesa-viagem"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">

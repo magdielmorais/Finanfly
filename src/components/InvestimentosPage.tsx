@@ -616,8 +616,14 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
 
       {/* Modal: Inserir / Editar Investimento */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-lg w-full space-y-4 text-xs animate-slide-down">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={closeModal}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-lg w-full space-y-4 text-xs animate-slide-down cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                 {editingId ? 'Editar Investimento' : 'Novo Investimento'}
@@ -768,8 +774,14 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
 
       {/* Modal: Cadastro & Gerenciamento de Tipos e Status */}
       {showConfigModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-md w-full space-y-5 text-xs animate-slide-down max-h-[90vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={() => setShowConfigModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-md w-full space-y-5 text-xs animate-slide-down max-h-[90vh] overflow-y-auto cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
