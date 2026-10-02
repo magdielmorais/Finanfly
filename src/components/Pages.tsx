@@ -92,6 +92,28 @@ export const formatPtBrLiveInput = (raw: string): string => {
   return parseInt(digitsOnly, 10).toLocaleString('pt-BR');
 };
 
+export const getNextMonthDate = (baseDateStr: string, monthsToAdd: number): string => {
+  if (monthsToAdd === 0) return baseDateStr;
+  const [yearStr, monthStr, dayStr] = baseDateStr.split('-');
+  let year = parseInt(yearStr, 10);
+  let month = parseInt(monthStr, 10) - 1 + monthsToAdd;
+  let day = parseInt(dayStr, 10);
+
+  year += Math.floor(month / 12);
+  month = ((month % 12) + 12) % 12;
+
+  const daysInNewMonth = new Date(year, month + 1, 0).getDate();
+  if (day > daysInNewMonth) {
+    day = daysInNewMonth;
+  }
+
+  const newYyyy = String(year);
+  const newMm = String(month + 1).padStart(2, '0');
+  const newDd = String(day).padStart(2, '0');
+
+  return `${newYyyy}-${newMm}-${newDd}`;
+};
+
 // ======================== RECEITAS PAGE ========================
 export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -1652,28 +1674,6 @@ export const DespesasPage: React.FC<PageProps> = ({
     return `${monthNames[monthIdx]} / ${year}`;
   };
 
-  const getNextMonthDate = (baseDateStr: string, monthsToAdd: number): string => {
-    if (monthsToAdd === 0) return baseDateStr;
-    const [yearStr, monthStr, dayStr] = baseDateStr.split('-');
-    let year = parseInt(yearStr, 10);
-    let month = parseInt(monthStr, 10) - 1 + monthsToAdd;
-    let day = parseInt(dayStr, 10);
-
-    year += Math.floor(month / 12);
-    month = ((month % 12) + 12) % 12;
-
-    const daysInNewMonth = new Date(year, month + 1, 0).getDate();
-    if (day > daysInNewMonth) {
-      day = daysInNewMonth;
-    }
-
-    const newYyyy = String(year);
-    const newMm = String(month + 1).padStart(2, '0');
-    const newDd = String(day).padStart(2, '0');
-
-    return `${newYyyy}-${newMm}-${newDd}`;
-  };
-
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!date || !description || !value || !category || !paymentType || !status || !classification) return;
@@ -2888,33 +2888,113 @@ export const DespesasPage: React.FC<PageProps> = ({
 };
 
 // ======================== RESUMO MENSAL ========================
-export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onNavigate }) => {
+export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserData, onNavigate }) => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
   const [selectedRealizedCategory, setSelectedRealizedCategory] = useState<string | null>(null);
   const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
 
+  // Estados para o popup de Novo Registro de Despesa disparado no Resumo Mensal
+  const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
+  const [newExpDate, setNewExpDate] = useState('');
+  const [newExpDescription, setNewExpDescription] = useState('');
+  const [newExpValue, setNewExpValue] = useState('');
+  const [newExpCategory, setNewExpCategory] = useState('');
+  const [newExpPaymentType, setNewExpPaymentType] = useState('');
+  const [newExpStatus, setNewExpStatus] = useState('');
+  const [newExpClassification, setNewExpClassification] = useState<'Fixo' | 'Variável' | 'Eventual'>('Variável');
+  const [newExpInstallments, setNewExpInstallments] = useState(1);
+
+  const sortedExpenseCategories = useMemo(() => {
+    return [...(userData.expenseCategories || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+  }, [userData.expenseCategories]);
+
+  const sortedPaymentTypes = useMemo(() => {
+    return [...(userData.paymentTypes || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+  }, [userData.paymentTypes]);
+
+  const sortedPaymentStatuses = useMemo(() => {
+    return [...(userData.paymentStatuses || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+  }, [userData.paymentStatuses]);
+
   const openCategoryModal = (catName: string) => {
     setSelectedCategoryModal(catName);
   };
 
   const handleNovoLancamento = () => {
-    const targetCat = selectedCategoryModal;
-    setSelectedCategoryModal(null);
-    try {
-      localStorage.setItem('finanfly_auto_open_add_expense', targetCat || 'true');
-    } catch {}
-    window.dispatchEvent(
-      new CustomEvent('finanfly-open-new-expense', { detail: { category: targetCat || undefined } })
-    );
-    if (onNavigate) {
-      onNavigate('Despesas (Gastos)');
+    const targetCat = selectedCategoryModal || sortedExpenseCategories[0] || 'Outros';
+    setNewExpCategory(targetCat);
+    setNewExpDescription('');
+    setNewExpValue('');
+    const now = new Date();
+    const mm = String(selectedMonth + 1).padStart(2, '0');
+    const day = (now.getFullYear() === selectedYear && now.getMonth() === selectedMonth)
+      ? String(now.getDate()).padStart(2, '0')
+      : '01';
+    setNewExpDate(`${selectedYear}-${mm}-${day}`);
+    setNewExpPaymentType(sortedPaymentTypes[0] || 'Pix');
+    setNewExpStatus(sortedPaymentStatuses[0] || 'Pago');
+    setNewExpClassification('Variável');
+    setNewExpInstallments(1);
+    setShowNewExpenseModal(true);
+  };
+
+  const handleSaveNewExpense = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newExpDate || !newExpDescription || !newExpValue || !newExpCategory || !newExpPaymentType || !newExpStatus || !newExpClassification) return;
+    const parsedVal = parsePtBrNumber(newExpValue);
+    if (parsedVal <= 0) return;
+
+    if (newExpInstallments > 1) {
+      const newExpensesList: Expense[] = [];
+      const baseTimestamp = Date.now();
+      for (let i = 1; i <= newExpInstallments; i++) {
+        const instDate = getNextMonthDate(newExpDate, i - 1);
+        newExpensesList.push({
+          id: 'exp-' + baseTimestamp + '-' + i,
+          date: instDate,
+          description: `${newExpDescription} (${i}/${newExpInstallments})`,
+          value: parsedVal,
+          category: newExpCategory,
+          paymentType: newExpPaymentType,
+          status: i === 1 ? newExpStatus : (newExpStatus === 'Pago' ? 'Pendente' : newExpStatus),
+          classification: newExpClassification
+        });
+      }
+      onUpdateUserData({
+        expenses: [...newExpensesList, ...userData.expenses]
+      });
+    } else {
+      const newExpense: Expense = {
+        id: 'exp-' + Date.now(),
+        date: newExpDate,
+        description: newExpDescription,
+        value: parsedVal,
+        category: newExpCategory,
+        paymentType: newExpPaymentType,
+        status: newExpStatus,
+        classification: newExpClassification
+      };
+
+      onUpdateUserData({
+        expenses: [newExpense, ...userData.expenses]
+      });
     }
+
+    // Fecha apenas o popup de Novo Registro de Despesa e mantém o popup de visualização de lançamentos da categoria aberto!
+    setShowNewExpenseModal(false);
   };
 
   const handleListaDespesas = () => {
     setSelectedCategoryModal(null);
+    setShowNewExpenseModal(false);
     if (onNavigate) {
       onNavigate('Despesas (Gastos)');
     }
@@ -2922,7 +3002,17 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onNavigate }) 
 
   // Travar a rolagem da página e adicionar suporte a tecla ESC enquanto o pop-up estiver aberto
   useEffect(() => {
-    if (selectedCategoryModal) {
+    if (showNewExpenseModal) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setShowNewExpenseModal(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else if (selectedCategoryModal) {
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
 
@@ -2938,7 +3028,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onNavigate }) 
         window.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [selectedCategoryModal]);
+  }, [showNewExpenseModal, selectedCategoryModal]);
 
   const formatShortDate = (dateStr: string) => {
     if (!dateStr) return '-';
@@ -3717,7 +3807,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onNavigate }) 
                   )}
                 </div>
 
-                {/* Rodapé do Pop-up com Novo lançamento, Lista de Despesas e Voltar bem espaçados */}
+                {/* Rodapé do Pop-up com Novo lançamento, Lista de Despesas e Voltar */}
                 <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex flex-col gap-3 shrink-0">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -3731,39 +3821,232 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onNavigate }) 
                     </strong>
                   </div>
 
-                  {/* Botão Novo lançamento acima do botão Voltar e Lista de Despesas */}
-                  <div className="flex flex-col gap-2.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleNovoLancamento}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-950/20 transition-all cursor-pointer"
-                      title="Abrir formulário de Novo Registro de Despesa"
-                    >
-                      <Plus className="h-4 w-4 shrink-0" />
-                      <span>Novo lançamento</span>
-                    </button>
+                  {/* Novos botões na largura do texto e alinhados à direita; Botão Voltar abaixo de todos */}
+                  <div className="flex flex-col items-end gap-2.5 pt-1">
+                    <div className="flex flex-wrap items-center justify-end gap-2.5 w-full">
+                      <button
+                        type="button"
+                        onClick={handleNovoLancamento}
+                        className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-950/20 transition-all cursor-pointer"
+                        title="Abrir formulário de Novo Registro de Despesa"
+                      >
+                        <Plus className="h-4 w-4 shrink-0" />
+                        <span>Novo lançamento</span>
+                      </button>
 
-                    <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={handleListaDespesas}
-                        className="flex-1 inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-sm"
+                        className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-sm"
                         title="Ir para a Lista de Despesas (Gastos)"
                       >
                         <Wallet className="h-4 w-4 text-blue-500 shrink-0" />
                         <span>Lista de Despesas</span>
                       </button>
+                    </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setSelectedCategoryModal(null)}
-                        className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800/90 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                        title="Voltar ao Resumo Mensal"
-                      >
-                        Voltar
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategoryModal(null)}
+                      className="w-fit inline-flex items-center justify-center px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800/90 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-700 dark:text-slate-300 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer"
+                      title="Voltar ao Resumo Mensal"
+                    >
+                      Voltar
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Modal / Popup de Novo Registro de Despesa (Abre por cima do popup de categorias sem sair da página) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showNewExpenseModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[10005] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm cursor-pointer"
+              onClick={() => setShowNewExpenseModal(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden cursor-default m-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header fixo no topo do popup */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
+                      <Plus className="h-4.5 w-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">
+                        Novo Registro de Despesa
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Preencha os campos para registrar uma saída na categoria <strong className="text-slate-700 dark:text-slate-200">{newExpCategory || selectedCategoryModal}</strong>
+                      </p>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewExpenseModal(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Fechar e voltar à visualização de lançamentos"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Corpo do formulário com scroll customizado */}
+                <form id="form-novo-registro-resumo" onSubmit={handleSaveNewExpense} className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+                  <div className="grid gap-4 sm:grid-cols-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Data da Compra</label>
+                      <input
+                        type="date"
+                        required
+                        value={newExpDate}
+                        onChange={(e) => setNewExpDate(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição da Compra</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ex: Supermercado / Farmácia"
+                        value={newExpDescription}
+                        onChange={(e) => setNewExpDescription(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
+                      <div className="relative mt-1">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                          R$
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          placeholder="0,00"
+                          value={newExpValue}
+                          onChange={(e) => setNewExpValue(formatPtBrLiveInput(e.target.value))}
+                          onBlur={() => {
+                            if (newExpValue && newExpValue.trim()) {
+                              const num = parsePtBrNumber(newExpValue);
+                              if (num > 0) {
+                                setNewExpValue(formatPtBrCurrency(num));
+                              }
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Quantidade de Parcelas</label>
+                      <select
+                        value={newExpInstallments}
+                        onChange={(e) => setNewExpInstallments(Number(e.target.value))}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value={1}>1x (À vista / Sem parcelamento)</option>
+                        {Array.from({ length: 59 }, (_, idx) => idx + 2).map(num => (
+                          <option key={num} value={num}>{num}x</option>
+                        ))}
+                      </select>
+                      <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium leading-normal">
+                        * Lançamentos subsequentes ocorrem a partir da 2ª parcela.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria da despesa</label>
+                      <select
+                        required
+                        value={newExpCategory}
+                        onChange={(e) => setNewExpCategory(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione a categoria...</option>
+                        {sortedExpenseCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo de Pagamento</label>
+                      <select
+                        required
+                        value={newExpPaymentType}
+                        onChange={(e) => setNewExpPaymentType(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione o tipo de pagamento...</option>
+                        {sortedPaymentTypes.map(pt => (
+                          <option key={pt} value={pt}>{pt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
+                      <select
+                        required
+                        value={newExpStatus}
+                        onChange={(e) => setNewExpStatus(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione a situação...</option>
+                        {sortedPaymentStatuses.map(ps => (
+                          <option key={ps} value={ps}>{ps}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Classificação de Despesa</label>
+                      <select
+                        required
+                        value={newExpClassification}
+                        onChange={(e) => setNewExpClassification(e.target.value as 'Fixo' | 'Variável' | 'Eventual')}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione a classificação...</option>
+                        <option value="Fixo">Fixo</option>
+                        <option value="Variável">Variável</option>
+                        <option value="Eventual">Eventual</option>
+                      </select>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Rodapé com botões de ação */}
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewExpenseModal(false)}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer font-medium text-xs sm:text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    form="form-novo-registro-resumo"
+                    className="rounded-lg bg-rose-600 px-5 py-2 font-bold text-white hover:bg-rose-500 transition-colors shadow-sm shadow-rose-600/20 cursor-pointer text-xs sm:text-sm"
+                  >
+                    Salvar Registro
+                  </button>
                 </div>
               </motion.div>
             </motion.div>
