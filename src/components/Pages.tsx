@@ -3821,29 +3821,27 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                     </strong>
                   </div>
 
-                  {/* Novos botões na largura do texto e alinhados à direita; Botão Voltar abaixo de todos */}
-                  <div className="flex flex-col items-end gap-2.5 pt-1">
-                    <div className="flex flex-wrap items-center justify-end gap-2.5 w-full">
-                      <button
-                        type="button"
-                        onClick={handleNovoLancamento}
-                        className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-950/20 transition-all cursor-pointer"
-                        title="Abrir formulário de Novo Registro de Despesa"
-                      >
-                        <Plus className="h-4 w-4 shrink-0" />
-                        <span>Novo lançamento</span>
-                      </button>
+                  {/* Botões um abaixo do outro alinhados à direita: Novo lançamento por cima de todos, Lista de Despesas no meio e Voltar por último */}
+                  <div className="flex flex-col items-end gap-2.5 pt-1 w-full">
+                    <button
+                      type="button"
+                      onClick={handleNovoLancamento}
+                      className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-950/20 transition-all cursor-pointer"
+                      title="Abrir formulário de Novo Registro de Despesa"
+                    >
+                      <Plus className="h-4 w-4 shrink-0" />
+                      <span>Novo lançamento</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={handleListaDespesas}
-                        className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-sm"
-                        title="Ir para a Lista de Despesas (Gastos)"
-                      >
-                        <Wallet className="h-4 w-4 text-blue-500 shrink-0" />
-                        <span>Lista de Despesas</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleListaDespesas}
+                      className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-sm"
+                      title="Ir para a Lista de Despesas (Gastos)"
+                    >
+                      <Wallet className="h-4 w-4 text-blue-500 shrink-0" />
+                      <span>Lista de Despesas</span>
+                    </button>
 
                     <button
                       type="button"
