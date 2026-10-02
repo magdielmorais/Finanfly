@@ -2,15 +2,19 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MonthlyExpenseTrendChart } from './CustomChart';
 
-interface PageProps {
+export interface PageProps {
   userData: UserData;
   userProfile: UserProfile;
   onUpdateUserData: (newData: Partial<UserData>) => void;
   onUpdateUserProfile: (name: string, address: string, phone: string, city?: string, state?: string, cpf?: string) => void;
+  onNavigate?: (page: string, options?: { openAddExpense?: boolean; category?: string }) => void;
+  initialShowAddForm?: boolean;
+  initialCategory?: string;
+  onClearInitialAdd?: () => void;
 }
 
 // ======================== BRAZILIAN CURRENCY FORMATTERS ========================
@@ -614,7 +618,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm"
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm cursor-pointer"
               onClick={() => {
                 setShowAddForm(false);
                 setEditingIncomeId(null);
@@ -625,7 +629,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 12 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden cursor-default"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header fixo no topo do popup */}
@@ -1393,7 +1397,13 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 };
 
 // ======================== DESPESAS PAGE ========================
-export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
+export const DespesasPage: React.FC<PageProps> = ({ 
+  userData, 
+  onUpdateUserData,
+  initialShowAddForm,
+  initialCategory,
+  onClearInitialAdd
+}) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
@@ -1406,6 +1416,43 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [status, setStatus] = useState('');
   const [classification, setClassification] = useState<string>('');
   const [search, setSearch] = useState('');
+
+  // Abertura automática quando acionado via botão Novo Lançamento em outras telas (ex: Resumo Mensal)
+  useEffect(() => {
+    if (initialShowAddForm) {
+      setShowAddForm(true);
+      if (initialCategory) {
+        setCategory(initialCategory);
+      }
+      onClearInitialAdd?.();
+    }
+  }, [initialShowAddForm, initialCategory, onClearInitialAdd]);
+
+  useEffect(() => {
+    const handleOpenAddExpense = (e: Event) => {
+      const customEvent = e as CustomEvent<{ category?: string }>;
+      setShowAddForm(true);
+      if (customEvent.detail?.category) {
+        setCategory(customEvent.detail.category);
+      }
+    };
+
+    try {
+      const flag = localStorage.getItem('finanfly_auto_open_add_expense');
+      if (flag) {
+        localStorage.removeItem('finanfly_auto_open_add_expense');
+        setShowAddForm(true);
+        if (flag !== 'true') {
+          setCategory(flag);
+        }
+      }
+    } catch {}
+
+    window.addEventListener('finanfly-open-new-expense', handleOpenAddExpense);
+    return () => {
+      window.removeEventListener('finanfly-open-new-expense', handleOpenAddExpense);
+    };
+  }, []);
 
   // Listas suspensas ordenadas em ordem crescente alfabética (A para Z)
   const sortedExpenseCategories = useMemo(() => {
@@ -1993,7 +2040,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm"
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm cursor-pointer"
               onClick={() => {
                 setShowAddForm(false);
                 setEditingExpenseId(null);
@@ -2004,7 +2051,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 12 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden cursor-default"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header fixo no topo do popup */}
@@ -2841,7 +2888,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 };
 
 // ======================== RESUMO MENSAL ========================
-export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
+export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onNavigate }) => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
@@ -2850,6 +2897,27 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
 
   const openCategoryModal = (catName: string) => {
     setSelectedCategoryModal(catName);
+  };
+
+  const handleNovoLancamento = () => {
+    const targetCat = selectedCategoryModal;
+    setSelectedCategoryModal(null);
+    try {
+      localStorage.setItem('finanfly_auto_open_add_expense', targetCat || 'true');
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('finanfly-open-new-expense', { detail: { category: targetCat || undefined } })
+    );
+    if (onNavigate) {
+      onNavigate('Despesas (Gastos)');
+    }
+  };
+
+  const handleListaDespesas = () => {
+    setSelectedCategoryModal(null);
+    if (onNavigate) {
+      onNavigate('Despesas (Gastos)');
+    }
   };
 
   // Travar a rolagem da página e adicionar suporte a tecla ESC enquanto o pop-up estiver aberto
@@ -3568,7 +3636,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md"
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md cursor-pointer"
               onClick={() => setSelectedCategoryModal(null)}
             >
               <motion.div
@@ -3576,7 +3644,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[85vh] overflow-hidden"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[85vh] overflow-hidden cursor-default"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Cabeçalho do Pop-up */}
@@ -3649,23 +3717,53 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
                   )}
                 </div>
 
-                {/* Rodapé do Pop-up */}
-                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex items-center justify-between shrink-0">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Total:{' '}
-                    <strong className="text-slate-900 dark:text-white font-mono font-bold text-sm">
+                {/* Rodapé do Pop-up com Novo lançamento, Lista de Despesas e Voltar bem espaçados */}
+                <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex flex-col gap-3 shrink-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Total nesta categoria:
+                    </span>
+                    <strong className="text-slate-900 dark:text-white font-mono font-bold text-sm sm:text-base">
                       {categoryModalTotal.toLocaleString('pt-BR', {
                         style: 'currency',
                         currency: 'BRL',
                       })}
                     </strong>
-                  </span>
-                  <button
-                    onClick={() => setSelectedCategoryModal(null)}
-                    className="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Voltar
-                  </button>
+                  </div>
+
+                  {/* Botão Novo lançamento acima do botão Voltar e Lista de Despesas */}
+                  <div className="flex flex-col gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleNovoLancamento}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-950/20 transition-all cursor-pointer"
+                      title="Abrir formulário de Novo Registro de Despesa"
+                    >
+                      <Plus className="h-4 w-4 shrink-0" />
+                      <span>Novo lançamento</span>
+                    </button>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleListaDespesas}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-sm"
+                        title="Ir para a Lista de Despesas (Gastos)"
+                      >
+                        <Wallet className="h-4 w-4 text-blue-500 shrink-0" />
+                        <span>Lista de Despesas</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategoryModal(null)}
+                        className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800/90 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        title="Voltar ao Resumo Mensal"
+                      >
+                        Voltar
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             </motion.div>
@@ -3980,7 +4078,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md"
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md cursor-pointer"
               onClick={() => setSelectedMonthModal(null)}
             >
               <motion.div
@@ -3988,7 +4086,7 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[85vh] overflow-hidden"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[85vh] overflow-hidden cursor-default"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Cabeçalho do Pop-up */}
@@ -6302,7 +6400,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       {/* Confirmation Modal for Copiar do mês anterior (Portal to body so it centers in current screen viewport) */}
       {typeof document !== 'undefined' && confirmCopyMonthIdx !== null && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in cursor-pointer"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setConfirmCopyMonthIdx(null);
@@ -6310,7 +6408,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
           }}
         >
           <div
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xl overflow-hidden p-6 space-y-5 animate-scale-up"
+            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xl overflow-hidden p-6 space-y-5 animate-scale-up cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center space-y-2.5">

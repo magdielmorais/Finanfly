@@ -635,6 +635,7 @@ export default function App() {
             userProfile={currentUser}
             onUpdateUserData={handleUpdateUserData}
             onUpdateUserProfile={handleUpdateUserProfileInState}
+            onNavigate={setCurrentPage}
           />
         );
       case 'Resumo mensal':
@@ -645,6 +646,7 @@ export default function App() {
             userProfile={currentUser}
             onUpdateUserData={handleUpdateUserData}
             onUpdateUserProfile={handleUpdateUserProfileInState}
+            onNavigate={setCurrentPage}
           />
         );
       case 'Resumo Anual':
