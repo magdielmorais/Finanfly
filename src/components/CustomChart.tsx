@@ -1725,7 +1725,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
   }, [selectedYear, selectedMonth]);
 
   // Cálculo diário e soma acumulada dia a dia
-  const { dailyData, totalMonthExpense, peakDay, peakAmount, dailyAverage, activeDaysCount } = useMemo(() => {
+  const { dailyData, totalMonthExpense, peakDay, peakAmount, dailyAverage, averagePerExpense, activeDaysCount } = useMemo(() => {
     let acc = 0;
     let maxDayExpense = 0;
     let maxDay = 1;
@@ -1779,6 +1779,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
       peakDay: maxDay,
       peakAmount: maxDayExpense,
       dailyAverage: daysInMonth > 0 ? acc / daysInMonth : 0,
+      averagePerExpense: expenses.length > 0 ? acc / expenses.length : 0,
       activeDaysCount: activeDays
     };
   }, [expenses, selectedYear, selectedMonth, daysInMonth]);
@@ -1936,7 +1937,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
       </div>
 
       {/* KPI Cards / Indicadores rápidos de Tendência */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mb-3">
         <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
           <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Acumulado</span>
           <span className="text-xs sm:text-sm font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums">
@@ -1944,9 +1945,15 @@ export const MonthlyExpenseTrendChart: React.FC<{
           </span>
         </div>
         <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Média Diária</span>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Média de Gastos</span>
           <span className="text-xs sm:text-sm font-bold font-mono text-slate-700 dark:text-slate-200 tabular-nums">
             R$ {dailyAverage.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
+          </span>
+        </div>
+        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Média p/ Lançamento</span>
+          <span className="text-xs sm:text-sm font-bold font-mono text-slate-700 dark:text-slate-200 tabular-nums">
+            R$ {averagePerExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </span>
         </div>
         <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">

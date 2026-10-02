@@ -105,6 +105,35 @@ export default function App() {
   // Dados menu submenus expanded status
   const [dadosExpanded, setDadosExpanded] = useState(false);
 
+  // Floating menu (menu suspenso flutuante) ativado ou desativado pelo usuário
+  const [floatingMenuEnabled, setFloatingMenuEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('finanfly_floating_menu_enabled');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch {}
+    return true; // Ativado por padrão
+  });
+
+  useEffect(() => {
+    const handleFloatingMenuChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<boolean>;
+      if (typeof customEvent.detail === 'boolean') {
+        setFloatingMenuEnabled(customEvent.detail);
+      }
+    };
+    window.addEventListener('finanfly_floating_menu_changed', handleFloatingMenuChanged);
+    return () => window.removeEventListener('finanfly_floating_menu_changed', handleFloatingMenuChanged);
+  }, []);
+
+  const handleToggleFloatingMenu = (enabled: boolean) => {
+    setFloatingMenuEnabled(enabled);
+    try {
+      localStorage.setItem('finanfly_floating_menu_enabled', String(enabled));
+    } catch {}
+  };
+
   // Refs and auto-scroll for sidebar menu sections
   const navRef = useRef<HTMLElement>(null);
   const settingsSectionRef = useRef<HTMLDivElement>(null);
@@ -570,6 +599,8 @@ export default function App() {
                 sidebarEl.scrollTo({ top: 0, behavior: 'smooth' });
               }
             }}
+            floatingMenuEnabled={floatingMenuEnabled}
+            onToggleFloatingMenu={handleToggleFloatingMenu}
           />
         );
       case 'Painel':
@@ -928,6 +959,8 @@ export default function App() {
                 sidebarEl.scrollTo({ top: 0, behavior: 'smooth' });
               }
             }}
+            floatingMenuEnabled={floatingMenuEnabled}
+            onToggleFloatingMenu={handleToggleFloatingMenu}
           />
         );
     }
@@ -989,11 +1022,13 @@ export default function App() {
         <OfflineModal />
       </Suspense>
 
-      {/* Botão de menu flutuante e arrastável para iPhones e dispositivos móveis */}
-      <FloatingMenuButton
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(prev => !prev)}
-      />
+      {/* Botão de menu flutuante e arrastável para iPhones e dispositivos móveis (quando ativado) */}
+      {floatingMenuEnabled && (
+        <FloatingMenuButton
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(prev => !prev)}
+        />
+      )}
       
       {/* Backdrop overlay for mobile menu - closes menu when clicking outside */}
       {sidebarOpen && (
@@ -1004,24 +1039,24 @@ export default function App() {
         />
       )}
 
-      {/* SIDEBAR NAVIGATION - Responsive Drawer */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-72 sm:w-80 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
+      {/* SIDEBAR NAVIGATION - Responsive Drawer com largura reduzida */}
+      <aside className={`fixed inset-y-0 left-0 z-40 w-56 sm:w-64 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Brand logo */}
-        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/40">
+        <div className="p-3 sm:p-3.5 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/40">
           <div
             onClick={() => {
               setCurrentPage('Início');
               setSidebarOpen(false);
             }}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-2.5 cursor-pointer group"
             title="Ir para o Início"
           >
-            <FinanFlyLogo size={38} rounded="rounded-xl" shadow className="transition-transform group-hover:scale-105" />
+            <FinanFlyLogo size={32} rounded="rounded-lg" shadow className="transition-transform group-hover:scale-105" />
             <div>
-              <span className="text-lg font-extrabold text-white tracking-tight block leading-tight">FinanFly</span>
-              <span className="text-[8.5px] text-slate-300 font-medium tracking-wider uppercase block">Finanças Inteligente</span>
+              <span className="text-base font-extrabold text-white tracking-tight block leading-tight">FinanFly</span>
+              <span className="text-[8px] text-slate-300 font-medium tracking-wider uppercase block">Finanças Inteligente</span>
             </div>
           </div>
           {/* Close button for mobile */}
@@ -1034,7 +1069,7 @@ export default function App() {
         </div>
 
         {/* Scrollable menu links */}
-        <nav ref={navRef} className="flex-1 px-3 py-3 space-y-1 overflow-y-auto custom-scrollbar relative">
+        <nav ref={navRef} className="flex-1 px-2.5 py-2.5 space-y-1 overflow-y-auto custom-scrollbar relative">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const active = currentPage === item.name || 
@@ -1051,19 +1086,19 @@ export default function App() {
                     setCurrentPage(item.name);
                     setSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-all ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm sm:text-[15px] font-medium transition-all ${
                     active
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10 font-semibold'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
-                  <IconComponent className={`h-4.5 w-4.5 shrink-0 ${active ? 'text-white' : 'opacity-80'}`} />
-                  <span>{item.name}</span>
+                  <IconComponent className={`h-5 w-5 shrink-0 ${active ? 'text-white' : 'opacity-85'}`} />
+                  <span className="truncate">{item.name}</span>
                 </button>
 
                 {/* Highlighted divider line below Inconsistência financeira */}
                 {(item.name === 'Inconsistência financeira' || item.name === 'P. A. desvio financeiro' || item.name === 'Melhoria financeira') && (
-                  <div className="my-2.5 border-b-4 border-slate-700/90 shadow-sm mx-1" />
+                  <div className="my-2 border-b-2 border-slate-700/80 shadow-xs mx-1" />
                 )}
               </div>
             );
@@ -1071,7 +1106,7 @@ export default function App() {
 
           {/* Configurações Seção / Header */}
           <div ref={settingsSectionRef}>
-            <div className="pt-3 pb-1.5">
+            <div className="pt-2.5 pb-1">
               <button
                 onClick={() => {
                   const next = !settingsExpanded;
@@ -1082,8 +1117,8 @@ export default function App() {
                 }}
                 className="w-full flex items-center justify-between px-3 tracking-wide text-sky-300 hover:text-sky-200 transition-colors cursor-pointer"
               >
-                <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Configurações</span>
-                <Settings className="h-3.5 w-3.5 text-sky-300" />
+                <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-sky-300">Configurações</span>
+                <Settings className="h-4 w-4 text-sky-300" />
               </button>
             </div>
 
@@ -1099,13 +1134,13 @@ export default function App() {
                         setCurrentPage(sub.name);
                         setSidebarOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold transition-all ${
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${
                         active
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-white/90 hover:bg-slate-800/50 hover:text-white'
                       }`}
                     >
-                      <Icon className="h-4.5 w-4.5 shrink-0 text-white opacity-90" />
+                      <Icon className="h-4 w-4 shrink-0 text-white opacity-90" />
                       <span className="truncate text-white">{sub.name}</span>
                     </button>
                   );
@@ -1127,8 +1162,8 @@ export default function App() {
                 }}
                 className="w-full flex items-center justify-between px-3 tracking-wide text-sky-300 hover:text-sky-200 transition-colors cursor-pointer"
               >
-                <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Dados</span>
-                <Database className="h-3.5 w-3.5 text-sky-300" />
+                <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-sky-300">Dados</span>
+                <Database className="h-4 w-4 text-sky-300" />
               </button>
             </div>
 
@@ -1144,13 +1179,13 @@ export default function App() {
                         setCurrentPage(sub.name);
                         setSidebarOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold transition-all ${
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${
                         active
                           ? 'bg-slate-800 text-white font-bold'
                           : 'text-white/90 hover:bg-slate-800/50 hover:text-white'
                       }`}
                     >
-                      <Icon className="h-4.5 w-4.5 shrink-0 text-white opacity-90" />
+                      <Icon className="h-4 w-4 shrink-0 text-white opacity-90" />
                       <span className="truncate text-white">{sub.name}</span>
                     </button>
                   );
@@ -1161,8 +1196,8 @@ export default function App() {
 
           {/* Admin exclusive menu block */}
           {currentUser.role === 'admin' && (
-            <div className="pt-4 mt-4 border-t border-slate-800/60">
-              <span className="block px-3 text-[10px] uppercase tracking-wider text-rose-500 font-bold mb-1.5">
+            <div className="pt-3 mt-3 border-t border-slate-800/60">
+              <span className="block px-3 text-xs uppercase tracking-wider text-rose-500 font-bold mb-1">
                 Admin Area
               </span>
               <button
@@ -1170,14 +1205,14 @@ export default function App() {
                   setCurrentPage('Administrador');
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm sm:text-[15px] font-medium transition-all ${
                   currentPage === 'Administrador'
-                    ? 'bg-rose-950/40 text-rose-400 border border-rose-800'
+                    ? 'bg-rose-950/40 text-rose-400 border border-rose-800 font-semibold'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <Shield className="h-4 w-4 shrink-0 text-rose-500" />
-                <span>Administrador</span>
+                <Shield className="h-4.5 w-4.5 shrink-0 text-rose-500" />
+                <span className="truncate">Administrador</span>
               </button>
             </div>
           )}

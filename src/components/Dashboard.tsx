@@ -204,7 +204,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   };
 
   // New state variables for filters
-  const [selectedKpiYear, setSelectedKpiYear] = useState<string>('all');
+  const [selectedKpiYear, setSelectedKpiYear] = useState<string>(new Date().getFullYear().toString());
+  const [selectedKpiMonth, setSelectedKpiMonth] = useState<string>(new Date().getMonth().toString());
   const [budgetComparisonYear, setBudgetComparisonYear] = useState<number>(new Date().getFullYear());
   const [recentFilter, setRecentFilter] = useState<'Todos' | 'Receitas' | 'Despesas'>('Todos');
   const [classificationMonth, setClassificationMonth] = useState<number>(new Date().getMonth());
@@ -383,15 +384,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
     }
   }, [availableYears]);
 
-  // 1. Calculate Core KPI Counters with year filter
+  // 1. Calculate Core KPI Counters with year and month filter
   const totals = useMemo(() => {
-    const filteredIncomes = selectedKpiYear === 'all' 
-      ? userData.incomes 
-      : userData.incomes.filter(inc => inc.date && new Date(inc.date).getFullYear() === parseInt(selectedKpiYear, 10));
+    const filteredIncomes = userData.incomes.filter(inc => {
+      if (!inc.date) return false;
+      const parts = inc.date.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const matchesYear = selectedKpiYear === 'all' || y === parseInt(selectedKpiYear, 10);
+        const matchesMonth = selectedKpiMonth === 'all' || m === parseInt(selectedKpiMonth, 10);
+        return matchesYear && matchesMonth;
+      }
+      return false;
+    });
 
-    const filteredExpenses = selectedKpiYear === 'all' 
-      ? userData.expenses 
-      : userData.expenses.filter(exp => exp.date && new Date(exp.date).getFullYear() === parseInt(selectedKpiYear, 10));
+    const filteredExpenses = userData.expenses.filter(exp => {
+      if (!exp.date) return false;
+      const parts = exp.date.split('-');
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const matchesYear = selectedKpiYear === 'all' || y === parseInt(selectedKpiYear, 10);
+        const matchesMonth = selectedKpiMonth === 'all' || m === parseInt(selectedKpiMonth, 10);
+        return matchesYear && matchesMonth;
+      }
+      return false;
+    });
 
     const totalIncomes = filteredIncomes.reduce((acc, curr) => acc + curr.value, 0);
     const totalExpenses = filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
@@ -400,9 +419,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
       expenses: totalExpenses,
       balance: totalIncomes - totalExpenses
     };
-  }, [userData, selectedKpiYear]);
+  }, [userData.incomes, userData.expenses, selectedKpiYear, selectedKpiMonth]);
 
-  // Calculate Total Budgeted based on annual planning and selected filter
+  // Calculate Total Budgeted based on annual planning and selected filters
   const totalBudgeted = useMemo(() => {
     const plans = selectedKpiYear === 'all'
       ? userData.annualPlanning
@@ -411,15 +430,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
     let total = 0;
     plans.forEach(plan => {
       plan.monthlyBudgets.forEach(mb => {
-        if (mb.categoryBudgets && mb.categoryBudgets.length > 0) {
-          total += mb.categoryBudgets.reduce((sum, cb) => sum + (cb.budgetedValue || 0), 0);
-        } else {
-          total += (mb.expenseBudget || 0);
+        if (selectedKpiMonth === 'all' || mb.month === parseInt(selectedKpiMonth, 10)) {
+          if (mb.categoryBudgets && mb.categoryBudgets.length > 0) {
+            total += mb.categoryBudgets.reduce((sum, cb) => sum + (cb.budgetedValue || 0), 0);
+          } else {
+            total += (mb.expenseBudget || 0);
+          }
         }
       });
     });
     return total;
-  }, [userData.annualPlanning, selectedKpiYear]);
+  }, [userData.annualPlanning, selectedKpiYear, selectedKpiMonth]);
 
   // 2. Aggregate Incomes, Expenses, and Budgeted for the last 5 Years (Current year first on the left, then descending)
   const annualData = useMemo(() => {
@@ -580,6 +601,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
       .slice(0, 10);
   }, [userData.incomes, userData.expenses, recentFilter]);
 
+  const kpiPeriodLabel = useMemo(() => {
+    if (selectedKpiMonth === 'all' && selectedKpiYear === 'all') {
+      return 'Todo o histórico cadastrado';
+    }
+    if (selectedKpiMonth === 'all') {
+      return `Ano de ${selectedKpiYear}`;
+    }
+    const mName = MONTH_NAMES[parseInt(selectedKpiMonth, 10)] || '';
+    if (selectedKpiYear === 'all') {
+      return `${mName} (todos os anos)`;
+    }
+    return `${mName} de ${selectedKpiYear}`;
+  }, [selectedKpiMonth, selectedKpiYear]);
+
   return (
     <div 
       className="space-y-6 animate-fade-in touch-pan-y"
@@ -672,34 +707,54 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 </div>
               </div>
 
-              {/* KPI Year Filter Bar */}
+              {/* KPI Filter Bar (Mês e Ano selecionados com mês e ano atuais por padrão) */}
               <div className="flex flex-wrap items-center justify-between bg-slate-100/60 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/40 dark:border-slate-800/40 text-xs sm:text-sm gap-3">
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-bold uppercase text-xs">
                   <Filter className="h-4 w-4 text-slate-400 shrink-0" />
                   Filtrar Painel de Controle (Receitas/Despesas/Saldo)
                 </div>
                 
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-600 dark:text-slate-300 font-semibold text-xs sm:text-sm">Ano dos Cards:</span>
-                  <select
-                    value={selectedKpiYear}
-                    onChange={(e) => setSelectedKpiYear(e.target.value)}
-                    className="rounded-lg border border-slate-200/50 bg-white px-3 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white text-xs sm:text-sm"
-                  >
-                    <option value="all">Todos os Anos</option>
-                    {availableYears.map(y => (
-                      <option key={y} value={y.toString()}>{y}</option>
-                    ))}
-                  </select>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold text-xs sm:text-sm">Mês:</span>
+                    <select
+                      value={selectedKpiMonth}
+                      onChange={(e) => setSelectedKpiMonth(e.target.value)}
+                      className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white text-xs sm:text-sm"
+                    >
+                      <option value="all">Todos os Meses</option>
+                      {MONTH_NAMES.map((name, idx) => (
+                        <option key={idx} value={idx.toString()}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-600 dark:text-slate-300 font-semibold text-xs sm:text-sm">Ano:</span>
+                    <select
+                      value={selectedKpiYear}
+                      onChange={(e) => setSelectedKpiYear(e.target.value)}
+                      className="rounded-lg border border-slate-200/50 bg-white px-2.5 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white text-xs sm:text-sm"
+                    >
+                      <option value="all">Todos os Anos</option>
+                      {availableYears.map(y => (
+                        <option key={y} value={y.toString()}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setSelectedKpiYear('all')}
+                    onClick={() => {
+                      setSelectedKpiMonth(new Date().getMonth().toString());
+                      setSelectedKpiYear(new Date().getFullYear().toString());
+                    }}
                     className={`p-1.5 rounded-lg border transition-colors ${
-                      selectedKpiYear !== 'all'
+                      selectedKpiMonth !== new Date().getMonth().toString() || selectedKpiYear !== new Date().getFullYear().toString()
                         ? 'border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 text-red-600 dark:border-red-950 dark:bg-red-950/30 dark:hover:bg-red-950/50 dark:text-red-400'
                         : 'border-slate-200/60 bg-white text-slate-400 hover:text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:hover:text-slate-200'
                     }`}
-                    title="Limpar filtro de ano"
+                    title="Redefinir filtros para o mês e ano atuais"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -721,7 +776,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                       R$ {totals.incomes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {selectedKpiYear === 'all' ? 'Todo o histórico cadastrado' : `Ano de ${selectedKpiYear}`}
+                      {kpiPeriodLabel}
                     </p>
                   </div>
                 </div>
@@ -739,7 +794,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                       R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {selectedKpiYear === 'all' ? 'Todo o histórico cadastrado' : `Ano de ${selectedKpiYear}`}
+                      {kpiPeriodLabel}
                     </p>
                   </div>
                 </div>
@@ -794,7 +849,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                       R$ {totalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Soma do plano anual configurado
+                      Orçado · {kpiPeriodLabel}
                     </p>
                   </div>
                 </div>
@@ -812,7 +867,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                       R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Igual ao total de despesas realizadas
+                      Realizado · {kpiPeriodLabel}
                     </p>
                   </div>
                 </div>

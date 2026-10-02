@@ -93,10 +93,10 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [showAddForm, setShowAddForm] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
-  const [category, setCategory] = useState(userData.incomeCategories[0] || 'Outros');
+  const [category, setCategory] = useState('');
 
   const receiptTypesList = useMemo(() => {
     return (userData.receiptTypes && userData.receiptTypes.length > 0)
@@ -110,8 +110,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       : (userData.paymentStatuses && userData.paymentStatuses.length > 0 ? userData.paymentStatuses : ['Recebido', 'Pendente', 'Cancelado']);
   }, [userData.receiptStatuses, userData.paymentStatuses]);
 
-  const [paymentType, setPaymentType] = useState(receiptTypesList[0] || 'Pix');
-  const [status, setStatus] = useState(receiptStatusesList[0] || 'Recebido');
+  const [paymentType, setPaymentType] = useState('');
+  const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
 
   // Category, Receipt Type and Receipt Status Management States
@@ -276,7 +276,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description || !value) return;
+    if (!date || !description || !value || !category || !paymentType || !status) return;
     const numValue = parsePtBrNumber(value);
     if (numValue <= 0) return;
 
@@ -319,13 +319,18 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       });
     }
 
+    const savedDate = date;
+    setDate('');
     setDescription('');
     setValue('');
+    setCategory('');
+    setPaymentType('');
+    setStatus('');
     setShowAddForm(false);
     
     // Automatically switch to the month of the added/edited income to let the user see it!
-    if (date.length >= 7) {
-      setSelectedMonth(date.substring(0, 7));
+    if (savedDate.length >= 7) {
+      setSelectedMonth(savedDate.substring(0, 7));
     }
   };
 
@@ -526,17 +531,21 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               if (showAddForm) {
                 setShowAddForm(false);
                 setEditingIncomeId(null);
+                setDate('');
                 setDescription('');
                 setValue('');
+                setCategory('');
+                setPaymentType('');
+                setStatus('');
               } else {
                 setShowAddForm(true);
                 setEditingIncomeId(null);
+                setDate('');
                 setDescription('');
                 setValue('');
-                setDate(new Date().toISOString().split('T')[0]);
-                setCategory(userData.incomeCategories[0] || 'Outros');
-                setPaymentType(receiptTypesList[0] || 'Pix');
-                setStatus(receiptStatusesList[0] || 'Recebido');
+                setCategory('');
+                setPaymentType('');
+                setStatus('');
               }
             }}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white rounded-xl shadow-sm shadow-blue-500/15 transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
@@ -597,142 +606,203 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
         </AnimatePresence>
       </div>
 
-      {showAddForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl grid gap-4 sm:grid-cols-3 text-xs max-h-[90vh] overflow-y-auto">
-            <div className="sm:col-span-3 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-1">
-              <h3 className="font-bold text-slate-800 dark:text-white text-sm">
-                {editingIncomeId ? 'Editar Registro de Receita' : 'Novo Registro de Receita'}
-              </h3>
-            {editingIncomeId && (
-              <span className="text-[10px] bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded font-bold dark:bg-amber-950/30">
-                Modo de Edição
-              </span>
-            )}
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Data do Recebimento</label>
-            <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição da Receita</label>
-            <input type="text" required placeholder="Ex: Salário Mensal" value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
-            <div className="relative mt-1">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
-                R$
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                required
-                placeholder="0,00"
-                value={value}
-                onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
-                onBlur={() => {
-                  if (value && value.trim()) {
-                    const num = parsePtBrNumber(value);
-                    if (num > 0) {
-                      setValue(formatPtBrCurrency(num));
-                    }
-                  }
-                }}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
-              />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria / Tipo</label>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowManageCategories(true);
-                  setShowManageReceiptTypes(false);
-                  setShowManageReceiptStatuses(false);
-                }}
-                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
-              >
-                Gerenciar
-              </button>
-            </div>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-              {userData.incomeCategories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo</label>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowManageReceiptTypes(true);
-                  setShowManageCategories(false);
-                  setShowManageReceiptStatuses(false);
-                }}
-                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
-              >
-                Gerenciar
-              </button>
-            </div>
-            <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-              {receiptTypesList.map(pt => (
-                <option key={pt} value={pt}>{pt}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowManageReceiptStatuses(true);
-                  setShowManageCategories(false);
-                  setShowManageReceiptTypes(false);
-                }}
-                className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
-              >
-                Gerenciar
-              </button>
-            </div>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-              {receiptStatusesList.map(ps => (
-                <option key={ps} value={ps}>{ps}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="sm:col-span-3 flex justify-end gap-2.5 pt-2">
-            <button
-              type="button"
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showAddForm && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm"
               onClick={() => {
                 setShowAddForm(false);
                 setEditingIncomeId(null);
-                setDescription('');
-                setValue('');
-                setShowManageCategories(false);
-                setShowManageReceiptTypes(false);
-                setShowManageReceiptStatuses(false);
               }}
-              className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
             >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500 transition-colors"
-            >
-              {editingIncomeId ? 'Atualizar Registro' : 'Salvar Registro'}
-            </button>
-          </div>
-        </form>
-      </div>
-    )}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header fixo no topo do popup */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                      <Plus className="h-4.5 w-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">
+                        {editingIncomeId ? 'Editar Registro de Receita' : 'Novo Registro de Receita'}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {editingIncomeId ? 'Modifique os dados da receita selecionada' : 'Preencha os campos para registrar uma nova entrada financeira'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editingIncomeId && (
+                      <span className="text-[10px] bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded font-bold dark:bg-amber-950/30">
+                        Modo de Edição
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddForm(false);
+                        setEditingIncomeId(null);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Fechar"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Corpo do formulário com scroll interno customizado */}
+                <form id="form-receitas-modal" onSubmit={handleAdd} className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+                  <div className="grid gap-4 sm:grid-cols-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Data do Recebimento</label>
+                      <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição da Receita</label>
+                      <input type="text" required placeholder="Ex: Salário Mensal" value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
+                      <div className="relative mt-1">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                          R$
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          placeholder="0,00"
+                          value={value}
+                          onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                          onBlur={() => {
+                            if (value && value.trim()) {
+                              const num = parsePtBrNumber(value);
+                              if (num > 0) {
+                                setValue(formatPtBrCurrency(num));
+                              }
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria / Tipo</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowManageCategories(true);
+                            setShowManageReceiptTypes(false);
+                            setShowManageReceiptStatuses(false);
+                          }}
+                          className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                      <select required value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                        <option value="" disabled>Selecione a categoria...</option>
+                        {userData.incomeCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowManageReceiptTypes(true);
+                            setShowManageCategories(false);
+                            setShowManageReceiptStatuses(false);
+                          }}
+                          className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                      <select required value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                        <option value="" disabled>Selecione o tipo...</option>
+                        {receiptTypesList.map(pt => (
+                          <option key={pt} value={pt}>{pt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowManageReceiptStatuses(true);
+                            setShowManageCategories(false);
+                            setShowManageReceiptTypes(false);
+                          }}
+                          className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                      <select required value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                        <option value="" disabled>Selecione a situação...</option>
+                        {receiptStatusesList.map(ps => (
+                          <option key={ps} value={ps}>{ps}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Rodapé com botões de ação fixo no rodapé do modal */}
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setEditingIncomeId(null);
+                      setDate('');
+                      setDescription('');
+                      setValue('');
+                      setCategory('');
+                      setPaymentType('');
+                      setStatus('');
+                      setShowManageCategories(false);
+                      setShowManageReceiptTypes(false);
+                      setShowManageReceiptStatuses(false);
+                    }}
+                    className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    form="form-receitas-modal"
+                    className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-sm shadow-blue-600/20 cursor-pointer"
+                  >
+                    {editingIncomeId ? 'Atualizar Registro' : 'Salvar Registro'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
     {/* Manage Categories Popup Modal */}
     {showManageCategories && (
@@ -1309,14 +1379,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [showAddForm, setShowAddForm] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
   const [installments, setInstallments] = useState<number>(1);
-  const [category, setCategory] = useState(userData.expenseCategories[0] || 'Outros');
-  const [paymentType, setPaymentType] = useState(userData.paymentTypes[0] || 'Pix');
-  const [status, setStatus] = useState(userData.paymentStatuses[0] || 'Pendente');
-  const [classification, setClassification] = useState<'Fixo' | 'Variável' | 'Eventual'>('Fixo');
+  const [category, setCategory] = useState('');
+  const [paymentType, setPaymentType] = useState('');
+  const [status, setStatus] = useState('');
+  const [classification, setClassification] = useState<string>('');
   const [search, setSearch] = useState('');
 
   // Listas suspensas ordenadas em ordem crescente alfabética (A para Z)
@@ -1352,6 +1422,27 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [editPaymentTypeValue, setEditPaymentTypeValue] = useState('');
   const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null);
   const [editPaymentStatusValue, setEditPaymentStatusValue] = useState('');
+
+  // Travar rolagem do body e fechar com ESC quando o formulário de despesa estiver aberto
+  useEffect(() => {
+    if (showAddForm) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setShowAddForm(false);
+          setEditingExpenseId(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.body.style.overflow = prevOverflow;
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [showAddForm]);
 
   // Auto-minimize "Como Lançar Despesas" when scrolling down the page
   useEffect(() => {
@@ -1519,7 +1610,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description || !value) return;
+    if (!date || !description || !value || !category || !paymentType || !status || !classification) return;
     const parsedVal = parsePtBrNumber(value);
     if (parsedVal <= 0) return;
 
@@ -1585,10 +1676,14 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       }
     }
 
+    setDate('');
     setDescription('');
     setValue('');
+    setCategory('');
+    setPaymentType('');
+    setStatus('');
+    setClassification('');
     setInstallments(1);
-    setClassification('Fixo');
     setShowAddForm(false);
   };
 
@@ -1602,9 +1697,6 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     setStatus(exp.status);
     setClassification((exp.classification as any) || 'Fixo');
     setShowAddForm(true);
-    setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 50);
   };
 
   const handleDelete = (id: string) => {
@@ -1790,20 +1882,25 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               if (showAddForm) {
                 setShowAddForm(false);
                 setEditingExpenseId(null);
+                setDate('');
                 setDescription('');
                 setValue('');
+                setCategory('');
+                setPaymentType('');
+                setStatus('');
+                setClassification('');
                 setInstallments(1);
               } else {
                 setShowAddForm(true);
                 setEditingExpenseId(null);
+                setDate('');
                 setDescription('');
                 setValue('');
+                setCategory('');
+                setPaymentType('');
+                setStatus('');
+                setClassification('');
                 setInstallments(1);
-                setDate(new Date().toISOString().split('T')[0]);
-                setCategory(sortedExpenseCategories[0] || 'Outros');
-                setPaymentType(sortedPaymentTypes[0] || 'Pix');
-                setStatus(sortedPaymentStatuses[0] || 'Pendente');
-                setClassification('Fixo');
                 setShowManageCategories(false);
                 setShowManagePaymentTypes(false);
                 setShowManagePaymentStatuses(false);
@@ -1867,174 +1964,238 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
         </AnimatePresence>
       </div>
 
-      {showAddForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-          <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl grid gap-4 sm:grid-cols-3 text-xs max-h-[90vh] overflow-y-auto">
-            <div className="sm:col-span-3 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-1">
-              <h3 className="font-bold text-slate-800 dark:text-white text-sm">
-                {editingExpenseId ? 'Editar Registro de Despesa' : 'Novo Registro de Despesa'}
-              </h3>
-              {editingExpenseId && (
-                <span className="text-[10px] bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded font-bold dark:bg-amber-950/30">
-                  Modo de Edição
-                </span>
-              )}
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Data da Compra</label>
-              <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição da Compra</label>
-              <input type="text" required placeholder="Ex: Supermercado Semanal" value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
-              <div className="relative mt-1">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
-                  R$
-                </span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  required
-                  placeholder="0,00"
-                  value={value}
-                  onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
-                  onBlur={() => {
-                    if (value && value.trim()) {
-                      const num = parsePtBrNumber(value);
-                      if (num > 0) {
-                        setValue(formatPtBrCurrency(num));
-                      }
-                    }
-                  }}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
-                />
-              </div>
-            </div>
-            {!editingExpenseId && (
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Quantidade de Parcelas</label>
-                <select
-                  value={installments}
-                  onChange={(e) => setInstallments(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                >
-                  <option value={1}>1x (À vista / Sem parcelamento)</option>
-                  {Array.from({ length: 59 }, (_, idx) => idx + 2).map(num => (
-                    <option key={num} value={num}>{num}x</option>
-                  ))}
-                </select>
-                <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-normal">
-                  * Os lançamentos automáticos nos meses subsequentes ocorrem a partir da 2ª parcela.
-                </p>
-              </div>
-            )}
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria da despesa</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowManageCategories(true);
-                    setShowManagePaymentTypes(false);
-                    setShowManagePaymentStatuses(false);
-                  }}
-                  className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
-                >
-                  Gerenciar
-                </button>
-              </div>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-                {sortedExpenseCategories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowManagePaymentTypes(true);
-                    setShowManageCategories(false);
-                    setShowManagePaymentStatuses(false);
-                  }}
-                  className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
-                >
-                  Gerenciar
-                </button>
-              </div>
-              <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-                {sortedPaymentTypes.map(pt => (
-                  <option key={pt} value={pt}>{pt}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowManagePaymentStatuses(true);
-                    setShowManageCategories(false);
-                    setShowManagePaymentTypes(false);
-                  }}
-                  className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
-                >
-                  Gerenciar
-                </button>
-              </div>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
-                {sortedPaymentStatuses.map(ps => (
-                  <option key={ps} value={ps}>{ps}</option>
-                ))}
-              </select>
-            </div>
-
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400">Classificação de Despesa</label>
-            <select
-              value={classification}
-              onChange={(e) => setClassification(e.target.value as 'Fixo' | 'Variável' | 'Eventual')}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-            >
-              <option value="Fixo">Fixo</option>
-              <option value="Variável">Variável</option>
-              <option value="Eventual">Eventual</option>
-            </select>
-          </div>
-
-          <div className="sm:col-span-3 flex justify-end gap-2.5 pt-2">
-            <button
-              type="button"
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showAddForm && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm"
               onClick={() => {
                 setShowAddForm(false);
                 setEditingExpenseId(null);
-                setDescription('');
-                setValue('');
-                setInstallments(1);
-                setShowManageCategories(false);
-                setShowManagePaymentTypes(false);
-                setShowManagePaymentStatuses(false);
               }}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
             >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-rose-600 px-4 py-2 font-bold text-white hover:bg-rose-500 transition-colors"
-            >
-              {editingExpenseId ? 'Atualizar Registro' : 'Salvar Registro'}
-            </button>
-          </div>
-        </form>
-      </div>
-    )}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header fixo no topo do popup */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
+                      <Plus className="h-4.5 w-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">
+                        {editingExpenseId ? 'Editar Registro de Despesa' : 'Novo Registro de Despesa'}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {editingExpenseId ? 'Modifique os dados do lançamento selecionado' : 'Preencha os campos para registrar uma saída financeira'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editingExpenseId && (
+                      <span className="text-[10px] bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded font-bold dark:bg-amber-950/30">
+                        Modo de Edição
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddForm(false);
+                        setEditingExpenseId(null);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Fechar"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Corpo do formulário com scroll interno customizado */}
+                <form id="form-despesas-modal" onSubmit={handleAdd} className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+                  <div className="grid gap-4 sm:grid-cols-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Data da Compra</label>
+                      <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição da Compra</label>
+                      <input type="text" required placeholder="Ex: Supermercado Semanal" value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
+                      <div className="relative mt-1">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                          R$
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          placeholder="0,00"
+                          value={value}
+                          onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                          onBlur={() => {
+                            if (value && value.trim()) {
+                              const num = parsePtBrNumber(value);
+                              if (num > 0) {
+                                setValue(formatPtBrCurrency(num));
+                              }
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                        />
+                      </div>
+                    </div>
+                    {!editingExpenseId && (
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Quantidade de Parcelas</label>
+                        <select
+                          value={installments}
+                          onChange={(e) => setInstallments(Number(e.target.value))}
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                        >
+                          <option value={1}>1x (À vista / Sem parcelamento)</option>
+                          {Array.from({ length: 59 }, (_, idx) => idx + 2).map(num => (
+                            <option key={num} value={num}>{num}x</option>
+                          ))}
+                        </select>
+                        <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-normal">
+                          * Os lançamentos automáticos nos meses subsequentes ocorrem a partir da 2ª parcela.
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria da despesa</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowManageCategories(true);
+                            setShowManagePaymentTypes(false);
+                            setShowManagePaymentStatuses(false);
+                          }}
+                          className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                      <select required value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                        <option value="" disabled>Selecione a categoria da despesa...</option>
+                        {sortedExpenseCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowManagePaymentTypes(true);
+                            setShowManageCategories(false);
+                            setShowManagePaymentStatuses(false);
+                          }}
+                          className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                      <select required value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                        <option value="" disabled>Selecione o tipo de pagamento...</option>
+                        {sortedPaymentTypes.map(pt => (
+                          <option key={pt} value={pt}>{pt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowManagePaymentStatuses(true);
+                            setShowManageCategories(false);
+                            setShowManagePaymentTypes(false);
+                          }}
+                          className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 rounded transition-colors"
+                        >
+                          Gerenciar
+                        </button>
+                      </div>
+                      <select required value={status} onChange={(e) => setStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white">
+                        <option value="" disabled>Selecione a situação...</option>
+                        {sortedPaymentStatuses.map(ps => (
+                          <option key={ps} value={ps}>{ps}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Classificação de Despesa</label>
+                      <select
+                        required
+                        value={classification}
+                        onChange={(e) => setClassification(e.target.value as 'Fixo' | 'Variável' | 'Eventual')}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione a classificação...</option>
+                        <option value="Fixo">Fixo</option>
+                        <option value="Variável">Variável</option>
+                        <option value="Eventual">Eventual</option>
+                      </select>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Rodapé com botões de ação fixo no rodapé do modal */}
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setEditingExpenseId(null);
+                      setDate('');
+                      setDescription('');
+                      setValue('');
+                      setCategory('');
+                      setPaymentType('');
+                      setStatus('');
+                      setClassification('');
+                      setInstallments(1);
+                      setShowManageCategories(false);
+                      setShowManagePaymentTypes(false);
+                      setShowManagePaymentStatuses(false);
+                    }}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    form="form-despesas-modal"
+                    className="rounded-lg bg-rose-600 px-5 py-2 font-bold text-white hover:bg-rose-500 transition-colors shadow-sm shadow-rose-600/20 cursor-pointer"
+                  >
+                    {editingExpenseId ? 'Atualizar Registro' : 'Salvar Registro'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
     {/* Manage Categories Popup Modal */}
     {showManageCategories && (
@@ -2617,7 +2778,7 @@ export const DespesasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 // ======================== RESUMO MENSAL ========================
 export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
   const [selectedRealizedCategory, setSelectedRealizedCategory] = useState<string | null>(null);
   const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
@@ -2737,21 +2898,31 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData }) => {
 
     const sumBudget = categoriesTableData.reduce((sum, item) => sum + item.budgetedValue, 0);
 
-    const budgetedCategoriesList = categoriesTableData.map(item => ({
-      name: item.category,
-      value: item.budgetedValue,
-      percentage: sumBudget > 0 ? (item.budgetedValue / sumBudget) * 100 : 0,
-      color: item.color
-    }));
+    const budgetedCategoriesList = categoriesTableData
+      .map(item => ({
+        name: item.category,
+        value: item.budgetedValue,
+        percentage: sumBudget > 0 ? (item.budgetedValue / sumBudget) * 100 : 0,
+        color: item.color
+      }))
+      .sort((a, b) => {
+        if (b.value !== a.value) return b.value - a.value;
+        return a.name.localeCompare(b.name, 'pt-BR');
+      });
 
     const budgetedPieSlices = budgetedCategoriesList.filter(item => item.value > 0);
 
-    const realizedCategoriesList = categoriesTableData.map(item => ({
-      name: item.category,
-      value: item.realizedValue,
-      percentage: sumExpense > 0 ? (item.realizedValue / sumExpense) * 100 : 0,
-      color: item.color
-    }));
+    const realizedCategoriesList = categoriesTableData
+      .map(item => ({
+        name: item.category,
+        value: item.realizedValue,
+        percentage: sumExpense > 0 ? (item.realizedValue / sumExpense) * 100 : 0,
+        color: item.color
+      }))
+      .sort((a, b) => {
+        if (b.value !== a.value) return b.value - a.value;
+        return a.name.localeCompare(b.name, 'pt-BR');
+      });
 
     const realizedPieSlices = realizedCategoriesList.filter(item => item.value > 0);
 
