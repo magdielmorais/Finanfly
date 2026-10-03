@@ -27,6 +27,7 @@ export interface UserProfile {
   previousValidUntil?: string | null;
   previousApproved?: boolean;
   previousSubscription?: UserSubscription;
+  lastAccess?: string;
 }
 
 export interface Income {

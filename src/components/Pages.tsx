@@ -114,10 +114,227 @@ export const getNextMonthDate = (baseDateStr: string, monthsToAdd: number): stri
   return `${newYyyy}-${newMm}-${newDd}`;
 };
 
+// ======================== REUSABLE HELP ACCORDION CARD ========================
+// Posicionado como último conteúdo da página lá em baixo de tudo.
+// Ao clicar para expandir, rola suavemente a tela para centralizar todo o conteúdo.
+// Ao rolar a tela pra cima, ele se oculta automaticamente.
+export interface HelpCardProps {
+  title: string;
+  icon?: React.ReactNode;
+  accentColor?: 'blue' | 'rose' | 'emerald' | 'amber' | 'indigo';
+  children: React.ReactNode;
+  badge?: string;
+}
+
+export const HelpCard: React.FC<HelpCardProps> = ({
+  title,
+  icon,
+  accentColor = 'blue',
+  children,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const handleToggle = () => {
+    const nextState = !isOpen;
+    setIsOpen(nextState);
+    if (nextState) {
+      const scrollToCenter = () => {
+        if (!cardRef.current) return;
+        const container = (cardRef.current.closest('.overflow-y-auto') as HTMLElement | null) ||
+                          (document.querySelector('main .overflow-y-auto') as HTMLElement | null);
+        if (container) {
+          const cardRect = cardRef.current.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const relativeTop = cardRect.top - containerRect.top;
+          const targetScroll = container.scrollTop + relativeTop - (container.clientHeight / 2) + (cardRect.height / 2);
+          container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+        } else {
+          cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      };
+      setTimeout(scrollToCenter, 100);
+      setTimeout(scrollToCenter, 280);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isOpeningPeriod = true;
+    const graceTimer = setTimeout(() => {
+      isOpeningPeriod = false;
+    }, 600);
+
+    const getScrollContainer = () => {
+      return (cardRef.current?.closest('.overflow-y-auto') as HTMLElement | null) ||
+             (document.querySelector('main .overflow-y-auto') as HTMLElement | null);
+    };
+
+    const getScrollPos = () => {
+      const container = getScrollContainer();
+      if (container) return container.scrollTop;
+      return window.scrollY || document.documentElement.scrollTop || 0;
+    };
+
+    let lastScrollY = getScrollPos();
+    let touchStartY = 0;
+
+    const handleScroll = () => {
+      if (isOpeningPeriod) return;
+      const currentScroll = getScrollPos();
+      if (lastScrollY === -1) {
+        lastScrollY = currentScroll;
+        return;
+      }
+
+      // Ao rolar a tela pra cima (currentScroll diminui), fecha o card
+      if (lastScrollY - currentScroll > 15) {
+        setIsOpen(false);
+      } else if (currentScroll > lastScrollY) {
+        lastScrollY = currentScroll;
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (isOpeningPeriod) return;
+      // Rolar a tela pra cima (deltaY negativo)
+      if (e.deltaY < -10) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartY = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isOpeningPeriod) return;
+      if (e.touches.length > 0) {
+        const currentTouchY = e.touches[0].clientY;
+        // Puxar o dedo para baixo movimenta a página para cima
+        if (currentTouchY - touchStartY > 20) {
+          setIsOpen(false);
+        }
+      }
+    };
+
+    const container = getScrollContainer();
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+      container.addEventListener('wheel', handleWheel, { passive: true });
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
+      container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      clearTimeout(graceTimer);
+      if (container) {
+        container.removeEventListener('scroll', handleScroll);
+        container.removeEventListener('wheel', handleWheel);
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+      }
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isOpen]);
+
+  const colorStyles = {
+    blue: {
+      icon: 'text-blue-500',
+      hover: 'hover:text-blue-600 dark:hover:text-blue-400',
+      badge: 'text-blue-600 dark:text-blue-400 bg-blue-100/70 dark:bg-blue-950/50',
+      chevron: 'text-blue-500',
+    },
+    rose: {
+      icon: 'text-rose-500',
+      hover: 'hover:text-rose-600 dark:hover:text-rose-400',
+      badge: 'text-rose-600 dark:text-rose-400 bg-rose-100/70 dark:bg-rose-950/50',
+      chevron: 'text-rose-500',
+    },
+    emerald: {
+      icon: 'text-emerald-500',
+      hover: 'hover:text-emerald-600 dark:hover:text-emerald-400',
+      badge: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100/70 dark:bg-emerald-950/50',
+      chevron: 'text-emerald-500',
+    },
+    indigo: {
+      icon: 'text-indigo-500',
+      hover: 'hover:text-indigo-600 dark:hover:text-indigo-400',
+      badge: 'text-indigo-600 dark:text-indigo-400 bg-indigo-100/70 dark:bg-indigo-950/50',
+      chevron: 'text-indigo-500',
+    },
+    amber: {
+      icon: 'text-amber-500',
+      hover: 'hover:text-amber-600 dark:hover:text-amber-400',
+      badge: 'text-amber-600 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50',
+      chevron: 'text-amber-500',
+    },
+  }[accentColor];
+
+  return (
+    <div
+      ref={cardRef}
+      className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 overflow-hidden transition-all shadow-xs mt-6 mb-8"
+    >
+      <button
+        type="button"
+        onClick={handleToggle}
+        className={`w-full flex items-center justify-between p-4 text-left font-semibold text-xs sm:text-sm text-slate-700 dark:text-slate-200 ${colorStyles.hover} transition-colors focus:outline-none cursor-pointer`}
+      >
+        <div className="flex items-center gap-2">
+          {icon || <Sliders className={`h-4 w-4 ${colorStyles.icon}`} />}
+          <span>{title}</span>
+          {isOpen && (
+            <span className={`text-[10px] ${colorStyles.badge} px-2 py-0.5 rounded-full font-medium`}>
+              Aberto
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-400">
+          <span className="text-xs">
+            {isOpen ? 'Ocultar Ajuda' : 'Ver Ajuda'}
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform duration-300 ${
+              isOpen ? `rotate-180 ${colorStyles.chevron}` : 'rotate-0'
+            }`}
+          />
+        </div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 // ======================== RECEITAS PAGE ========================
 export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
@@ -154,72 +371,6 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [editReceiptTypeValue, setEditReceiptTypeValue] = useState('');
   const [editingReceiptStatus, setEditingReceiptStatus] = useState<string | null>(null);
   const [editReceiptStatusValue, setEditReceiptStatusValue] = useState('');
-
-  // Auto-minimize "Como Lançar Receitas" when scrolling down the page
-  useEffect(() => {
-    if (!showHelp) return;
-
-    let lastScrollY = -1;
-    let touchStartY = 0;
-
-    const handleScroll = (e: Event) => {
-      let currentScroll = 0;
-      const target = e.target as HTMLElement | Document | null;
-      if (target && target instanceof HTMLElement && target.scrollHeight > target.clientHeight) {
-        currentScroll = target.scrollTop;
-      } else {
-        const scrollContainer = document.querySelector('.overflow-y-auto');
-        currentScroll = scrollContainer ? scrollContainer.scrollTop : (window.scrollY || document.documentElement.scrollTop || 0);
-      }
-
-      if (lastScrollY === -1) {
-        lastScrollY = currentScroll;
-        return;
-      }
-
-      // If user scrolls down by more than 25px, auto-minimize
-      if (currentScroll > lastScrollY + 25) {
-        setShowHelp(false);
-      } else if (currentScroll < lastScrollY) {
-        lastScrollY = currentScroll;
-      }
-    };
-
-    const handleWheel = (e: WheelEvent) => {
-      // If user scrolls/wheels downwards
-      if (e.deltaY > 15) {
-        setShowHelp(false);
-      }
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        touchStartY = e.touches[0].clientY;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        const currentTouchY = e.touches[0].clientY;
-        // Swiping finger up means scrolling downward
-        if (touchStartY - currentTouchY > 30) {
-          setShowHelp(false);
-        }
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
-    window.addEventListener('wheel', handleWheel, { passive: true });
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll, { capture: true });
-      window.removeEventListener('wheel', handleWheel);
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
-    };
-  }, [showHelp]);
 
   const currentMonthYearStr = useMemo(() => {
     const today = new Date();
@@ -583,54 +734,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
         </div>
       </div>
 
-      {/* Help Accordion Card */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 overflow-hidden transition-all shadow-xs">
-        <button
-          onClick={() => setShowHelp(!showHelp)}
-          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-blue-500" />
-            <span>Como Lançar Receitas</span>
-            {showHelp && (
-              <span className="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-100/70 dark:bg-blue-950/50 px-2 py-0.5 rounded-full font-medium">
-                Aberto
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-slate-400">
-            <span className="text-xs">
-              {showHelp ? 'Ocultar Ajuda' : 'Ver Ajuda'}
-            </span>
-            <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${showHelp ? 'rotate-180 text-blue-500' : 'rotate-0'}`} />
-          </div>
-        </button>
-        <AnimatePresence initial={false}>
-          {showHelp && (
-            <motion.div
-              key="receitas-help-content"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="overflow-hidden"
-            >
-              <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2">
-                <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas receitas:</p>
-                <ul className="list-decimal pl-4 space-y-1.5">
-                  <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Receita</strong> no canto superior direito.</li>
-                  <li>Preencha os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Categoria</strong> e <strong className="text-slate-800 dark:text-white">Tipo</strong>.</li>
-                  <li>Selecione a situação da transação (<strong className="text-slate-800 dark:text-white">Recebido</strong> para valores recebidos ou <strong className="text-slate-800 dark:text-white">Pendente</strong> para previsões).</li>
-                  <li>Clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Registro</strong> para gravar a entrada.</li>
-                </ul>
-                <p className="mt-2 text-[11px] bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 p-2.5 rounded-lg">
-                  <strong>Dica Prática:</strong> Personalize suas categorias, meios de recebimento e situações de recebimento clicando nas opções <strong className="underline">Gerenciar</strong> disponíveis no próprio formulário.
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+
 
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
@@ -1414,6 +1518,26 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </table>
         </div>
       </div>
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Lançar Receitas"
+        accentColor="blue"
+        icon={<Sliders className="h-4 w-4 text-blue-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas receitas:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Receita</strong> no canto superior direito.</li>
+            <li>Preencha os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Categoria</strong> e <strong className="text-slate-800 dark:text-white">Tipo</strong>.</li>
+            <li>Selecione a situação da transação (<strong className="text-slate-800 dark:text-white">Recebido</strong> para valores recebidos ou <strong className="text-slate-800 dark:text-white">Pendente</strong> para previsões).</li>
+            <li>Clique em <strong className="text-blue-600 dark:text-blue-400">Salvar Registro</strong> para gravar a entrada.</li>
+          </ul>
+          <p className="mt-2 text-[11px] bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 p-2.5 rounded-lg">
+            <strong>Dica Prática:</strong> Personalize suas categorias, meios de recebimento e situações de recebimento clicando nas opções <strong className="underline">Gerenciar</strong> disponíveis no próprio formulário.
+          </p>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -1427,7 +1551,6 @@ export const DespesasPage: React.FC<PageProps> = ({
   onClearInitialAdd
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
@@ -1530,70 +1653,6 @@ export const DespesasPage: React.FC<PageProps> = ({
       };
     }
   }, [showAddForm]);
-
-  // Auto-minimize "Como Lançar Despesas" when scrolling down the page
-  useEffect(() => {
-    if (!showHelp) return;
-
-    let lastScrollY = -1;
-    let touchStartY = 0;
-
-    const handleScroll = (e: Event) => {
-      let currentScroll = 0;
-      const target = e.target as HTMLElement | Document | null;
-      if (target && target instanceof HTMLElement && target.scrollHeight > target.clientHeight) {
-        currentScroll = target.scrollTop;
-      } else {
-        const scrollContainer = document.querySelector('.overflow-y-auto');
-        currentScroll = scrollContainer ? scrollContainer.scrollTop : (window.scrollY || document.documentElement.scrollTop || 0);
-      }
-
-      if (lastScrollY === -1) {
-        lastScrollY = currentScroll;
-        return;
-      }
-
-      // If user scrolls down by more than 25px, auto-minimize
-      if (currentScroll > lastScrollY + 25) {
-        setShowHelp(false);
-      } else if (currentScroll < lastScrollY) {
-        lastScrollY = currentScroll;
-      }
-    };
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.deltaY > 15) {
-        setShowHelp(false);
-      }
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        touchStartY = e.touches[0].clientY;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        const currentTouchY = e.touches[0].clientY;
-        if (touchStartY - currentTouchY > 30) {
-          setShowHelp(false);
-        }
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
-    window.addEventListener('wheel', handleWheel, { passive: true });
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll, { capture: true });
-      window.removeEventListener('wheel', handleWheel);
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
-    };
-  }, [showHelp]);
 
   const currentMonthYearStr = useMemo(() => {
     const today = new Date();
@@ -1983,54 +2042,7 @@ export const DespesasPage: React.FC<PageProps> = ({
         </div>
       </div>
 
-      {/* Help Accordion Card */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 overflow-hidden transition-all shadow-xs">
-        <button
-          onClick={() => setShowHelp(!showHelp)}
-          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 transition-colors focus:outline-none cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-rose-500" />
-            <span>Como Lançar Despesas</span>
-            {showHelp && (
-              <span className="text-[10px] text-rose-600 dark:text-rose-400 bg-rose-100/70 dark:bg-rose-950/50 px-2 py-0.5 rounded-full font-medium">
-                Aberto
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-slate-400">
-            <span className="text-xs">
-              {showHelp ? 'Ocultar Ajuda' : 'Ver Ajuda'}
-            </span>
-            <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${showHelp ? 'rotate-180 text-rose-500' : 'rotate-0'}`} />
-          </div>
-        </button>
-        <AnimatePresence initial={false}>
-          {showHelp && (
-            <motion.div
-              key="despesas-help-content"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="overflow-hidden"
-            >
-              <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2">
-                <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas despesas:</p>
-                <ul className="list-decimal pl-4 space-y-1.5">
-                  <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Despesa</strong> no canto superior direito.</li>
-                  <li>Defina os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Centro de Custo (Categoria)</strong> e <strong className="text-slate-800 dark:text-white">Tipo</strong>.</li>
-                  <li>Determine a <strong className="text-slate-800 dark:text-white">Situação</strong> (se o item já está pago, pendente de pagamento ou em atraso).</li>
-                  <li>Clique em <strong className="text-rose-600 dark:text-rose-400">Salvar Registro</strong> para gravar a saída.</li>
-                </ul>
-                <p className="mt-2 text-[11px] bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-2.5 rounded-lg">
-                  <strong>Conselho Financeiro:</strong> Manter a situação de pagamento sempre em dia ajuda a monitorar os vencimentos futuros no seu fluxo de caixa para evitar multas, juros ou bloqueios.
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+
 
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
@@ -2883,6 +2895,26 @@ export const DespesasPage: React.FC<PageProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Lançar Despesas"
+        accentColor="rose"
+        icon={<Sliders className="h-4 w-4 text-rose-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Siga estes passos simples para gerenciar suas despesas:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Despesa</strong> no canto superior direito.</li>
+            <li>Defina os campos obrigatórios: <strong className="text-slate-800 dark:text-white">Descrição</strong>, <strong className="text-slate-800 dark:text-white">Valor</strong>, <strong className="text-slate-800 dark:text-white">Data</strong>, <strong className="text-slate-800 dark:text-white">Centro de Custo (Categoria)</strong> e <strong className="text-slate-800 dark:text-white">Tipo</strong>.</li>
+            <li>Determine a <strong className="text-slate-800 dark:text-white">Situação</strong> (se o item já está pago, pendente de pagamento ou em atraso).</li>
+            <li>Clique em <strong className="text-rose-600 dark:text-rose-400">Salvar Registro</strong> para gravar a saída.</li>
+          </ul>
+          <p className="mt-2 text-[11px] bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-2.5 rounded-lg">
+            <strong>Conselho Financeiro:</strong> Manter a situação de pagamento sempre em dia ajuda a monitorar os vencimentos futuros no seu fluxo de caixa para evitar multas, juros ou bloqueios.
+          </p>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -4052,6 +4084,23 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
         </AnimatePresence>,
         document.body
       )}
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona o Resumo Mensal"
+        accentColor="indigo"
+        icon={<Sliders className="h-4 w-4 text-indigo-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Entenda os indicadores e comparações do mês selecionado:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li><strong className="text-slate-800 dark:text-white">KPIs de Desempenho:</strong> No topo, acompanhe o total de Receitas, Despesas, Saldo Líquido e percentual de economia do mês.</li>
+            <li><strong className="text-slate-800 dark:text-white">Orçado vs Realizado:</strong> Compare o limite planejado de cada categoria com o valor efetivamente gasto, identificando desvios em tempo real.</li>
+            <li><strong className="text-slate-800 dark:text-white">Detalhamento por Categoria:</strong> Clique em qualquer categoria na lista para abrir o popup com todos os lançamentos, ver a lista completa ou criar um novo lançamento diretamente.</li>
+            <li><strong className="text-slate-800 dark:text-white">Gráficos de Distribuição:</strong> Visualize os maiores centros de custo em formato visual para tomada rápida de decisões financeiras.</li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -4587,6 +4636,23 @@ export const ResumoAnualPage: React.FC<PageProps> = ({ userData }) => {
         </AnimatePresence>,
         document.body
       )}
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona o Resumo Anual"
+        accentColor="blue"
+        icon={<Sliders className="h-4 w-4 text-blue-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Monitore a evolução financeira completa ao longo dos 12 meses do ano:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li><strong className="text-slate-800 dark:text-white">Visão Mensal Consolidada:</strong> Acompanhe mês a mês as receitas totais, despesas e o saldo final acumulado.</li>
+            <li><strong className="text-slate-800 dark:text-white">Taxa de Poupança Anual:</strong> Analise sua capacidade de poupança percentual em cada período do exercício financeiro.</li>
+            <li><strong className="text-slate-800 dark:text-white">Detalhamento por Mês:</strong> Clique em qualquer mês da tabela para abrir o modal de detalhamento de categorias e despesas registradas naquele mês.</li>
+            <li><strong className="text-slate-800 dark:text-white">Filtro de Ano:</strong> Alterne rapidamente entre anos anteriores e o ano vigente para comparar sua evolução patrimonial.</li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -5001,6 +5067,23 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
           ))
         )}
       </div>
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona o Planejamento de Metas"
+        accentColor="amber"
+        icon={<Sliders className="h-4 w-4 text-amber-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Transforme seus objetivos em planos de economia claros e alcançáveis:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li><strong className="text-slate-800 dark:text-white">Criar Nova Meta:</strong> Clique em <strong className="text-amber-600 dark:text-amber-400">Nova Meta</strong> e defina o nome do objetivo, valor alvo, valor já guardado e data de realização.</li>
+            <li><strong className="text-slate-800 dark:text-white">Barra de Progresso:</strong> Cada meta calcula automaticamente a porcentagem atingida e o valor restante.</li>
+            <li><strong className="text-slate-800 dark:text-white">Estimativa Mensal:</strong> O sistema divide o saldo restante pelo número de meses até o prazo final, mostrando quanto você precisa poupar por mês.</li>
+            <li><strong className="text-slate-800 dark:text-white">Status da Meta:</strong> Alterne entre Pendente, Em Andamento e Concluído conforme for poupando e atingindo seus sonhos.</li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -5412,6 +5495,22 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
           ))
         )}
       </div>
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona a Lista de Desejos"
+        accentColor="rose"
+        icon={<Sliders className="h-4 w-4 text-rose-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Controle o consumo por impulso e priorize suas aquisições pessoais:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li><strong className="text-slate-800 dark:text-white">Adicionar Desejo:</strong> Registre o item desejado, valor estimado, nível de prioridade (Alta, Média ou Baixa) e link opcional.</li>
+            <li><strong className="text-slate-800 dark:text-white">Regra dos 30 Dias:</strong> Deixar o desejo cadastrado antes de comprar evita decisões financeiras precipitadas.</li>
+            <li><strong className="text-slate-800 dark:text-white">Mudança de Status:</strong> Marque o item como Pendente, Comprado ou Desistido conforme reavaliar sua real necessidade.</li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -5419,7 +5518,6 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
 // ======================== AÇÃO DE MELHORIA PAGE ========================
 export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAdd, setShowAdd] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
 
   // Form Fields
@@ -5543,36 +5641,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
         </button>
       </div>
 
-      {/* Help Accordion Card */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
-        <button
-          onClick={() => setShowHelp(!showHelp)}
-          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
-        >
-          <div className="flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-emerald-500" />
-            <span>Como Lançar Ações de Inconsistência Financeira</span>
-          </div>
-          <span className="text-slate-400">
-            {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
-          </span>
-        </button>
-        {showHelp && (
-          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs text-slate-600 dark:text-slate-400 space-y-2 animate-fade-in">
-            <p className="font-medium text-slate-700 dark:text-slate-300">As Ações de aprendizado servem para registrar planos de ação quando despesas superam as previsões ou ocorrem inconsistências:</p>
-            <ul className="list-decimal pl-4 space-y-1.5">
-              <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Ação</strong> abaixo do título para abrir a janela.</li>
-              <li>Selecione a <strong className="text-slate-800 dark:text-white">Categoria</strong> e digite o <strong className="text-slate-800 dark:text-white">Motivo do Desvio</strong> (por que o gasto ultrapassou o planejado).</li>
-              <li>Descreva a <strong className="text-slate-800 dark:text-white">Ação Corretiva</strong> (o que será executado para conter ou corrigir isso).</li>
-              <li>Defina o <strong className="text-slate-800 dark:text-white">Responsável</strong> pela ação, a data de <strong className="text-slate-800 dark:text-white">Execução</strong> e a <strong className="text-slate-800 dark:text-white">Situação da Ação</strong>.</li>
-              <li>Clique em <strong className="text-emerald-600 dark:text-emerald-400">Salvar Ação</strong> para concluir.</li>
-            </ul>
-            <p className="mt-2 text-[11px] bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 p-2.5 rounded-lg">
-              <strong>Finalidade Pedagógica:</strong> Este painel ajuda a registrar o plano de ação necessário para reverter déficits orçamentários pontuais e garantir que desvios não se repitam no próximo ciclo.
-            </p>
-          </div>
-        )}
-      </div>
+
 
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
@@ -5812,6 +5881,27 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
           </table>
         </div>
       </div>
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Lançar Ações de Inconsistência Financeira"
+        accentColor="emerald"
+        icon={<Sliders className="h-4 w-4 text-emerald-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">As Ações de aprendizado servem para registrar planos de ação quando despesas superam as previsões ou ocorrem inconsistências:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Ação</strong> abaixo do título para abrir a janela.</li>
+            <li>Selecione a <strong className="text-slate-800 dark:text-white">Categoria</strong> e digite o <strong className="text-slate-800 dark:text-white">Motivo do Desvio</strong> (por que o gasto ultrapassou o planejado).</li>
+            <li>Descreva a <strong className="text-slate-800 dark:text-white">Ação Corretiva</strong> (o que será executado para conter ou corrigir isso).</li>
+            <li>Defina o <strong className="text-slate-800 dark:text-white">Responsável</strong> pela ação, a data de <strong className="text-slate-800 dark:text-white">Execução</strong> e a <strong className="text-slate-800 dark:text-white">Situação da Ação</strong>.</li>
+            <li>Clique em <strong className="text-emerald-600 dark:text-emerald-400">Salvar Ação</strong> para concluir.</li>
+          </ul>
+          <p className="mt-2 text-[11px] bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 p-2.5 rounded-lg">
+            <strong>Finalidade Pedagógica:</strong> Este painel ajuda a registrar o plano de ação necessário para reverter déficits orçamentários pontuais e garantir que desvios não se repitam no próximo ciclo.
+          </p>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -6115,6 +6205,22 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
           </table>
         </div>
       </div>
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona a Lista de Compras"
+        accentColor="emerald"
+        icon={<Sliders className="h-4 w-4 text-emerald-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Faça suas compras no supermercado ou compras rotineiras com orçamento sob controle:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li><strong className="text-slate-800 dark:text-white">Adicionar Item:</strong> Cadastre produtos informando quantidade estimada, preço unitário previsto e categoria.</li>
+            <li><strong className="text-slate-800 dark:text-white">Checklist em Tempo Real:</strong> Marque a caixinha do item conforme colocá-lo no carrinho físico de compras.</li>
+            <li><strong className="text-slate-800 dark:text-white">Totalizador Imediato:</strong> Acompanhe no topo o valor total previsto versus o total dos itens já marcados no carrinho.</li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };
@@ -6122,7 +6228,6 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
 // ======================== PLANEJAMENTO ANUAL ========================
 export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
-  const [showHelp, setShowHelp] = useState(false);
   const [localBudgets, setLocalBudgets] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [confirmCopyMonthIdx, setConfirmCopyMonthIdx] = useState<number | null>(null);
@@ -6341,34 +6446,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
             Defina e acompanhe seu teto de gastos orçados por categoria em cada mês do ano.
           </p>
         </div>
-
-        {/* Action button to save changes manually */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => commitBudgets()}
-            disabled={saveStatus === 'saving'}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-white rounded-xl shadow-sm transition-all cursor-pointer ${
-              saveStatus === 'saved'
-                ? 'bg-emerald-600 shadow-emerald-500/20'
-                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0'
-            }`}
-          >
-            {saveStatus === 'saved' ? (
-              <>
-                <Check className="h-4 w-4" />
-                <span>Salvo com Sucesso!</span>
-              </>
-            ) : saveStatus === 'saving' ? (
-              <span>Salvando...</span>
-            ) : (
-              <>
-                <Check className="h-4 w-4" />
-                <span>Salvar Orçamento</span>
-              </>
-            )}
-          </button>
-        </div>
       </div>
 
       {/* Centered Year Filter Bar */}
@@ -6434,48 +6511,32 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         </div>
       </div>
 
-      {/* Help Accordion Card */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50">
+      {/* Botão Salvar Orçamento acima do card Matriz Orçamentária no lado esquerdo */}
+      <div className="flex items-center justify-start">
         <button
-          onClick={() => setShowHelp(!showHelp)}
-          className="w-full flex items-center justify-between p-4 text-left font-semibold text-xs sm:text-sm text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none cursor-pointer"
+          type="button"
+          onClick={() => commitBudgets()}
+          disabled={saveStatus === 'saving'}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-white rounded-xl shadow-sm transition-all cursor-pointer ${
+            saveStatus === 'saved'
+              ? 'bg-emerald-600 shadow-emerald-500/20'
+              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0'
+          }`}
         >
-          <div className="flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-blue-500" />
-            <span>Como Funciona a Tabela de Orçamento Anual</span>
-          </div>
-          <span className="text-slate-400">
-            {showHelp ? 'Ocultar Ajuda ▲' : 'Ver Ajuda ▼'}
-          </span>
+          {saveStatus === 'saved' ? (
+            <>
+              <Check className="h-4 w-4" />
+              <span>Salvo com Sucesso!</span>
+            </>
+          ) : saveStatus === 'saving' ? (
+            <span>Salvando...</span>
+          ) : (
+            <>
+              <Check className="h-4 w-4" />
+              <span>Salvar Orçamento</span>
+            </>
+          )}
         </button>
-        {showHelp && (
-          <div className="px-4 pb-4 border-t border-slate-200/60 dark:border-slate-800/60 pt-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-2 animate-fade-in">
-            <p className="font-medium text-slate-700 dark:text-slate-200">
-              Gerencie todo o seu orçamento de despesas em uma única matriz intuitiva:
-            </p>
-            <ul className="list-decimal pl-4 space-y-1.5">
-              <li>
-                <strong className="text-slate-800 dark:text-white">Coluna Fixa de Categorias:</strong> Na lateral esquerda, todas as suas categorias de despesas aparecem fixas. Conforme você cadastra novas categorias no sistema, elas entram automaticamente nesta tabela.
-              </li>
-              <li>
-                <strong className="text-slate-800 dark:text-white">Meses de Jan a Dez:</strong> Cada coluna representa um mês do ano de exercício selecionado. Você pode rolar a tabela na horizontal para ver todos os meses mantendo as categorias sempre visíveis.
-              </li>
-              <li>
-                <strong className="text-slate-800 dark:text-white">Edição Direta:</strong> Digite o valor planejado diretamente na célula do mês e categoria desejada. O valor é salvo automaticamente ao mudar de campo ou clicar no botão Salvar.
-              </li>
-              <li>
-                <strong className="text-slate-800 dark:text-white">Atalhos Práticos:</strong>
-                <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                  <li>Clique em <em>Replicar ano</em> ao passar o mouse sobre a categoria para preencher todos os 12 meses com o mesmo valor.</li>
-                  <li>Clique em <em>Copiar ant.</em> no cabeçalho do mês para clonar os valores do mês anterior com apenas 1 clique.</li>
-                </ul>
-              </li>
-              <li>
-                <strong className="text-slate-800 dark:text-white">Comparação Realizado vs Orçado:</strong> Os valores orçados alimentados nesta tabela são sincronizados imediatamente com o Painel/Dashboard e Relatórios para comparação com seus gastos reais.
-              </li>
-            </ul>
-          </div>
-        )}
       </div>
 
       {/* Main Table Container with Fixed Category Column & Horizontal Scroll */}
@@ -6727,6 +6788,40 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         </div>,
         document.body
       )}
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona a Tabela de Orçamento Anual"
+        accentColor="blue"
+        icon={<Sliders className="h-4 w-4 text-blue-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-200">
+            Gerencie todo o seu orçamento de despesas em uma única matriz intuitiva:
+          </p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li>
+              <strong className="text-slate-800 dark:text-white">Coluna Fixa de Categorias:</strong> Na lateral esquerda, todas as suas categorias de despesas aparecem fixas. Conforme você cadastra novas categorias no sistema, elas entram automaticamente nesta tabela.
+            </li>
+            <li>
+              <strong className="text-slate-800 dark:text-white">Meses de Jan a Dez:</strong> Cada coluna representa um mês do ano de exercício selecionado. Você pode rolar a tabela na horizontal para ver todos os meses mantendo as categorias sempre visíveis.
+            </li>
+            <li>
+              <strong className="text-slate-800 dark:text-white">Edição Direta:</strong> Digite o valor planejado diretamente na célula do mês e categoria desejada. O valor é salvo automaticamente ao mudar de campo ou clicar no botão Salvar.
+            </li>
+            <li>
+              <strong className="text-slate-800 dark:text-white">Atalhos Práticos:</strong>
+              <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                <li>Clique em <em>Replicar ano</em> ao passar o mouse sobre a categoria para preencher todos os 12 meses com o mesmo valor.</li>
+                <li>Clique em <em>Copiar ant.</em> no cabeçalho do mês para clonar os valores do mês anterior com apenas 1 clique.</li>
+              </ul>
+            </li>
+            <li>
+              <strong className="text-slate-800 dark:text-white">Comparação Realizado vs Orçado:</strong> Os valores orçados alimentados nesta tabela são sincronizados imediatamente com o Painel/Dashboard e Relatórios para comparação com seus gastos reais.
+            </li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Investment } from '../types';
+import { HelpCard } from './Pages';
 import {
   TrendingUp,
   DollarSign,
@@ -899,6 +900,22 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
           </div>
         </div>
       )}
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona a Carteira de Investimentos"
+        accentColor="emerald"
+        icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Acompanhe a rentabilidade e alocação de seu patrimônio investido:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li><strong className="text-slate-800 dark:text-white">Novo Investimento:</strong> Cadastre aportes em Renda Fixa, Ações, Fundos Imobiliários, Criptoativos ou Tesouro Direto.</li>
+            <li><strong className="text-slate-800 dark:text-white">Rentabilidade e Saldo:</strong> Acompanhe valor aplicado, rendimentos acumulados e valor atual de mercado.</li>
+            <li><strong className="text-slate-800 dark:text-white">Distribuição por Categoria:</strong> Visualize o percentual investido em cada classe para balancear o risco da carteira.</li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };

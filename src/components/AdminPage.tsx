@@ -253,6 +253,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [editCity, setEditCity] = useState('');
   const [editState, setEditState] = useState('');
   const [editUserMessage, setEditUserMessage] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editSuccess, setEditSuccess] = useState('');
+  const [editError, setEditError] = useState('');
 
   // User block modal state
   const [selectedUserForBlock, setSelectedUserForBlock] = useState<UserProfile | null>(null);
@@ -557,11 +560,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     setEditRole(user.role || 'user');
     setEditPlan(user.subscription?.plan || 'none');
     setEditPassword('');
+    setShowEditPassword(false);
     setEditAddress(user.address || '');
     setEditPhone(user.phone || '');
     setEditCity(user.city || '');
     setEditState(user.state || '');
     setEditUserMessage(user.userMessage || user.mensagemUsuario || '');
+    setEditError('');
+    setEditSuccess('');
     setError('');
     setSuccessMsg('');
     setShowCreateForm(false);
@@ -570,10 +576,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEditError('');
+    setEditSuccess('');
     setError('');
     setSuccessMsg('');
 
     if (!editingUser) return;
+    setSavingEdit(true);
 
     try {
       const res = await fetch('/api/admin/edit-user', {
@@ -599,11 +608,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar alterações.');
 
+      setEditSuccess('Cadastro atualizado com sucesso!');
       setSuccessMsg('Usuário atualizado com sucesso!');
-      setEditingUser(null);
-      fetchUsers();
+      await fetchUsers();
+      setTimeout(() => {
+        setEditingUser(null);
+        setEditSuccess('');
+      }, 900);
     } catch (err: any) {
-      setError(err.message || 'Erro ao atualizar dados do usuário.');
+      setEditError(err.message || 'Erro ao atualizar dados do usuário.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -1425,166 +1440,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
         )}
 
-        {/* Collapsible editing form */}
-        {editingUser && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/10 p-5 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/10 animate-fade-in space-y-4">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
-              <Pencil className="h-4 w-4 text-emerald-500" />
-              Editar Cadastro: {editingUser.name} ({editingUser.email})
-            </h3>
 
-            {error && <p className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">{error}</p>}
-            {successMsg && <p className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 rounded-lg">{successMsg}</p>}
-
-            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nome Completo</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Carlos Eduardo de Souza"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Alterar Senha</label>
-                  <div className="relative mt-1">
-                    <input
-                      type={showEditPassword ? 'text' : 'password'}
-                      placeholder="Deixe em branco para manter a senha atual"
-                      value={editPassword}
-                      onChange={(e) => setEditPassword(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPassword(!showEditPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
-                      title={showEditPassword ? 'Ocultar senha' : 'Exibir senha'}
-                    >
-                      {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Telefone</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: (11) 99999-9999"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Endereço Completo</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Av. Paulista, 1000 - Bela Vista, São Paulo - SP"
-                    value={editAddress}
-                    onChange={(e) => setEditAddress(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Cidade</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: São Paulo"
-                    value={editCity}
-                    onChange={(e) => setEditCity(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Estado</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: SP"
-                    value={editState}
-                    onChange={(e) => setEditState(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nível / Perfil</label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value as 'user' | 'admin')}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  >
-                    <option value="user">Usuário Comum</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Plano de Assinatura</label>
-                  <select
-                    value={editPlan}
-                    onChange={(e) => setEditPlan(e.target.value as any)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                  >
-                    <option value="none">Nenhum (Acessa e escolhe plano)</option>
-                    <option value="inativo">Inativo ⛔ (Bloqueia acesso)</option>
-                    <option value="gratis">Grátis (60d)</option>
-                    <option value="mensal">Mensal</option>
-                    <option value="anual">Anual ✨</option>
-                    <option value="livre">Plano Livre 🔓 (Sem cobrança / Vitalício)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                  Mensagem Usuário (Dados Pessoais / Motivo Exibido no Login se Bloqueado)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Escreva a mensagem personalizada para o usuário..."
-                  value={editUserMessage}
-                  onChange={(e) => setEditUserMessage(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingUser(null);
-                    setError('');
-                    setSuccessMsg('');
-                  }}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-emerald-600 px-5 py-2 font-bold text-white hover:bg-emerald-500 transition-colors"
-                >
-                  Salvar Alterações
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Users list panel */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 w-full">
@@ -1653,6 +1509,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     <th className="pb-3.5 font-bold uppercase tracking-wider">Nível / Perfil</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider">Plano</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider">Data de Cadastro</th>
+                    <th className="pb-3.5 font-bold uppercase tracking-wider">Data de acesso</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider text-center">Status Acesso</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider text-right">Ações</th>
                   </tr>
@@ -1678,7 +1535,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-slate-800 dark:text-slate-200">{user.name}</span>
                                 {isBlocked && (
-                                  <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm">
+                                    <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm">
                                     <Lock className="h-2.5 w-2.5" /> Inativo / Bloqueado
                                   </span>
                                 )}
@@ -1723,6 +1580,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                           {user.createdAt && (
                             <div className="text-[9px] text-slate-400 font-mono">
                               {new Date(user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <div className="font-medium text-slate-700 dark:text-slate-300">
+                            {user.lastAccess
+                              ? new Date(user.lastAccess).toLocaleDateString('pt-BR')
+                              : user.createdAt
+                              ? new Date(user.createdAt).toLocaleDateString('pt-BR')
+                              : '-'}
+                          </div>
+                          {(user.lastAccess || user.createdAt) && (
+                            <div className="text-[9px] text-slate-400 font-mono">
+                              {new Date(user.lastAccess || user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           )}
                         </td>
@@ -1797,34 +1668,53 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       </div>
       )}
 
-      {/* User audit detailed console */}
-      {activeTab === 'gestao' && selectedUserForAudit && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/20 p-6 dark:border-blue-900/60 dark:bg-blue-950/10">
-          <div className="flex items-center justify-between border-b border-blue-100 pb-3 mb-4 dark:border-blue-900/40">
-            <h3 className="text-sm font-bold text-blue-900 dark:text-blue-200">
-              Auditoria de Dados: {selectedUserForAudit.name}
-            </h3>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleOpenBlockModal(selectedUserForAudit)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                  selectedUserForAudit.isBlocked
-                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-sm'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
-                }`}
-              >
-                <Lock className="h-3.5 w-3.5" />
-                <span>{selectedUserForAudit.isBlocked ? 'Usuário Bloqueado' : 'Bloquear / Gerenciar'}</span>
-              </button>
-              <button
-                onClick={() => setSelectedUserForAudit(null)}
-                className="text-blue-500 hover:text-blue-700 text-xs font-bold"
-              >
-                Fechar Visualização ✕
-              </button>
+      {/* Modal Popup para Visualização e Auditoria de Dados do Usuário */}
+      {selectedUserForAudit && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={() => setSelectedUserForAudit(null)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-4xl w-full shadow-2xl space-y-5 cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                  <Eye className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-800 dark:text-white">
+                    Visualização e Auditoria de Dados: {selectedUserForAudit.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {selectedUserForAudit.email}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenBlockModal(selectedUserForAudit)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    selectedUserForAudit.isBlocked
+                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-sm'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
+                  }`}
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  <span>{selectedUserForAudit.isBlocked ? 'Usuário Bloqueado' : 'Bloquear / Gerenciar'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForAudit(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                  title="Fechar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-          </div>
 
           {/* User profile details layout */}
           <div className="grid gap-3 sm:grid-cols-3 mb-6 text-xs text-slate-600 dark:text-slate-300">
@@ -2024,7 +1914,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               </div>
             </div>
           )}
+
+          <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setSelectedUserForAudit(null)}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+            >
+              Fechar Visualização
+            </button>
+          </div>
         </div>
+      </div>
       )}
 
       {activeTab === 'config-valores' && (
@@ -2817,7 +2718,221 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
         </div>
       </div>
-      </div>
+      )}
+
+      {/* Modal Popup para Edição de Cadastro de Usuário */}
+      {editingUser && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={() => {
+            if (!savingEdit) {
+              setEditingUser(null);
+              setEditError('');
+              setEditSuccess('');
+            }
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                  <Pencil className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-800 dark:text-white">
+                    Editar Cadastro do Usuário
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {editingUser.name} ({editingUser.email})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingEdit) {
+                    setEditingUser(null);
+                    setEditError('');
+                    setEditSuccess('');
+                  }
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 text-xs font-semibold text-rose-800 bg-rose-50 dark:bg-rose-950/20 dark:text-rose-300 rounded-xl border border-rose-100 dark:border-rose-900/30 flex items-center gap-2">
+                <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            {editSuccess && (
+              <div className="p-3 text-xs font-semibold text-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-300 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>{editSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nome Completo</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Carlos Eduardo de Souza"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Alterar Senha</label>
+                  <div className="relative mt-1">
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      placeholder="Deixe em branco para manter a senha atual"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      title={showEditPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    >
+                      {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Telefone</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: (11) 99999-9999"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Endereço Completo</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Av. Paulista, 1000 - Bela Vista, São Paulo - SP"
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Cidade</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: São Paulo"
+                    value={editCity}
+                    onChange={(e) => setEditCity(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Estado</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: SP"
+                    value={editState}
+                    onChange={(e) => setEditState(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nível / Perfil</label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as 'user' | 'admin')}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  >
+                    <option value="user">Usuário Comum</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Plano de Assinatura</label>
+                  <select
+                    value={editPlan}
+                    onChange={(e) => setEditPlan(e.target.value as any)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  >
+                    <option value="none">Nenhum (Acessa e escolhe plano)</option>
+                    <option value="inativo">Inativo ⛔ (Bloqueia acesso)</option>
+                    <option value="gratis">Grátis (60d)</option>
+                    <option value="mensal">Mensal</option>
+                    <option value="anual">Anual ✨</option>
+                    <option value="livre">Plano Livre 🔓 (Sem cobrança / Vitalício)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Mensagem Usuário (Dados Pessoais / Motivo Exibido no Login se Bloqueado)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Escreva a mensagem personalizada para o usuário..."
+                  value={editUserMessage}
+                  onChange={(e) => setEditUserMessage(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50"
+                >
+                  {savingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!savingEdit) {
+                      setEditingUser(null);
+                      setEditError('');
+                      setEditSuccess('');
+                    }
+                  }}
+                  disabled={savingEdit}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Custom Confirmation Popup for User Deletion */}
@@ -2830,14 +2945,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
-              <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-xl">
-                <Trash2 className="h-6 w-6" />
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+                <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-xl">
+                  <Trash2 className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">Confirmar Exclusão de Registro</h3>
+                  <p className="text-xs text-slate-500">Ação irreversível de segurança</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">Confirmar Exclusão de Registro</h3>
-                <p className="text-xs text-slate-500">Ação irreversível de segurança</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => !deletingUserLoading && setUserToDelete(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
             <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2">

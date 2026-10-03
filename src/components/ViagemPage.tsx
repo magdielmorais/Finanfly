@@ -21,6 +21,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { UserData, Trip, TripExpense } from '../types';
+import { HelpCard } from './Pages';
 
 interface ViagemPageProps {
   userData: UserData;
@@ -1196,6 +1197,22 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
           </div>
         )}
       </AnimatePresence>
+
+      {/* Help Card como último conteúdo da página */}
+      <HelpCard
+        title="Como Funciona o Planejamento de Viagens"
+        accentColor="blue"
+        icon={<Plane className="h-4 w-4 text-blue-500" />}
+      >
+        <div className="space-y-2">
+          <p className="font-medium text-slate-700 dark:text-slate-300">Organize os custos e controle o orçamento de cada viagem:</p>
+          <ul className="list-decimal pl-4 space-y-1.5">
+            <li><strong className="text-slate-800 dark:text-white">Criar Viagem:</strong> Cadastre um novo roteiro definindo o nome do destino para gerenciar os custos separadamente.</li>
+            <li><strong className="text-slate-800 dark:text-white">Janela Suspensa da Viagem:</strong> Abra os detalhes da viagem para lançar despesas de passagens, hospedagem, alimentação e passeios.</li>
+            <li><strong className="text-slate-800 dark:text-white">Controle de Pagamento:</strong> Alterne de forma rápida se a despesa já está Paga ou Não Paga, mantendo o controle do orçamento durante a viagem.</li>
+          </ul>
+        </div>
+      </HelpCard>
     </div>
   );
 };

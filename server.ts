@@ -2039,6 +2039,7 @@ async function getAllUsersList(): Promise<any[]> {
               freePlanUsed: false,
               approved: false
             }),
+            lastAccess: u.last_access || u.lastAccess || prof?.last_access || prof?.lastAccess || localU?.lastAccess || localUD?.lastUpdated || null,
             createdAt: u.created_at || u.createdAt || new Date().toISOString()
           });
         }
@@ -2061,7 +2062,8 @@ async function getAllUsersList(): Promise<any[]> {
               ...localU,
               userMessage: userMsg,
               mensagemUsuario: userMsg,
-              isBlocked: !!(localU.isBlocked || localU.blocked || localU.subscription?.plan === 'inativo')
+              isBlocked: !!(localU.isBlocked || localU.blocked || localU.subscription?.plan === 'inativo'),
+              lastAccess: localU.lastAccess || localUD?.lastUpdated || null
             });
           }
         }
@@ -2078,10 +2080,11 @@ async function getAllUsersList(): Promise<any[]> {
   return Object.values(localDb.users).map((user: any) => {
     const { password: _, ...rest } = user;
     const lower = (user.email || '').toLowerCase().trim();
+    const localUD = localDb.userData ? localDb.userData[lower] : undefined;
     const msg = (messagesMap[lower] !== undefined && messagesMap[lower] !== '')
       ? messagesMap[lower]
       : (user.userMessage || user.mensagemUsuario || '');
-    return { ...rest, userMessage: msg, mensagemUsuario: msg };
+    return { ...rest, userMessage: msg, mensagemUsuario: msg, lastAccess: user.lastAccess || localUD?.lastUpdated || null };
   });
 }
 
