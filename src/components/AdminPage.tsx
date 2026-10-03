@@ -80,7 +80,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         loading: false,
         active: false,
         url: '',
-        message: 'Erro ao verificar conexão com o Supabase.',
+        message: 'Erro ao verificar conexo com o Supabase.',
         schema: '',
         differentialSql: '',
         fullSafeSql: '',
@@ -184,7 +184,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           setFreeTrialDaysInput(String(data.days));
         }
       })
-      .catch(err => console.error('Erro ao carregar limite grátis no admin:', err));
+      .catch(err => console.error('Erro ao carregar limite grtis no admin:', err));
 
     fetch('/api/notices')
       .then(res => res.json())
@@ -317,8 +317,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       list.push({
         type: 'Receita',
         typeBadge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-        description: inc.description || 'Sem descrição',
-        details: [inc.category ? `Categoria: ${inc.category}` : null, inc.paymentType ? `Tipo: ${inc.paymentType}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
+        description: inc.description || 'Sem descrio',
+        details: [inc.category ? `Categoria: ${inc.category}` : null, inc.paymentType ? `Tipo: ${inc.paymentType}` : null].filter(Boolean).join('  ') || 'Sem detalhes',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -331,8 +331,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       list.push({
         type: 'Despesa',
         typeBadge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800',
-        description: exp.description || 'Sem descrição',
-        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Tipo: ${exp.paymentType}` : null, exp.classification ? `Classificação: ${exp.classification}` : null].filter(Boolean).join(' • ') || 'Sem detalhes',
+        description: exp.description || 'Sem descrio',
+        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Tipo: ${exp.paymentType}` : null, exp.classification ? `Classificao: ${exp.classification}` : null].filter(Boolean).join('  ') || 'Sem detalhes',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -346,7 +346,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         type: 'Investimento',
         typeBadge: 'bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800',
         description: inv.name || 'Sem nome',
-        details: [inv.type ? `Tipo: ${inv.type}` : null, inv.status ? `Status: ${inv.status}` : null].filter(Boolean).join(' • ') || 'Investimento',
+        details: [inv.type ? `Tipo: ${inv.type}` : null, inv.status ? `Status: ${inv.status}` : null].filter(Boolean).join('  ') || 'Investimento',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -399,10 +399,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       const d = plan.deadline || '';
       const ts = d ? new Date(d).getTime() : 0;
       list.push({
-        type: 'Plano de Ação',
+        type: 'Plano de Ao',
         typeBadge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
-        description: plan.description || 'Plano de Ação',
-        details: plan.target ? `Alvo: ${plan.target}` : 'Ação',
+        description: plan.description || 'Plano de Ao',
+        details: plan.target ? `Alvo: ${plan.target}` : 'Ao',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -469,10 +469,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         headers: { 'x-user-email': adminUser.email }
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao carregar usuários.');
+      if (!res.ok) throw new Error(data.error || 'Erro ao carregar usurios.');
       setUsers(data.users || []);
     } catch (err: any) {
-      setError(err.message || 'Erro ao carregar lista de usuários.');
+      setError(err.message || 'Erro ao carregar lista de usurios.');
     } finally {
       setLoading(false);
     }
@@ -498,7 +498,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       setFoundPassword(data.password);
       setSuccessMsg(`Senha localizada com sucesso!`);
     } catch (err: any) {
-      setError(err.message || 'Erro de conexão.');
+      setError(err.message || 'Erro de conexo.');
     }
   };
 
@@ -518,9 +518,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
       setUsers(prev => prev.filter(u => u.email !== targetEmail));
       setUserToDelete(null);
-      alert('Usuário e todos os seus dados foram excluídos permanentemente com sucesso!');
+      alert('Usuário e todos os seus dados foram excludos permanentemente com sucesso!');
     } catch (err: any) {
-      alert(err.message || 'Erro ao tentar deletar o usuário.');
+      alert(err.message || 'Erro ao tentar deletar o usurio.');
     } finally {
       setDeletingUserLoading(false);
     }
@@ -529,7 +529,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const handleSendPasswordEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmailForReminder) {
-      setEmailReminderError('Por favor, selecione um usuário.');
+      setEmailReminderError('Por favor, selecione um usurio.');
       return;
     }
     setSendingEmail(true);
@@ -616,7 +616,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         setEditSuccess('');
       }, 900);
     } catch (err: any) {
-      setEditError(err.message || 'Erro ao atualizar dados do usuário.');
+      setEditError(err.message || 'Erro ao atualizar dados do usurio.');
     } finally {
       setSavingEdit(false);
     }
@@ -729,7 +729,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       // Refresh user list
       fetchUsers();
     } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar aprovação.');
+      alert(err.message || 'Erro ao atualizar aprovao.');
     }
   };
 
@@ -739,7 +739,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     setSuccessMsg('');
 
     if (!newEmail || !newName) {
-      setError('E-mail e Nome Completo são obrigatórios.');
+      setError('E-mail e Nome Completo so obrigatrios.');
       return;
     }
 
@@ -759,7 +759,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao registrar usuário.');
+      if (!res.ok) throw new Error(data.error || 'Erro ao registrar usurio.');
 
       setSuccessMsg('Usuário criado com sucesso!');
       setNewEmail('');
@@ -771,7 +771,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       // Refresh user list
       fetchUsers();
     } catch (err: any) {
-      setError(err.message || 'Erro ao criar usuário.');
+      setError(err.message || 'Erro ao criar usurio.');
     }
   };
 
@@ -926,7 +926,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar valores.');
-      setPricesSuccess('Valores salvos e sincronizados com a página de assinaturas com sucesso!');
+      setPricesSuccess('Valores salvos e sincronizados com a pgina de assinaturas com sucesso!');
       if (data.prices) {
         setPricesDePor(data.prices);
         if (typeof window !== 'undefined') {
@@ -1011,7 +1011,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             Painel Geral do Administrador
           </span>
           <h2 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
-            Gestão de Contas e Assinaturas
+            Gesto de Contas e Assinaturas
           </h2>
         </div>
         <button
@@ -1034,7 +1034,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <Users className="h-4 w-4" />
-          Gestão de Usuários
+          Gesto de Usuários
         </button>
         <button
           onClick={() => setActiveTab('config-valores')}
@@ -1045,7 +1045,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <Settings className="h-4 w-4" />
-          Configuração de Valores
+          Configurao de Valores
         </button>
         <button
           onClick={() => setActiveTab('limite-uso-gratuito')}
@@ -1078,7 +1078,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <FileText className="h-4 w-4" />
-          Relatórios
+          Relatrios
         </button>
         <button
           onClick={() => setActiveTab('conexao')}
@@ -1089,7 +1089,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <Database className="h-4 w-4" />
-          Conexão
+          Conexo
         </button>
       </div>
 
@@ -1136,7 +1136,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
           <div className="mt-2.5">
             <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400 font-mono">{stats.pendingApproval}</h3>
-            <p className="mt-1 text-[10px] text-slate-400">Aguardando liberação manual</p>
+            <p className="mt-1 text-[10px] text-slate-400">Aguardando liberao manual</p>
           </div>
         </div>
       </div>
@@ -1150,7 +1150,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <h3 className="text-sm font-bold text-slate-800 dark:text-white">
               Usuários Cadastrados & Aprovações Manuais
             </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">Gerencie os acessos, permissões e planos dos usuários da plataforma.</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Gerencie os acessos, permisses e planos dos usurios da plataforma.</p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full">
             <button
@@ -1193,7 +1193,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors w-full sm:w-auto"
             >
               <Mail className="h-4 w-4 text-violet-500" />
-              {showEmailReminderForm ? 'Fechar Lembrar E-mail' : 'Lembrar senha usuário e-mail'}
+              {showEmailReminderForm ? 'Fechar Lembrar E-mail' : 'Lembrar senha usurio e-mail'}
             </button>
           </div>
         </div>
@@ -1203,7 +1203,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           <div className="rounded-xl border border-violet-200 bg-violet-50/10 p-5 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/10 animate-fade-in space-y-4">
             <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
               <Mail className="h-4 w-4 text-violet-500" />
-              Lembrar senha usuário e-mail
+              Lembrar senha usurio e-mail
             </h3>
 
             {emailReminderError && <p className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">{emailReminderError}</p>}
@@ -1222,7 +1222,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     }}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-medium"
                   >
-                    <option value="">-- Selecione o usuário para enviar a senha por e-mail --</option>
+                    <option value="">-- Selecione o usurio para enviar a senha por e-mail --</option>
                     {users.map((u) => (
                       <option key={u.email} value={u.email}>
                         {u.name} ({u.email})
@@ -1282,7 +1282,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     }}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-medium"
                   >
-                    <option value="">-- Escolha um usuário para consultar a senha --</option>
+                    <option value="">-- Escolha um usurio para consultar a senha --</option>
                     {users.map((u) => (
                       <option key={u.email} value={u.email}>
                         {u.name} ({u.email})
@@ -1368,11 +1368,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Senha Provisória</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Senha Provisria</label>
                   <div className="relative mt-1">
                     <input
                       type={showNewPassword ? 'text' : 'password'}
-                      placeholder="Padrão: user123"
+                      placeholder="Padro: user123"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -1389,7 +1389,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nível</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nvel</label>
                   <select
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value as 'user' | 'admin')}
@@ -1408,11 +1408,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="none">Nenhum (Acessa e escolhe plano)</option>
-                    <option value="inativo">Inativo ⛔ (Bloqueado)</option>
-                    <option value="gratis">Grátis (60d)</option>
+                    <option value="inativo">Inativo  (Bloqueado)</option>
+                    <option value="gratis">Grtis (60d)</option>
                     <option value="mensal">Mensal</option>
                     <option value="anual">Anual</option>
-                    <option value="livre">Plano Livre 🔓 (Sem cobrança / Vitalício)</option>
+                    <option value="livre">Plano Livre  (Sem cobrana / Vitalcio)</option>
                   </select>
                 </div>
               </div>
@@ -1469,12 +1469,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 className="w-full sm:w-auto rounded-lg border border-slate-200/50 bg-slate-50 px-3 py-1.5 text-xs text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white font-medium"
               >
                 <option value="all">Todos os Status</option>
-                <option value="approved">Aprovados / Ativos ✅</option>
-                <option value="none">Nenhum (Pendente de Plano) ⚠️</option>
-                <option value="pending">Pendentes de Aprovação ⏳</option>
-                <option value="expired">Planos Expirados ⌛</option>
-                <option value="blocked">Inativos / Bloqueados ⛔</option>
-                <option value="admin">Administradores 🛡️</option>
+                <option value="approved">Aprovados / Ativos </option>
+                <option value="none">Nenhum (Pendente de Plano) </option>
+                <option value="pending">Pendentes de Aprovao </option>
+                <option value="expired">Planos Expirados </option>
+                <option value="blocked">Inativos / Bloqueados </option>
+                <option value="admin">Administradores </option>
               </select>
 
               {(searchQuery !== '' || statusFilter !== 'all') && (
@@ -1495,23 +1495,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
 
           {loading ? (
-            <div className="py-12 text-center text-xs text-slate-400">Carregando usuários...</div>
+            <div className="py-12 text-center text-xs text-slate-400">Carregando usurios...</div>
           ) : users.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-400">Nenhum usuário cadastrado.</div>
+            <div className="py-12 text-center text-xs text-slate-400">Nenhum usurio cadastrado.</div>
           ) : filteredUsers.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-400 font-medium">Nenhum usuário corresponde aos filtros aplicados.</div>
+            <div className="py-12 text-center text-xs text-slate-400 font-medium">Nenhum usurio corresponde aos filtros aplicados.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
                     <th className="pb-3.5 font-bold uppercase tracking-wider">Usuário</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider">Nível / Perfil</th>
+                    <th className="pb-3.5 font-bold uppercase tracking-wider">Nvel / Perfil</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider">Plano</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider">Data de Cadastro</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider">Data de acesso</th>
                     <th className="pb-3.5 font-bold uppercase tracking-wider text-center">Status Acesso</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider text-right">Ações</th>
+                    <th className="pb-3.5 font-bold uppercase tracking-wider text-right">Aes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -1555,12 +1555,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                         </td>
                         <td className="py-3">
                           <div className="font-semibold text-slate-700 dark:text-slate-300">
-                            {plan === 'inativo' && <span className="text-rose-600 dark:text-rose-400">Inativo ⛔</span>}
-                            {plan === 'none' && <span className="text-amber-600 dark:text-amber-400">Nenhum (Pendente) ⚠️</span>}
-                            {plan === 'gratis' && 'Grátis (60d)'}
+                            {plan === 'inativo' && <span className="text-rose-600 dark:text-rose-400">Inativo </span>}
+                            {plan === 'none' && <span className="text-amber-600 dark:text-amber-400">Nenhum (Pendente) </span>}
+                            {plan === 'gratis' && 'Grtis (60d)'}
                             {plan === 'mensal' && 'Mensal'}
-                            {plan === 'anual' && 'Anual ✨'}
-                            {plan === 'livre' && 'Livre 🔓'}
+                            {plan === 'anual' && 'Anual '}
+                            {plan === 'livre' && 'Livre '}
                           </div>
                           {plan !== 'livre' && plan !== 'inativo' && plan !== 'none' && user.subscription?.validUntil && (
                             <div className="text-[9px] text-slate-400 font-mono">
@@ -1569,7 +1569,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                           )}
                           {plan === 'livre' && (
                             <div className="text-[9px] text-emerald-500 font-semibold">
-                              Acesso Vitalício
+                              Acesso Vitalcio
                             </div>
                           )}
                         </td>
@@ -1611,7 +1611,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                                    : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40'
                               }`}
                             >
-                              {isApproved ? 'Aprovado ✓' : 'Aprovar manual ➜'}
+                              {isApproved ? 'Aprovado ' : 'Aprovar manual '}
                             </button>
                           )}
                         </td>
@@ -1631,7 +1631,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                             </button>
                             <button
                               onClick={() => handleInspectUser(user)}
-                              title="Auditar dados do usuário"
+                              title="Auditar dados do usurio"
                               aria-label="Auditar"
                               className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors"
                             >
@@ -1639,7 +1639,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                             </button>
                             <button
                               onClick={() => handleEditClick(user)}
-                              title="Editar cadastro do usuário"
+                              title="Editar cadastro do usurio"
                               aria-label="Editar"
                               className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 transition-colors"
                             >
@@ -1648,7 +1648,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                             {user.email.toLowerCase().trim() !== adminUser.email.toLowerCase().trim() && (
                               <button
                                 onClick={() => setUserToDelete(user)}
-                                title="Excluir usuário e todos os seus dados"
+                                title="Excluir usurio e todos os seus dados"
                                 aria-label="Excluir"
                                 className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
                               >
@@ -1668,7 +1668,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       </div>
       )}
 
-      {/* Modal Popup para Visualização e Auditoria de Dados do Usuário */}
+      {/* Modal Popup para Visualizao e Auditoria de Dados do Usuário */}
       {selectedUserForAudit && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
@@ -1685,7 +1685,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm sm:text-base text-slate-800 dark:text-white">
-                    Visualização e Auditoria de Dados: {selectedUserForAudit.name}
+                    Visualizao e Auditoria de Dados: {selectedUserForAudit.name}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {selectedUserForAudit.email}
@@ -1724,12 +1724,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </div>
             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
               <Phone className="h-4 w-4 text-emerald-500 shrink-0" />
-              <span>Telefone: <strong>{selectedUserForAudit.phone || 'Não cadastrado'}</strong></span>
+              <span>Telefone: <strong>{selectedUserForAudit.phone || 'No cadastrado'}</strong></span>
             </div>
             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
               <Clock className="h-4 w-4 text-purple-500 shrink-0" />
               <span>
-                Último Acesso:{' '}
+                ltimo Acesso:{' '}
                 <strong>
                   {auditData?.lastAccess
                     ? new Date(auditData.lastAccess).toLocaleString('pt-BR', {
@@ -1741,7 +1741,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       })
                     : selectedUserForAudit.createdAt
                     ? new Date(selectedUserForAudit.createdAt).toLocaleDateString('pt-BR')
-                    : 'Não registrado'}
+                    : 'No registrado'}
                 </strong>
               </span>
             </div>
@@ -1749,28 +1749,28 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <MapPin className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
               <div className="space-y-0.5 text-slate-700 dark:text-slate-300">
                 <div>
-                  Endereço: <strong className="text-slate-800 dark:text-white">{selectedUserForAudit.address || 'Não informado'}</strong>
+                  Endereo: <strong className="text-slate-800 dark:text-white">{selectedUserForAudit.address || 'No informado'}</strong>
                 </div>
                 {(selectedUserForAudit.city || selectedUserForAudit.state) && (
                   <div className="text-[11px] text-slate-500">
-                    Cidade/Estado: <strong className="text-slate-700 dark:text-slate-200">{selectedUserForAudit.city || 'Não informado'} - {selectedUserForAudit.state || 'Não informado'}</strong>
+                    Cidade/Estado: <strong className="text-slate-700 dark:text-slate-200">{selectedUserForAudit.city || 'No informado'} - {selectedUserForAudit.state || 'No informado'}</strong>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Campo Mensagem Usuário (Atribuído aos dados pessoais do usuário, visível e editável exclusivamente pelo administrador na auditoria) */}
+          {/* Campo Mensagem Usuário (Atribudo aos dados pessoais do usurio, visvel e editvel exclusivamente pelo administrador na auditoria) */}
           <div className="mb-6 rounded-xl border border-blue-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
-                  mensagem usuário
+                  mensagem usurio
                 </h4>
               </div>
               <span className="text-[11px] text-slate-400 italic">
-                Anotação interna de dados pessoais (visível apenas no painel do administrador)
+                Anotao interna de dados pessoais (visvel apenas no painel do administrador)
               </span>
             </div>
 
@@ -1779,7 +1779,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 rows={3}
                 value={auditUserMessage}
                 onChange={(e) => setAuditUserMessage(e.target.value)}
-                placeholder="Escreva aqui a mensagem do usuário ou anotações internas..."
+                placeholder="Escreva aqui a mensagem do usurio ou anotações internas..."
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
               />
             </div>
@@ -1812,29 +1812,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
 
           {loadingAudit ? (
-            <p className="text-center text-xs text-slate-400 py-6">Buscando auditoria de lançamentos do usuário...</p>
+            <p className="text-center text-xs text-slate-400 py-6">Buscando auditoria de lanamentos do usurio...</p>
           ) : !auditData ? (
-            <p className="text-center text-xs text-slate-400 py-6">Nenhum registro para este usuário.</p>
+            <p className="text-center text-xs text-slate-400 py-6">Nenhum registro para este usurio.</p>
           ) : (
             <div className="space-y-6">
-              {/* Status de lançamento de dados */}
+              {/* Status de lanamento de dados */}
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
-                      Status de Lançamento de Dados
+                      Status de Lanamento de Dados
                     </h4>
                   </div>
                   {auditAnalysis.totalEntriesCount > 0 ? (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 w-fit">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Realizando Lançamentos Ativamente
+                      Realizando Lanamentos Ativamente
                     </span>
                   ) : (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1.5 w-fit">
                       <XCircle className="h-3.5 w-3.5 text-amber-600" />
-                      Sem Lançamentos Cadastrados
+                      Sem Lanamentos Cadastrados
                     </span>
                   )}
                 </div>
@@ -1842,7 +1842,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 text-xs text-slate-600 dark:text-slate-300">
                   <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Registrado</span>
-                    <strong className="text-sm font-extrabold text-slate-800 dark:text-white">{auditAnalysis.totalEntriesCount} lançamentos</strong>
+                    <strong className="text-sm font-extrabold text-slate-800 dark:text-white">{auditAnalysis.totalEntriesCount} lanamentos</strong>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 uppercase font-bold block">Receitas / Despesas</span>
@@ -1853,27 +1853,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.investmentsCount} cadastros</strong>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Outros Módulos</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Outros Mdulos</span>
                     <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.tripsCount + auditAnalysis.wishesCount + auditAnalysis.shoppingCount + auditAnalysis.plansCount} registros</strong>
                   </div>
                 </div>
               </div>
 
-              {/* Breve histórico dos últimos 30 tipos de lançamento (sem valores) */}
+              {/* Breve histórico dos ltimos 30 tipos de lanamento (sem valores) */}
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                 <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
                   <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
                     <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    Últimos Lançamentos (Até 30 itens • Sem Exibição de Valores)
+                    ltimos Lanamentos (At 30 itens  Sem Exibio de Valores)
                   </h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Histórico com os tipos, descrições e categorias das movimentações recentes do usuário.
+                    Histrico com os tipos, descries e categorias das movimentações recentes do usurio.
                   </p>
                 </div>
 
                 {auditAnalysis.recent30AuditEntries.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-6">
-                    Nenhum lançamento foi realizado por este usuário até o momento.
+                    Nenhum lanamento foi realizado por este usurio at o momento.
                   </p>
                 ) : (
                   <div className="overflow-x-auto max-h-80 overflow-y-auto">
@@ -1881,8 +1881,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <thead>
                         <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase text-slate-400 bg-slate-50/50 dark:bg-slate-800/30">
                           <th className="py-2 px-3 w-10">#</th>
-                          <th className="py-2 px-3">Tipo / Módulo</th>
-                          <th className="py-2 px-3">Descrição do Lançamento</th>
+                          <th className="py-2 px-3">Tipo / Mdulo</th>
+                          <th className="py-2 px-3">Descrio do Lanamento</th>
                           <th className="py-2 px-3">Categoria / Detalhes</th>
                           <th className="py-2 px-3 text-right">Data</th>
                         </tr>
@@ -1921,7 +1921,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               onClick={() => setSelectedUserForAudit(null)}
               className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
             >
-              Fechar Visualização
+              Fechar Visualizao
             </button>
           </div>
         </div>
@@ -1933,10 +1933,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-emerald-500" />
-              Configuração de Valores dos Planos de Assinatura
+              Configurao de Valores dos Planos de Assinatura
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Defina os valores "De" (original/riscado) e "Por" (atual/cobrado) para os planos mensal e anual. Esses valores serão exibidos na tela de contratação.
+              Defina os valores "De" (original/riscado) e "Por" (atual/cobrado) para os planos mensal e anual. Esses valores sero exibidos na tela de contratao.
             </p>
           </div>
 
@@ -2072,7 +2072,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               Limite de Uso Gratuito
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Defina a quantidade de dias que o usuário terá de período de experiência (trial) ao selecionar o plano gratuito no sistema.
+              Defina a quantidade de dias que o usurio ter de perodo de experincia (trial) ao selecionar o plano gratuito no sistema.
             </p>
           </div>
 
@@ -2092,7 +2092,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <div className="max-w-md p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
               <div>
                 <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                  Dias de Período de Experiência
+                  Dias de Perodo de Experincia
                 </label>
                 <div className="relative rounded-lg shadow-sm">
                   <input
@@ -2106,7 +2106,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   />
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                  Novos usuários ou alterações manuais para o plano gratuito usarão este período de tempo para definir a data limite de expiração da assinatura.
+                  Novos usurios ou alterações manuais para o plano gratuito usaro este perodo de tempo para definir a data limite de expirao da assinatura.
                 </p>
               </div>
             </div>
@@ -2117,7 +2117,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 disabled={freeTrialLoading}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
               >
-                {freeTrialLoading ? 'Salvando...' : 'Salvar Configuração'}
+                {freeTrialLoading ? 'Salvando...' : 'Salvar Configurao'}
               </button>
             </div>
           </form>
@@ -2129,10 +2129,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
               <Bell className="h-5 w-5 text-amber-500" />
-              Configuração de Avisos e Cards da Página Inicial
+              Configurao de Avisos e Cards da Pgina Inicial
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Personalize o título e as mensagens explicativas dos cards e avisos exibidos na página inicial para todos os usuários do sistema.
+              Personalize o ttulo e as mensagens explicativas dos cards e avisos exibidos na pgina inicial para todos os usurios do sistema.
             </p>
           </div>
 
@@ -2149,12 +2149,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           )}
 
           <form onSubmit={handleSaveNotices} className="space-y-8 text-xs">
-            {/* Seção 1: Cards Principais da Página Inicial */}
+            {/* Seo 1: Cards Principais da Pgina Inicial */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
                 <span className="h-2 w-2 rounded-full bg-blue-500" />
                 <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  Cards Principais da Página Inicial
+                  Cards Principais da Pgina Inicial
                 </h4>
               </div>
 
@@ -2170,7 +2170,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Título do Card
+                        Ttulo do Card
                       </label>
                       <input
                         type="text"
@@ -2207,7 +2207,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Título do Card
+                        Ttulo do Card
                       </label>
                       <input
                         type="text"
@@ -2244,7 +2244,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Título do Card
+                        Ttulo do Card
                       </label>
                       <input
                         type="text"
@@ -2272,12 +2272,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               </div>
             </div>
 
-            {/* Seção 2: Dicas para Saúde Financeira */}
+            {/* Seo 2: Dicas para Sade Financeira */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  Cards de Dicas para Saúde Financeira
+                  Cards de Dicas para Sade Financeira
                 </h4>
               </div>
 
@@ -2293,7 +2293,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Título do Card
+                        Ttulo do Card
                       </label>
                       <input
                         type="text"
@@ -2330,7 +2330,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Título do Card
+                        Ttulo do Card
                       </label>
                       <input
                         type="text"
@@ -2375,10 +2375,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-6">
           <div>
             <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
-              Relatório de Distribuição de Usuários
+              Relatrio de Distribuio de Usuários
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Visualize a distribuição demográfica dos usuários cadastrados por Estado e Cidade.
+              Visualize a distribuio demogrfica dos usurios cadastrados por Estado e Cidade.
             </p>
           </div>
 
@@ -2409,7 +2409,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       setReportCityFilter('all');
                     }}
                     className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 hover:underline"
-                    title="Limpar filtros relatórios"
+                    title="Limpar filtros relatrios"
                   >
                     <Trash2 className="h-3 w-3" />
                     <span>Limpar</span>
@@ -2431,7 +2431,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <div className="flex flex-col justify-end bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-3 rounded-lg">
               <span className="text-[10px] font-bold uppercase text-blue-500">Total de Usuários</span>
               <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">
-                {filteredReportUsers.length} {filteredReportUsers.length === 1 ? 'usuário' : 'usuários'}
+                {filteredReportUsers.length} {filteredReportUsers.length === 1 ? 'usurio' : 'usurios'}
               </div>
             </div>
           </div>
@@ -2452,7 +2452,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 {filteredReportUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                      Nenhum usuário cadastrado corresponde aos filtros selecionados.
+                      Nenhum usurio cadastrado corresponde aos filtros selecionados.
                     </td>
                   </tr>
                 ) : (
@@ -2490,7 +2490,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       )}
 
-      {/* Tab: Conexão (Auditoria e Sincronização Segura do Supabase e Catálogo de Tabelas) */}
+      {/* Tab: Conexo (Auditoria e Sincronizao Segura do Supabase e Catlogo de Tabelas) */}
       {activeTab === 'conexao' && (
         <div className="space-y-6 animate-fade-in">
           {/* Supabase Connection Verification & Real-time Database Audit Card */}
@@ -2509,7 +2509,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-base font-bold text-slate-800 dark:text-white tracking-wide">
-                  Auditoria e Sincronização Segura do Supabase
+                  Auditoria e Sincronizao Segura do Supabase
                 </span>
                 {supabaseStatus.loading ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-500/20">
@@ -2530,11 +2530,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
                       : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200 dark:border-amber-800/40'
                   }`}>
-                    {(supabaseStatus.missingCount ?? 0) === 0 ? '✓ 21/21 Tabelas 100% Sincronizadas' : `⚠️ ${supabaseStatus.missingCount} tabela(s) pendente(s)`}
+                    {(supabaseStatus.missingCount ?? 0) === 0 ? ' 21/21 Tabelas 100% Sincronizadas' : ` ${supabaseStatus.missingCount} tabela(s) pendente(s)`}
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300 px-2 py-0.5 text-[10px] font-semibold border border-blue-200 dark:border-blue-900/40">
-                  🛡️ 100% Não-Destrutivo (Zero perda de dados)
+                   100% No-Destrutivo (Zero perda de dados)
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-snug">
@@ -2568,7 +2568,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 space-y-1.5">
                 <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>{supabaseStatus.missingCount} tabela(s) pendente(s) de criação no Supabase:</span>
+                  <span>{supabaseStatus.missingCount} tabela(s) pendente(s) de criao no Supabase:</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   {supabaseStatus.missingTables?.map(t => (
@@ -2578,14 +2578,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   ))}
                 </div>
                 <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed pt-1">
-                  O script diferencial abaixo cria <strong>apenas</strong> essas tabelas e adiciona colunas faltantes. Ele <strong>não usa DROP TABLE</strong> e preserva intactos todos os usuários e dados já existentes.
+                  O script diferencial abaixo cria <strong>apenas</strong> essas tabelas e adiciona colunas faltantes. Ele <strong>no usa DROP TABLE</strong> e preserva intactos todos os usurios e dados j existentes.
                 </p>
               </div>
             ) : (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>
-                  <strong>Perfeito!</strong> Todas as 21 tabelas do sistema estão presentes no Supabase e os dados dos usuários continuam 100% seguros e preservados.
+                  <strong>Perfeito!</strong> Todas as 21 tabelas do sistema esto presentes no Supabase e os dados dos usurios continuam 100% seguros e preservados.
                 </span>
               </div>
             )}
@@ -2638,13 +2638,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 text-xs font-semibold transition-all shadow-sm active:scale-95"
               >
                 {copiedSchema ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copiedSchema ? 'Copiado para Área de Transferência!' : 'Copiar Script SQL'}</span>
+                <span>{copiedSchema ? 'Copiado para rea de Transferncia!' : 'Copiar Script SQL'}</span>
               </button>
             </div>
           </div>
 
           <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
-            💡 <strong>Instrução:</strong> Abra o console do seu <strong>Supabase</strong>, vá no menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>RUN</strong>. Ele aplicará as alterações com total segurança sem resetar ou apagar dados de usuários já existentes.
+             <strong>Instruo:</strong> Abra o console do seu <strong>Supabase</strong>, v no menu <strong>SQL Editor</strong>, cole o cdigo abaixo e clique em <strong>RUN</strong>. Ele aplicar as alterações com total segurana sem resetar ou apagar dados de usurios j existentes.
           </p>
 
           <div className="relative">
@@ -2662,7 +2662,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               onClick={() => setShowTableDetails(!showTableDetails)}
               className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
             >
-              <span>{showTableDetails ? '▲ Ocultar detalhes das 21 tabelas do sistema' : '▼ Ver catálogo e contagem de registros das 21 tabelas'}</span>
+              <span>{showTableDetails ? ' Ocultar detalhes das 21 tabelas do sistema' : ' Ver catlogo e contagem de registros das 21 tabelas'}</span>
             </button>
 
             {showTableDetails && (
@@ -2677,50 +2677,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <th className="px-3 py-2 text-right">Registros</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-150 dark:divide-slate-800">
-                    {(supabaseStatus.tables && supabaseStatus.tables.length > 0) ? (
-                      supabaseStatus.tables.map(t => (
-                        <tr key={t.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 text-slate-700 dark:text-slate-300">
-                          <td className="px-3 py-2 font-mono font-bold text-slate-900 dark:text-slate-100">{t.name}</td>
-                          <td className="px-3 py-2">
-                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                              {t.category}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{t.description}</td>
-                          <td className="px-3 py-2 text-center">
-                            {t.exists ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 className="h-3 w-3" /> Criada
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400">
-                                <AlertTriangle className="h-3 w-3" /> Pendente
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
-                            {t.exists ? (t.recordCount !== null ? t.recordCount : '-') : '-'}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="px-3 py-4 text-center text-slate-400">
-                          Clique em "Re-auditar Banco Agora" para carregar a lista de tabelas.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
                 </table>
               </div>
             )}
           </div>
         </div>
       </div>
-      )}
 
-      {/* Modal Popup para Edição de Cadastro de Usuário */}
+
+      {/* Modal Popup para Edio de Cadastro de Usuário */}
       {editingUser && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
@@ -2829,10 +2794,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Endereço Completo</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Endereo Completo</label>
                   <input
                     type="text"
-                    placeholder="Ex: Av. Paulista, 1000 - Bela Vista, São Paulo - SP"
+                    placeholder="Ex: Av. Paulista, 1000 - Bela Vista, So Paulo - SP"
                     value={editAddress}
                     onChange={(e) => setEditAddress(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -2845,7 +2810,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <label className="block text-[10px] font-bold uppercase text-slate-400">Cidade</label>
                   <input
                     type="text"
-                    placeholder="Ex: São Paulo"
+                    placeholder="Ex: So Paulo"
                     value={editCity}
                     onChange={(e) => setEditCity(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -2866,7 +2831,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nível / Perfil</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nvel / Perfil</label>
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as 'user' | 'admin')}
@@ -2885,11 +2850,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="none">Nenhum (Acessa e escolhe plano)</option>
-                    <option value="inativo">Inativo ⛔ (Bloqueia acesso)</option>
-                    <option value="gratis">Grátis (60d)</option>
+                    <option value="inativo">Inativo  (Bloqueia acesso)</option>
+                    <option value="gratis">Grtis (60d)</option>
                     <option value="mensal">Mensal</option>
-                    <option value="anual">Anual ✨</option>
-                    <option value="livre">Plano Livre 🔓 (Sem cobrança / Vitalício)</option>
+                    <option value="anual">Anual </option>
+                    <option value="livre">Plano Livre  (Sem cobrana / Vitalcio)</option>
                   </select>
                 </div>
               </div>
@@ -2900,7 +2865,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Escreva a mensagem personalizada para o usuário..."
+                  placeholder="Escreva a mensagem personalizada para o usurio..."
                   value={editUserMessage}
                   onChange={(e) => setEditUserMessage(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -2951,8 +2916,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <Trash2 className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">Confirmar Exclusão de Registro</h3>
-                  <p className="text-xs text-slate-500">Ação irreversível de segurança</p>
+                  <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">Confirmar Excluso de Registro</h3>
+                  <p className="text-xs text-slate-500">Ao irreversvel de segurana</p>
                 </div>
               </div>
               <button
@@ -2967,12 +2932,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
             <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2">
               <p>
-                Você está prestes a excluir definitivamente o usuário{' '}
+                Voc est prestes a excluir definitivamente o usurio{' '}
                 <span className="font-bold text-slate-900 dark:text-white">{userToDelete.name || userToDelete.email}</span>{' '}
                 (<span className="font-mono font-bold">{userToDelete.email}</span>) bem como todos os seus dados cadastrados.
               </p>
               <p className="bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 p-3 rounded-lg font-medium">
-                Esta ação apagará permanentemente o perfil, as receitas, as despesas, as metas, as ações de melhoria, as listas de compras e todo o histórico financeiro deste usuário. Não será possível recuperar estas informações posteriormente.
+                Esta ação apagar permanentemente o perfil, as receitas, as despesas, as metas, as ações de melhoria, as listas de compras e todo o histórico financeiro deste usurio. No ser possvel recuperar estas informações posteriormente.
               </p>
             </div>
 
@@ -3090,13 +3055,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <span className="text-[10px] text-slate-400 font-medium">Dados Pessoais</span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
-                  Este texto fica registrado no campo <strong>mensagem usuário</strong> dos dados pessoais e é exibido como o <strong>Motivo</strong> na tela de login.
+                  Este texto fica registrado no campo <strong>mensagem usurio</strong> dos dados pessoais e  exibido como o <strong>Motivo</strong> na tela de login.
                 </p>
                 <textarea
                   rows={3}
                   value={blockModalMessage}
                   onChange={(e) => setBlockModalMessage(e.target.value)}
-                  placeholder="Ex: Entre em contato com a administração para regularizar o acesso..."
+                  placeholder="Ex: Entre em contato com a administrao para regularizar o acesso..."
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white text-xs focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-none placeholder-slate-400 font-medium"
                 />
               </div>
@@ -3105,7 +3070,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               {blockModalIsBlocked && (
                 <div className="rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 p-3 space-y-1.5 animate-fade-in">
                   <span className="text-[10px] font-bold uppercase text-rose-700 dark:text-rose-400 flex items-center gap-1">
-                    <Eye className="h-3 w-3" /> Visualização do aviso na tela de Login:
+                    <Eye className="h-3 w-3" /> Visualizao do aviso na tela de Login:
                   </span>
                   <div className="rounded-xl bg-slate-950 p-3 text-xs text-red-200 border border-red-900/60 shadow-inner">
                     <div className="flex items-start gap-2.5">
