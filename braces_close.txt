@@ -1,0 +1,587 @@
+1:import React, { useState, useEffect, useMemo } from 'react';
+2:import { UserProfile, UserData } from '../types';
+3:import { getUserInitials } from '../utils/userUtils';
+4:import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check } from 'lucide-react';
+8:}
+10:export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
+35:    }>;
+36:  }>({
+49:  });
+56:    setSupabaseStatus(prev => ({ ...prev, loading: true }));
+73:      });
+77:      }
+78:    } catch (err) {
+92:      });
+93:    }
+94:  };
+104:    }
+105:  };
+112:    const blob = new Blob([scriptToDownload], { type: 'text/plain;charset=utf-8' });
+123:  };
+127:  }, []);
+142:  });
+175:        }
+176:      })
+185:        }
+186:      })
+196:          }
+200:          }
+204:          }
+208:          }
+212:          }
+213:        }
+214:      })
+216:  }, []);
+283:    if (!auditData) return { totalEntriesCount: 0, incomesCount: 0, expensesCount: 0, investmentsCount: 0, tripsCount: 0, wishesCount: 0, shoppingCount: 0, plansCount: 0, recent30AuditEntries: [] };
+285:    const uData = auditData.userData || auditData || {};
+311:    }> = [];
+321:        details: [inc.category ? `Categoria: ${inc.category}` : null, inc.paymentType ? `Tipo: ${inc.paymentType}` : null].filter(Boolean).join('  ') || 'Sem detalhes',
+324:      });
+325:    });
+335:        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Tipo: ${exp.paymentType}` : null, exp.classification ? `Classificao: ${exp.classification}` : null].filter(Boolean).join('  ') || 'Sem detalhes',
+338:      });
+339:    });
+349:        details: [inv.type ? `Tipo: ${inv.type}` : null, inv.status ? `Status: ${inv.status}` : null].filter(Boolean).join('  ') || 'Investimento',
+352:      });
+353:    });
+357:      const d = trip.startDate || (trip.year ? `${trip.year}-01-01` : '');
+363:        details: trip.destination ? `Destino: ${trip.destination}` : 'Viagem',
+366:      });
+367:    });
+377:        details: wish.category ? `Categoria: ${wish.category}` : 'Desejo',
+380:      });
+381:    });
+391:        details: shop.category ? `Categoria: ${shop.category}` : 'Lista de Compras',
+394:      });
+395:    });
+405:        details: plan.target ? `Alvo: ${plan.target}` : 'Ao',
+408:      });
+409:    });
+424:    };
+425:  }, [auditData]);
+433:      }
+434:    });
+436:  }, [users]);
+445:        }
+446:      }
+447:    });
+449:  }, [users, reportStateFilter]);
+456:    });
+457:  }, [users, reportStateFilter, reportCityFilter]);
+462:  };
+469:        headers: { 'x-user-email': adminUser.email }
+470:      });
+474:    } catch (err: any) {
+476:    } finally {
+478:    }
+479:  };
+489:      const res = await fetch(`/api/admin/retrieve-password/${encodeURIComponent(reminderEmail.trim())}`, {
+492:        }
+493:      });
+497:      }
+500:    } catch (err: any) {
+502:    }
+503:  };
+513:        },
+514:        body: JSON.stringify({ targetEmail })
+515:      });
+522:    } catch (err: any) {
+524:    } finally {
+526:    }
+527:  };
+534:    }
+544:        },
+545:        body: JSON.stringify({ targetEmail: selectedEmailForReminder })
+546:      });
+549:      setEmailReminderSuccess(data.message || `E-mail enviado com sucesso para ${selectedEmailForReminder}.`);
+550:    } catch (err: any) {
+552:    } finally {
+554:    }
+555:  };
+575:  };
+593:        },
+606:        }),
+607:      });
+617:      }, 900);
+618:    } catch (err: any) {
+620:    } finally {
+622:    }
+623:  };
+627:  }, []);
+641:      }
+648:      } else if (plan === 'livre' || (validUntil && new Date(validUntil) > new Date())) {
+651:        } else {
+653:        }
+654:      } else {
+656:      }
+657:    });
+659:    return { total, active, expired, pendingApproval };
+660:  }, [users]);
+682:      }
+686:      }
+691:      }
+695:      }
+700:      }
+705:      }
+710:      }
+713:    });
+714:  }, [users, statusFilter, searchQuery]);
+723:        },
+724:        body: JSON.stringify({ targetEmail, approve: !currentApprovedStatus }),
+725:      });
+731:    } catch (err: any) {
+733:    }
+734:  };
+744:    }
+752:        },
+759:        }),
+760:      });
+773:    } catch (err: any) {
+775:    }
+776:  };
+788:      const res = await fetch(`/api/admin/user-details/${encodeURIComponent(user.email)}`, {
+789:        headers: { 'x-user-email': adminUser.email }
+790:      });
+797:        setSelectedUserForAudit(prev => prev ? { ...prev, ...data.userProfile, userMessage: msg, mensagemUsuario: msg } : data.userProfile);
+798:      }
+799:    } catch (err: any) {
+801:    } finally {
+803:    }
+804:  };
+818:        },
+823:        }),
+824:      });
+832:      };
+838:    } catch (err: any) {
+840:    } finally {
+842:    }
+843:  };
+853:  };
+869:        },
+875:        })
+876:      });
+889:        }
+890:      };
+892:      setUsers(prev => prev.map(u => u.email.toLowerCase() === selectedUserForBlock.email.toLowerCase() ? { ...u, ...updatedUser } : u));
+894:        setSelectedUserForAudit(prev => prev ? { ...prev, ...updatedUser } : prev);
+896:      }
+904:      }, 1200);
+905:    } catch (err: any) {
+907:    } finally {
+909:    }
+910:  };
+924:        },
+926:      });
+933:          window.dispatchEvent(new CustomEvent('planPricesUpdated', { detail: data.prices }));
+934:        }
+935:      }
+936:    } catch (err: any) {
+938:    } finally {
+940:    }
+941:  };
+955:        },
+956:        body: JSON.stringify({ days: Number(freeTrialDaysInput) })
+957:      });
+961:    } catch (err: any) {
+963:    } finally {
+965:    }
+966:  };
+975:      fluxoCaixa: { title: fluxoCaixaTitle, message: fluxoCaixaMessage },
+976:      resumosInteligentes: { title: resumosInteligentesTitle, message: resumosInteligentesMessage },
+977:      planejamentoObjetivos: { title: planejamentoObjetivosTitle, message: planejamentoObjetivosMessage },
+978:      rule50_30_20: { title: rule50_30_20Title, message: rule50_30_20Message },
+979:      weeklyCheck: { title: weeklyCheckTitle, message: weeklyCheckMessage }
+980:    };
+988:        },
+990:      });
+995:      } catch (e) {}
+997:    } catch (err: any) {
+999:    } finally {
+1001:    }
+1002:  };
+1006:      {/* Title */}
+1018:          onClick={fetchUsers}
+1026:      {/* Navigation Tabs */}
+1029:          onClick={() => setActiveTab('gestao')}
+1034:          }`}
+1040:          onClick={() => setActiveTab('config-valores')}
+1045:          }`}
+1051:          onClick={() => setActiveTab('limite-uso-gratuito')}
+1056:          }`}
+1062:          onClick={() => setActiveTab('avisos')}
+1067:          }`}
+1073:          onClick={() => setActiveTab('relatorios')}
+1078:          }`}
+1084:          onClick={() => setActiveTab('conexao')}
+1089:          }`}
+1096:      {/* Admin KPIs Row */}
+1105:            <h3 className="text-2xl font-bold text-slate-800 dark:text-white font-mono">{stats.total}</h3>
+1116:            <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">{stats.active}</h3>
+1127:            <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono">{stats.expired}</h3>
+1138:            <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400 font-mono">{stats.pendingApproval}</h3>
+1143:      )}
+1147:        {/* Panel header with "Cadastrar e Liberar Acesso" and "Relembrar Senha" triggers */}
+1163:              }}
+1167:              {showCreateForm ? 'Fechar Cadastro' : 'Cadastrar e Liberar Acesso'}
+1178:              }}
+1182:              {showReminderForm ? 'Fechar Relembrar' : 'Relembrar Senha'}
+1192:              }}
+1196:              {showEmailReminderForm ? 'Fechar Lembrar E-mail' : 'Lembrar senha usurio e-mail'}
+1201:        {/* Collapsible e-mail reminder form */}
+1209:            {emailReminderError && <p className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">{emailReminderError}</p>}
+1210:            {emailReminderSuccess && <p className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 rounded-lg">{emailReminderSuccess}</p>}
+1212:            <form onSubmit={handleSendPasswordEmail} className="space-y-4 text-xs">
+1217:                    value={selectedEmailForReminder}
+1222:                    }}
+1227:                      <option key={u.email} value={u.email}>
+1228:                        {u.name} ({u.email})
+1230:                    ))}
+1238:                    disabled={sendingEmail || !selectedEmailForReminder}
+1240:                    {sendingEmail ? 'Enviando...' : 'Enviar senha por e-mail'}
+1249:                    }}
+1258:        )}
+1260:        {/* Collapsible reminder form */}
+1268:            {error && <p className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">{error}</p>}
+1269:            {successMsg && <p className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 rounded-lg">{successMsg}</p>}
+1271:            <form onSubmit={handleRetrievePassword} className="space-y-4 text-xs">
+1276:                    value={reminderEmail}
+1282:                    }}
+1287:                      <option key={u.email} value={u.email}>
+1288:                        {u.name} ({u.email})
+1290:                    ))}
+1298:                    disabled={!reminderEmail}
+1310:                    }}
+1322:                    <div>E-mail: <span className="font-bold select-all text-slate-900 dark:text-white">{reminderEmail}</span></div>
+1323:                    <div>Senha: <span className="font-bold select-all text-amber-700 dark:text-amber-400 bg-amber-500/20 px-1.5 py-0.5 rounded">{foundPassword}</span></div>
+1326:              )}
+1329:        )}
+1331:        {/* Collapsible registration form */}
+1339:            {error && <p className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">{error}</p>}
+1340:            {successMsg && <p className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 rounded-lg">{successMsg}</p>}
+1342:            <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
+1350:                    value={newName}
+1351:                    onChange={(e) => setNewName(e.target.value)}
+1362:                    value={newEmail}
+1363:                    onChange={(e) => setNewEmail(e.target.value)}
+1374:                      type={showNewPassword ? 'text' : 'password'}
+1376:                      value={newPassword}
+1377:                      onChange={(e) => setNewPassword(e.target.value)}
+1382:                      onClick={() => setShowNewPassword(!showNewPassword)}
+1384:                      title={showNewPassword ? 'Ocultar senha' : 'Exibir senha'}
+1386:                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+1394:                    value={newRole}
+1395:                    onChange={(e) => setNewRole(e.target.value as 'user' | 'admin')}
+1406:                    value={newPlan}
+1407:                    onChange={(e) => setNewPlan(e.target.value as any)}
+1427:                  }}
+1441:        )}
+1445:        {/* Users list panel */}
+1447:          {/* Filters Bar */}
+1453:                value={searchQuery}
+1454:                onChange={(e) => setSearchQuery(e.target.value)}
+1459:                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+1467:                value={statusFilter}
+1468:                onChange={(e) => setStatusFilter(e.target.value)}
+1486:                  }}
+1493:              )}
+1525:                      <tr key={user.email} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+1530:                              title={`Iniciais: ${getUserInitials(user.name, user.email)}`}
+1532:                              {getUserInitials(user.name, user.email)}
+1536:                                <span className="font-bold text-slate-800 dark:text-slate-200">{user.name}</span>
+1541:                                )}
+1543:                              <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
+1552:                          }`}>
+1553:                            {user.role === 'admin' ? 'Administrador' : 'Usuário'}
+1558:                            {plan === 'inativo' && <span className="text-rose-600 dark:text-rose-400">Inativo </span>}
+1559:                            {plan === 'none' && <span className="text-amber-600 dark:text-amber-400">Nenhum (Pendente) </span>}
+1560:                            {plan === 'gratis' && 'Grtis (60d)'}
+1561:                            {plan === 'mensal' && 'Mensal'}
+1562:                            {plan === 'anual' && 'Anual '}
+1563:                            {plan === 'livre' && 'Livre '}
+1567:                              Exp: {new Date(user.subscription.validUntil).toLocaleDateString('pt-BR')}
+1569:                          )}
+1574:                          )}
+1578:                            {user.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : '-'}
+1582:                              {new Date(user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+1584:                          )}
+1592:                              : '-'}
+1596:                              {new Date(user.lastAccess || user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+1598:                          )}
+1607:                              onClick={() => handleToggleApproval(user.email, isApproved)}
+1612:                              }`}
+1614:                              {isApproved ? 'Aprovado ' : 'Aprovar manual '}
+1616:                          )}
+1621:                              onClick={() => handleOpenBlockModal(user)}
+1622:                              title={user.isBlocked ? "Usuário Bloqueado - Clique para gerenciar bloqueio e motivo" : "Bloquear Usuário / Definir Motivo"}
+1623:                              aria-label={user.isBlocked ? "Usuário Bloqueado" : "Bloquear Usuário"}
+1628:                              }`}
+1633:                              onClick={() => handleInspectUser(user)}
+1641:                              onClick={() => handleEditClick(user)}
+1650:                                onClick={() => setUserToDelete(user)}
+1657:                            )}
+1662:                  })}
+1666:          )}
+1669:      )}
+1671:      {/* Modal Popup para Visualizao e Auditoria de Dados do Usuário */}
+1675:          onClick={() => setSelectedUserForAudit(null)}
+1679:            onClick={(e) => e.stopPropagation()}
+1688:                    Visualizao e Auditoria de Dados: {selectedUserForAudit.name}
+1691:                    {selectedUserForAudit.email}
+1698:                  onClick={() => handleOpenBlockModal(selectedUserForAudit)}
+1703:                  }`}
+1706:                  <span>{selectedUserForAudit.isBlocked ? 'Usuário Bloqueado' : 'Bloquear / Gerenciar'}</span>
+1710:                  onClick={() => setSelectedUserForAudit(null)}
+1719:          {/* User profile details layout */}
+1723:              <span className="truncate">E-mail: <strong>{selectedUserForAudit.email}</strong></span>
+1727:              <span>Telefone: <strong>{selectedUserForAudit.phone || 'No cadastrado'}</strong></span>
+1732:                ltimo Acesso:{' '}
+1741:                      })
+1744:                    : 'No registrado'}
+1752:                  Endereo: <strong className="text-slate-800 dark:text-white">{selectedUserForAudit.address || 'No informado'}</strong>
+1756:                    Cidade/Estado: <strong className="text-slate-700 dark:text-slate-200">{selectedUserForAudit.city || 'No informado'} - {selectedUserForAudit.state || 'No informado'}</strong>
+1758:                )}
+1763:          {/* Campo Mensagem Usuário (Atribudo aos dados pessoais do usurio, visvel e editvel exclusivamente pelo administrador na auditoria) */}
+1779:                rows={3}
+1780:                value={auditUserMessage}
+1781:                onChange={(e) => setAuditUserMessage(e.target.value)}
+1791:                  {auditSaveSuccess}
+1793:              )}
+1797:                  {auditSaveError}
+1799:              )}
+1800:              {!auditSaveSuccess && !auditSaveError && <div />}
+1804:                onClick={handleSaveAuditMessage}
+1805:                disabled={savingAuditMessage}
+1809:                {savingAuditMessage ? 'Salvando...' : 'Salvar tudo'}
+1820:              {/* Status de lanamento de dados */}
+1839:                  )}
+1845:                    <strong className="text-sm font-extrabold text-slate-800 dark:text-white">{auditAnalysis.totalEntriesCount} lanamentos</strong>
+1849:                    <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.incomesCount} Rec. / {auditAnalysis.expensesCount} Desp.</strong>
+1853:                    <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.investmentsCount} cadastros</strong>
+1857:                    <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.tripsCount + auditAnalysis.wishesCount + auditAnalysis.shoppingCount + auditAnalysis.plansCount} registros</strong>
+1862:              {/* Breve histórico dos ltimos 30 tipos de lanamento (sem valores) */}
+1892:                          <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+1893:                            <td className="py-2 px-3 text-[10px] font-mono text-slate-400">{String(idx + 1).padStart(2, '0')}</td>
+1895:                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold ${item.typeBadge}`}>
+1896:                                {item.type}
+1900:                              {item.description}
+1903:                              {item.details}
+1906:                              {item.date || '-'}
+1909:                        ))}
+1913:                )}
+1916:          )}
+1921:              onClick={() => setSelectedUserForAudit(null)}
+1929:      )}
+1945:              {pricesSuccess}
+1947:          )}
+1951:              {pricesError}
+1953:          )}
+1955:          <form onSubmit={handleSavePrices} className="space-y-6 text-xs">
+1957:              {/* Plano Mensal Section */}
+1977:                        value={pricesDePor.mensal_de}
+1978:                        onChange={(e) => setPricesDePor({ ...pricesDePor, mensal_de: e.target.value })}
+1996:                        value={pricesDePor.mensal_por}
+1997:                        onChange={(e) => setPricesDePor({ ...pricesDePor, mensal_por: e.target.value })}
+2005:              {/* Plano Anual Section */}
+2025:                        value={pricesDePor.anual_de}
+2026:                        onChange={(e) => setPricesDePor({ ...pricesDePor, anual_de: e.target.value })}
+2044:                        value={pricesDePor.anual_por}
+2045:                        onChange={(e) => setPricesDePor({ ...pricesDePor, anual_por: e.target.value })}
+2057:                disabled={pricesLoading}
+2060:                {pricesLoading ? 'Salvando...' : 'Salvar Novos Valores'}
+2065:      )}
+2081:              {freeTrialSuccess}
+2083:          )}
+2087:              {freeTrialError}
+2089:          )}
+2091:          <form onSubmit={handleSaveFreeTrialDays} className="space-y-6 text-xs">
+2103:                    value={freeTrialDaysInput}
+2104:                    onChange={(e) => setFreeTrialDaysInput(e.target.value)}
+2117:                disabled={freeTrialLoading}
+2120:                {freeTrialLoading ? 'Salvando...' : 'Salvar Configurao'}
+2125:      )}
+2141:              {noticesSuccess}
+2143:          )}
+2147:              {noticesError}
+2149:          )}
+2151:          <form onSubmit={handleSaveNotices} className="space-y-8 text-xs">
+2152:            {/* Seo 1: Cards Principais da Pgina Inicial */}
+2162:                {/* Card 1: Fluxo de Caixa Simplificado */}
+2178:                        value={fluxoCaixaTitle}
+2179:                        onChange={(e) => setFluxoCaixaTitle(e.target.value)}
+2190:                        rows={4}
+2191:                        value={fluxoCaixaMessage}
+2192:                        onChange={(e) => setFluxoCaixaMessage(e.target.value)}
+2199:                {/* Card 2: Resumos Inteligentes */}
+2215:                        value={resumosInteligentesTitle}
+2216:                        onChange={(e) => setResumosInteligentesTitle(e.target.value)}
+2227:                        rows={4}
+2228:                        value={resumosInteligentesMessage}
+2229:                        onChange={(e) => setResumosInteligentesMessage(e.target.value)}
+2236:                {/* Card 3: Planejamento e Objetivos */}
+2252:                        value={planejamentoObjetivosTitle}
+2253:                        onChange={(e) => setPlanejamentoObjetivosTitle(e.target.value)}
+2264:                        rows={4}
+2265:                        value={planejamentoObjetivosMessage}
+2266:                        onChange={(e) => setPlanejamentoObjetivosMessage(e.target.value)}
+2275:            {/* Seo 2: Dicas para Sade Financeira */}
+2285:                {/* Card 4: Regra 50-30-20 */}
+2301:                        value={rule50_30_20Title}
+2302:                        onChange={(e) => setRule50_30_20Title(e.target.value)}
+2313:                        rows={4}
+2314:                        value={rule50_30_20Message}
+2315:                        onChange={(e) => setRule50_30_20Message(e.target.value)}
+2322:                {/* Card 5: Acompanhamento Semanal */}
+2338:                        value={weeklyCheckTitle}
+2339:                        onChange={(e) => setWeeklyCheckTitle(e.target.value)}
+2350:                        rows={4}
+2351:                        value={weeklyCheckMessage}
+2352:                        onChange={(e) => setWeeklyCheckMessage(e.target.value)}
+2364:                disabled={noticesLoading}
+2367:                {noticesLoading ? 'Salvando...' : 'Salvar Novos Avisos e Cards'}
+2372:      )}
+2385:          {/* Filters card */}
+2390:                value={reportStateFilter}
+2391:                onChange={(e) => handleReportStateChange(e.target.value)}
+2396:                  <option key={st} value={st}>{st}</option>
+2397:                ))}
+2410:                    }}
+2417:                )}
+2420:                value={reportCityFilter}
+2421:                onChange={(e) => setReportCityFilter(e.target.value)}
+2426:                  <option key={ct} value={ct}>{ct}</option>
+2427:                ))}
+2434:                {filteredReportUsers.length} {filteredReportUsers.length === 1 ? 'usurio' : 'usurios'}
+2439:          {/* Table of matching users */}
+2454:                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+2460:                    <tr key={u.email} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20 text-slate-700 dark:text-slate-300">
+2465:                            title={`Iniciais: ${getUserInitials(u.name, u.email)}`}
+2467:                            {getUserInitials(u.name, u.email)}
+2469:                          <span className="truncate">{u.name}</span>
+2472:                      <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{u.email}</td>
+2473:                      <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">{u.state || '-'}</td>
+2474:                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{u.city || '-'}</td>
+2480:                        }`}>
+2481:                          {u.plan}
+2486:                )}
+2491:      )}
+2493:      {/* Tab: Conexo (Auditoria e Sincronizao Segura do Supabase e Catlogo de Tabelas) */}
+2496:          {/* Supabase Connection Verification & Real-time Database Audit Card */}
+2506:            }`}>
+2526:                )}
+2532:                  }`}>
+2533:                    {(supabaseStatus.missingCount ?? 0) === 0 ? ' 21/21 Tabelas 100% Sincronizadas' : ` ${supabaseStatus.missingCount} tabela(s) pendente(s)`}
+2535:                )}
+2543:                  : supabaseStatus.message}
+2547:                  URL: {supabaseStatus.url}
+2549:              )}
+2554:            onClick={checkSupabaseStatus}
+2555:            disabled={supabaseStatus.loading}
+2559:            <RefreshCw className={`h-3.5 w-3.5 ${supabaseStatus.loading ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
+2564:        {/* Missing Tables Notice / Status Banner */}
+2571:                  <span>{supabaseStatus.missingCount} tabela(s) pendente(s) de criao no Supabase:</span>
+2575:                    <span key={t} className="px-2 py-0.5 bg-amber-200/60 dark:bg-amber-900/50 rounded font-mono font-semibold text-[11px] text-amber-950 dark:text-amber-100 border border-amber-300/60 dark:border-amber-800">
+2576:                      {t}
+2578:                  ))}
+2591:            )}
+2593:        )}
+2595:        {/* Script Selection & Code Box */}
+2598:            {/* Tabs for Differential vs Full */}
+2602:                onClick={() => setSelectedScriptType('differential')}
+2607:                }`}
+2609:                Script Diferencial Seguro {(supabaseStatus.missingCount ?? 0) > 0 ? `(${supabaseStatus.missingCount} faltantes)` : '(Recomendado)'}
+2613:                onClick={() => setSelectedScriptType('full')}
+2618:                }`}
+2624:            {/* Action buttons */}
+2628:                onClick={handleDownloadSql}
+2637:                onClick={handleCopySchema}
+2640:                {copiedSchema ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+2641:                <span>{copiedSchema ? 'Copiado para rea de Transferncia!' : 'Copiar Script SQL'}</span>
+2654:                : (supabaseStatus.fullSafeSql || supabaseStatus.schema || 'Carregando script completo...')}
+2658:          {/* Toggle button to inspect all 21 tables */}
+2662:              onClick={() => setShowTableDetails(!showTableDetails)}
+2665:              <span>{showTableDetails ? ' Ocultar detalhes das 21 tabelas do sistema' : ' Ver catlogo e contagem de registros das 21 tabelas'}</span>
+2682:            )}
+2688:      {/* Modal Popup para Edio de Cadastro de Usuário */}
+2697:            }
+2698:          }}
+2702:            onClick={(e) => e.stopPropagation()}
+2714:                    {editingUser.name} ({editingUser.email})
+2725:                  }
+2726:                }}
+2737:                <span>{editError}</span>
+2739:            )}
+2744:                <span>{editSuccess}</span>
+2746:            )}
+2748:            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+2756:                    value={editName}
+2757:                    onChange={(e) => setEditName(e.target.value)}
+2766:                      type={showEditPassword ? 'text' : 'password'}
+2768:                      value={editPassword}
+2769:                      onChange={(e) => setEditPassword(e.target.value)}
+2774:                      onClick={() => setShowEditPassword(!showEditPassword)}
+2776:                      title={showEditPassword ? 'Ocultar senha' : 'Exibir senha'}
+2778:                      {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+2790:                    value={editPhone}
+2791:                    onChange={(e) => setEditPhone(e.target.value)}
+2801:                    value={editAddress}
+2802:                    onChange={(e) => setEditAddress(e.target.value)}
+2814:                    value={editCity}
+2815:                    onChange={(e) => setEditCity(e.target.value)}
+2825:                    value={editState}
+2826:                    onChange={(e) => setEditState(e.target.value)}
+2836:                    value={editRole}
+2837:                    onChange={(e) => setEditRole(e.target.value as 'user' | 'admin')}
+2848:                    value={editPlan}
+2849:                    onChange={(e) => setEditPlan(e.target.value as any)}
+2867:                  rows={2}
+2869:                  value={editUserMessage}
+2870:                  onChange={(e) => setEditUserMessage(e.target.value)}
+2878:                  disabled={savingEdit}
+2881:                  {savingEdit ? 'Salvando...' : 'Salvar Alterações'}
+2890:                    }
+2891:                  }}
+2892:                  disabled={savingEdit}
+2901:      )}
+2903:      {/* Custom Confirmation Popup for User Deletion */}
+2907:          onClick={() => !deletingUserLoading && setUserToDelete(null)}
+2911:            onClick={(e) => e.stopPropagation()}
+2925:                onClick={() => !deletingUserLoading && setUserToDelete(null)}
+2935:                Voc est prestes a excluir definitivamente o usurio{' '}
+2936:                <span className="font-bold text-slate-900 dark:text-white">{userToDelete.name || userToDelete.email}</span>{' '}
+2937:                (<span className="font-mono font-bold">{userToDelete.email}</span>) bem como todos os seus dados cadastrados.
+2946:                onClick={() => handleDeleteUser(userToDelete.email)}
+2947:                disabled={deletingUserLoading}
+2950:                {deletingUserLoading ? 'Excluindo...' : 'Sim, Apagar Tudo'}
+2953:                onClick={() => setUserToDelete(null)}
+2954:                disabled={deletingUserLoading}
+2962:      )}
+2965:      {/* Modal Popup para Bloqueio de Usuário e Registro de Motivo (Mensagem Usuário) */}
+2969:          onClick={() => !blockSaving && setSelectedUserForBlock(null)}
+2973:            onClick={(e) => e.stopPropagation()}
+2981:                }`}>
+2989:                    {selectedUserForBlock.name || 'Usuário'} ({selectedUserForBlock.email})
+2993:              <button type="button" onClick={() => setSelectedUserForBlock(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+3002:                <span>{blockSuccess}</span>
+3004:            )}
+3009:                <span>{blockError}</span>
+3011:            )}
+3013:            <form onSubmit={handleSaveBlockStatus} className="space-y-4 text-xs">
+3014:              {/* Status selector */}
+3022:                    onClick={() => setBlockModalIsBlocked(true)}
+3027:                    }`}
+3034:                    onClick={() => setBlockModalIsBlocked(false)}
+3039:                    }`}
+3047:              {/* Motivo do bloqueio / Mensagem Usuário */}
+3059:                  rows={3}
+3060:                  value={blockModalMessage}
+3061:                  onChange={(e) => setBlockModalMessage(e.target.value)}
+3067:              {/* Live Preview of Login page notification */}
+3084:                          <span>{blockModalMessage.trim() || 'Acesso suspenso pelo administrador.'}</span>
+3090:              )}
+3095:                  disabled={blockSaving}
+3100:                  }`}
+3106:                    : 'Salvar e Desbloquear'}
+3110:                  onClick={() => setSelectedUserForBlock(null)}
+3111:                  disabled={blockSaving}
+3120:      )}
+3123:};

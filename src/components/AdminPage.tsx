@@ -1579,7 +1579,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                           </div>
                           {user.createdAt && (
                             <div className="text-[9px] text-slate-400 font-mono">
-                              {new Date(user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' } as any)}
                             </div>
                           )}
                         </td>
@@ -1593,7 +1593,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                           </div>
                           {(user.lastAccess || user.createdAt) && (
                             <div className="text-[9px] text-slate-400 font-mono">
-                              {new Date(user.lastAccess || user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(user.lastAccess || user.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' } as any)}
                             </div>
                           )}
                         </td>
@@ -1667,7 +1667,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       </div>
       )}
-
       {/* Modal Popup para Visualizao e Auditoria de Dados do Usuário */}
       {selectedUserForAudit && (
         <div 
@@ -1738,7 +1737,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                         year: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit'
-                      })
+                      } as any)
                     : selectedUserForAudit.createdAt
                     ? new Date(selectedUserForAudit.createdAt).toLocaleDateString('pt-BR')
                     : 'No registrado'}
@@ -2683,6 +2682,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
         </div>
       </div>
+    </div>
+      )}
 
 
       {/* Modal Popup para Edio de Cadastro de Usuário */}
@@ -2961,6 +2962,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       )}
 
+
       {/* Modal Popup para Bloqueio de Usuário e Registro de Motivo (Mensagem Usuário) */}
       {selectedUserForBlock && (
         <div 
@@ -2989,14 +2991,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedUserForBlock(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
+              <button type="button" onClick={() => setSelectedUserForBlock(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200">
                 <X className="h-4 w-4" />
               </button>
             </div>
+
 
             {blockSuccess && (
               <div className="p-3 text-xs font-semibold text-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-300 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
