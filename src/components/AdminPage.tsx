@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, UserData } from '../types';
 import { getUserInitials } from '../utils/userUtils';
 import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check } from 'lucide-react';
+import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -240,6 +242,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   // User delete confirmation state
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [deletingUserLoading, setDeletingUserLoading] = useState(false);
+  const [deleteUserError, setDeleteUserError] = useState('');
 
   // Editing state
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -504,6 +507,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
   const handleDeleteUser = async (targetEmail: string) => {
     setDeletingUserLoading(true);
+    setDeleteUserError('');
     try {
       const res = await fetch('/api/admin/delete-user', {
         method: 'POST',
@@ -518,9 +522,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
       setUsers(prev => prev.filter(u => u.email !== targetEmail));
       setUserToDelete(null);
-      alert('Usuário e todos os seus dados foram excludos permanentemente com sucesso!');
+      setDeleteUserError('');
+      setSuccessMsg('Usuário excluído com sucesso! Os dados foram removidos e o CPF foi retido de forma restrita para auditoria e planos.');
     } catch (err: any) {
-      alert(err.message || 'Erro ao tentar deletar o usurio.');
+      setDeleteUserError(err.message || 'Erro ao tentar deletar o usuário.');
     } finally {
       setDeletingUserLoading(false);
     }
@@ -1002,7 +1007,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12">
+    <div className="relative space-y-6 animate-fade-in pb-12">
       {/* Title */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
         <div>
@@ -1667,14 +1672,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       </div>
       )}
-      {/* Modal Popup para Visualizao e Auditoria de Dados do Usuário */}
-      {selectedUserForAudit && (
+      {/* Modal Popup para Visualização e Auditoria de Dados do Usuário */}
+      {selectedUserForAudit && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in cursor-pointer overflow-y-auto"
           onClick={() => setSelectedUserForAudit(null)}
         >
           <div 
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-4xl w-full shadow-2xl space-y-5 cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-4xl w-full shadow-2xl space-y-5 cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -1920,12 +1925,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               onClick={() => setSelectedUserForAudit(null)}
               className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
             >
-              Fechar Visualizao
+              Fechar Visualização
             </button>
           </div>
         </div>
-      </div>
-      )}
+      </div>,
+      document.body
+    )}
 
       {activeTab === 'config-valores' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
@@ -2683,13 +2689,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       </div>
     </div>
-      )}
+  )}
 
 
-      {/* Modal Popup para Edio de Cadastro de Usuário */}
-      {editingUser && (
+
+      {/* Modal Popup para Edição de Cadastro de Usuário */}
+      {editingUser && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in cursor-pointer overflow-y-auto"
           onClick={() => {
             if (!savingEdit) {
               setEditingUser(null);
@@ -2699,7 +2706,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }}
         >
           <div 
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -2898,79 +2905,40 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Custom Confirmation Popup for User Deletion */}
+      {/* Custom Confirmation Popup for User Deletion with Double Consent Layer */}
       {userToDelete && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
-          onClick={() => !deletingUserLoading && setUserToDelete(null)}
-        >
-          <div 
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 cursor-default"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
-                <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-xl">
-                  <Trash2 className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-800 dark:text-white">Confirmar Excluso de Registro</h3>
-                  <p className="text-xs text-slate-500">Ao irreversvel de segurana</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => !deletingUserLoading && setUserToDelete(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
-                title="Fechar"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2">
-              <p>
-                Voc est prestes a excluir definitivamente o usurio{' '}
-                <span className="font-bold text-slate-900 dark:text-white">{userToDelete.name || userToDelete.email}</span>{' '}
-                (<span className="font-mono font-bold">{userToDelete.email}</span>) bem como todos os seus dados cadastrados.
-              </p>
-              <p className="bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 p-3 rounded-lg font-medium">
-                Esta ação apagar permanentemente o perfil, as receitas, as despesas, as metas, as ações de melhoria, as listas de compras e todo o histórico financeiro deste usurio. No ser possvel recuperar estas informações posteriormente.
-              </p>
-            </div>
-
-            <div className="flex gap-2.5 pt-2">
-              <button
-                onClick={() => handleDeleteUser(userToDelete.email)}
-                disabled={deletingUserLoading}
-                className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 transition-colors shadow-lg shadow-red-600/15 disabled:opacity-50"
-              >
-                {deletingUserLoading ? 'Excluindo...' : 'Sim, Apagar Tudo'}
-              </button>
-              <button
-                onClick={() => setUserToDelete(null)}
-                disabled={deletingUserLoading}
-                className="flex-1 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
+        <DoubleConsentDeleteModal
+          isOpen={!!userToDelete}
+          onClose={() => {
+            if (!deletingUserLoading) {
+              setUserToDelete(null);
+              setDeleteUserError('');
+            }
+          }}
+          onConfirm={() => handleDeleteUser(userToDelete.email)}
+          title="Confirmar Exclusão de Registro"
+          userName={userToDelete.name || userToDelete.email}
+          userEmail={userToDelete.email}
+          userCpf={userToDelete.cpf}
+          isLoading={deletingUserLoading}
+          errorMessage={deleteUserError}
+          isAdmin={true}
+        />
       )}
 
 
       {/* Modal Popup para Bloqueio de Usuário e Registro de Motivo (Mensagem Usuário) */}
-      {selectedUserForBlock && (
+      {selectedUserForBlock && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in cursor-pointer overflow-y-auto"
           onClick={() => !blockSaving && setSelectedUserForBlock(null)}
         >
           <div 
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5 cursor-default"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5 cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -3117,7 +3085,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

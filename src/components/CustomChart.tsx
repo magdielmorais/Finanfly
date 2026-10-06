@@ -130,6 +130,15 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                   <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
                   <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
                 </linearGradient>
+                <linearGradient id="realizedGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#fbbf24" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#f59e0b" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#b45309" stopOpacity="0.95" />
+                </linearGradient>
+                <linearGradient id="realizedRedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.95" />
+                </linearGradient>
                 <linearGradient id="expenseBarGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
                   <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
@@ -238,13 +247,13 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
                       onMouseLeave={() => setHoveredIndex(null)}
                     />
 
-                    {/* Expense Bar */}
+                    {/* Expense Bar (Realizado) - Dourado, ou Vermelho se ultrapassar o orçado */}
                     <rect
                       x={xExp}
                       y={yExp}
                       width={barWidth}
                       height={hExp}
-                      fill="url(#expenseBarGrad)"
+                      fill={d.expense > d.budgeted ? "url(#realizedRedGrad)" : "url(#realizedGoldGrad)"}
                       rx="3"
                       ry="3"
                       className="transition-all duration-300"
@@ -280,16 +289,20 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
       {/* Fixed Legend below chart */}
       <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-blue-600 inline-block" />
+          <span className="h-3 w-3 rounded bg-blue-600 inline-block shadow-sm" />
           <span>Receitas</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-emerald-500 inline-block" />
+          <span className="h-3 w-3 rounded bg-emerald-500 inline-block shadow-sm" />
           <span>Orçado</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-red-500 inline-block" />
-          <span>Realizado</span>
+          <span className="h-3 w-3 rounded bg-gradient-to-b from-amber-400 to-amber-600 inline-block shadow-sm" />
+          <span>Realizado (Dourado)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded bg-gradient-to-b from-red-500 to-red-700 inline-block shadow-sm" />
+          <span>Realizado Excedido (Vermelho)</span>
         </div>
       </div>
 
@@ -305,10 +318,20 @@ export const AnnualComparisonChart: React.FC<{ data: AnnualData[] }> = ({ data }
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
             Orçado: R$ {data[hoveredIndex].budgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
-          <div className="flex items-center gap-1.5 text-red-500 font-medium dark:text-red-400">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Realizado: R$ {data[hoveredIndex].expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </div>
+          {(() => {
+            const isExceeded = data[hoveredIndex].expense > data[hoveredIndex].budgeted;
+            return (
+              <div className={`flex items-center gap-1.5 font-medium ${isExceeded ? 'text-red-500 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`}>
+                <span className={`h-2 w-2 rounded-full ${isExceeded ? 'bg-red-500' : 'bg-amber-500'}`} />
+                Realizado: R$ {data[hoveredIndex].expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {isExceeded && (
+                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 ml-0.5">
+                    (Excedeu Orçado)
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <div className="font-semibold text-emerald-600 dark:text-emerald-400">
             Saldo: R$ {(data[hoveredIndex].income - data[hoveredIndex].expense).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
@@ -473,7 +496,7 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
 
-  const maxVal = Math.max(...data.flatMap(d => [d.budgeted, d.realized, Math.max(d.balance, 0)]), 100);
+  const maxVal = Math.max(...data.flatMap(d => [d.budgeted, d.realized, Math.abs(d.balance)]), 100);
   const roundedMax = Math.ceil(maxVal / 100) * 100;
 
   const getY = (val: number) => margin.top + chartHeight - (val / roundedMax) * chartHeight;
@@ -570,9 +593,18 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                   <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
                   <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.9" />
                 </linearGradient>
+                <linearGradient id="balanceYellowGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#fef08a" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#eab308" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#ca8a04" stopOpacity="0.95" />
+                </linearGradient>
+                <linearGradient id="balanceRedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.95" />
+                </linearGradient>
                 <linearGradient id="balanceBarGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#64748b" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#334155" stopOpacity="0.9" />
+                  <stop offset="0%" stopColor="#eab308" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#ca8a04" stopOpacity="0.9" />
                 </linearGradient>
               </defs>
 

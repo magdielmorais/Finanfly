@@ -192,8 +192,12 @@ CREATE POLICY "Acesso total - incomes" ON incomes FOR ALL USING (true) WITH CHEC
   category TEXT NOT NULL,
   status TEXT NOT NULL,
   payment_type TEXT NOT NULL,
+  classification TEXT DEFAULT 'Fixo',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );`,
+    columnsAlterSql: [
+      `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS classification TEXT DEFAULT 'Fixo';`
+    ],
     indexesSql: [
       `CREATE INDEX IF NOT EXISTS idx_expenses_email ON expenses(email);`,
       `CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);`

@@ -14,8 +14,18 @@
       "cpf": "99999999999",
       "userMessage": "",
       "mensagemUsuario": "",
-      "isBlocked": true,
+      "isBlocked": false,
       "subscription": {
+        "plan": "gratis",
+        "validUntil": "2026-10-17T14:09:11.217+00:00",
+        "selectedAt": "2026-08-18T14:09:11.217+00:00",
+        "freePlanUsed": false,
+        "approved": true
+      },
+      "previousPlan": "gratis",
+      "previousValidUntil": "2026-10-17T14:09:11.217+00:00",
+      "previousApproved": true,
+      "previousSubscription": {
         "plan": "gratis",
         "validUntil": "2026-10-17T14:09:11.217+00:00",
         "selectedAt": "2026-08-18T14:09:11.217+00:00",
@@ -27,14 +37,14 @@
       "email": "admin@finanfly.com.br",
       "password": "administrator",
       "role": "admin",
-      "name": "",
+      "name": "ADMINISTRADOR",
       "createdAt": "2026-08-08T01:44:04.727+00:00",
-      "lastAccess": "2026-08-23T15:52:30.009Z",
-      "address": "",
-      "city": "",
-      "state": "",
-      "phone": "",
-      "cpf": "",
+      "lastAccess": "2026-10-06T01:58:59.566Z",
+      "address": "Av. Pres. Vargas n. 137",
+      "city": "Cordeiro ",
+      "state": "Rio de Janeiro",
+      "phone": "22981222280",
+      "cpf": "99099099099",
       "isBlocked": false,
       "subscription": {
         "plan": "livre",
@@ -87,7 +97,7 @@
     "mensal_de": "14,90",
     "mensal_por": "9,90"
   },
-  "freeTrialDays": 45,
+  "freeTrialDays": 60,
   "notices": {
     "fluxoCaixa": {
       "title": "Fluxo de Caixa Simplificado",

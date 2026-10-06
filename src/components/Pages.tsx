@@ -5,6 +5,7 @@ import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish 
 import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MonthlyExpenseTrendChart } from './CustomChart';
+import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
 
 export interface PageProps {
   userData: UserData;
@@ -1820,7 +1821,7 @@ export const DespesasPage: React.FC<PageProps> = ({
     setCategory(exp.category);
     setPaymentType(exp.paymentType);
     setStatus(exp.status);
-    setClassification((exp.classification as any) || 'Fixo');
+    setClassification((exp.classification as any) || '');
     setShowAddForm(true);
   };
 
@@ -2848,9 +2849,21 @@ export const DespesasPage: React.FC<PageProps> = ({
                       </span>
                     </td>
                     <td className="py-3.5 px-2.5 whitespace-nowrap w-[110px]">
-                      <span className="inline-block bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded-md text-xs font-semibold">
-                        {exp.classification || 'Fixo'}
-                      </span>
+                      {exp.classification ? (
+                        <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                          exp.classification === 'Variável'
+                            ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40'
+                            : exp.classification === 'Eventual'
+                            ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40'
+                            : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40'
+                        }`}>
+                          {exp.classification}
+                        </span>
+                      ) : (
+                        <span className="inline-block bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 px-2 py-0.5 rounded-md text-xs font-normal">
+                          -
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300 text-sm whitespace-nowrap w-[130px]">
                       {exp.paymentType}
@@ -7412,46 +7425,25 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
         )}
       </div>
 
-      {/* Delete Account Confirmation Modal */}
+      {/* Delete Account Double Consent Confirmation Modal */}
       {showDeleteConfirmModal && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
-          onClick={() => setShowDeleteConfirmModal(false)}
-        >
-          <div 
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl max-w-md w-full space-y-6 cursor-default"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-center space-y-3">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400">
-                <AlertTriangle className="h-6 w-6 animate-pulse" />
-              </div>
-              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Confirmar Exclusão de Conta</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Atenção: Este comando excluirá por completo a conta toda, sem ter como retornar com os dados e nem restituição de valores pagos. Deseja prosseguir com a exclusão?
-              </p>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirmModal(false)}
-                disabled={deleteLoading}
-                className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-lg text-xs hover:bg-slate-50 dark:hover:bg-slate-850 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
-                disabled={deleteLoading}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs shadow-lg shadow-red-500/10 flex items-center justify-center gap-1.5 transition-all"
-              >
-                {deleteLoading ? 'Excluindo...' : 'Sim, Excluir'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DoubleConsentDeleteModal
+          isOpen={showDeleteConfirmModal}
+          onClose={() => {
+            if (!deleteLoading) {
+              setShowDeleteConfirmModal(false);
+              setDeleteError('');
+            }
+          }}
+          onConfirm={handleDeleteAccount}
+          title="Confirmar Exclusão de Minha Conta"
+          userName={userProfile.name || userProfile.email}
+          userEmail={userProfile.email}
+          userCpf={userProfile.cpf}
+          isLoading={deleteLoading}
+          errorMessage={deleteError}
+          isAdmin={false}
+        />
       )}
     </div>
   );

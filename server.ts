@@ -317,6 +317,7 @@ interface Database {
     weeklyCheck?: { title: string; message: string };
   };
   trialHistory?: { [key: string]: boolean };
+  retainedAuditCpfs?: { [key: string]: any };
 }
 
 function initDb() {
@@ -842,10 +843,28 @@ async function saveHomeNotices(notices: any): Promise<void> {
   }
 }
 
-// Record used trial email and CPF in persistent historical trial table
+// Record used trial email and CPF in persistent historical trial / audit table
 async function recordTrialHistory(email: string, cpf?: string): Promise<void> {
   const lowerEmail = email.toLowerCase().trim();
   const cleanCpf = cpf ? cpf.trim().replace(/\D/g, '') : '';
+
+  // Local retention for audit and subscription plans
+  const db = getDb();
+  if (!db.trialHistory) db.trialHistory = {};
+  db.trialHistory[lowerEmail] = true;
+  if (cleanCpf) {
+    db.trialHistory[cleanCpf] = true;
+  }
+  if (!db.retainedAuditCpfs) db.retainedAuditCpfs = {};
+  if (cleanCpf) {
+    db.retainedAuditCpfs[cleanCpf] = {
+      cpf: cleanCpf,
+      email: lowerEmail,
+      retainedAt: new Date().toISOString(),
+      purpose: 'Auditoria e validação de planos de assinatura'
+    };
+  }
+  saveDb(db);
 
   const supabase = getSupabaseClient();
   if (supabase) {
@@ -929,8 +948,13 @@ function refreshUserInBackground(lowerEmail: string) {
         phone: profileData ? profileData.phone : (userData.phone || ''),
         cpf: cpfValue || '',
         userMessage: resolvedUserMessage,
-        mensagemUsuario: resolvedUserMessage,
-        isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked || (subData ? subData.plan === 'inativo' : false) || localUser?.subscription?.plan === 'inativo'),
+        isBlocked: userData.is_blocked !== undefined
+          ? !!userData.is_blocked
+          : (userData.isBlocked !== undefined
+              ? !!userData.isBlocked
+              : (profileData?.is_blocked !== undefined
+                  ? !!profileData.is_blocked
+                  : (subData ? subData.plan === 'inativo' : (localUser ? !!localUser.isBlocked : false)))),
         previousPlan: localUser?.previousPlan || (localUser?.subscription?.plan && localUser?.subscription?.plan !== 'inativo' ? localUser.subscription.plan : undefined),
         previousValidUntil: localUser?.previousValidUntil !== undefined ? localUser.previousValidUntil : (localUser?.subscription?.validUntil || null),
         previousApproved: localUser?.previousApproved !== undefined ? localUser.previousApproved : localUser?.subscription?.approved,
@@ -1018,23 +1042,8 @@ async function checkIsBlacklisted(email: string, cpf?: string): Promise<{ blackl
 async function getUserByEmail(email: string, bypassCache = false): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
 
-  if (!bypassCache) {
-    const cached = userCache.get(lowerEmail);
-    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-      return cached.data;
-    }
-  }
-
   const db = getDb();
   const localUser = db.users[lowerEmail];
-
-  // If user exists in local DB, return immediately and trigger background sync if needed
-  if (localUser && !bypassCache) {
-    userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
-    refreshUserInBackground(lowerEmail);
-    return localUser;
-  }
-
   const supabase = getSupabaseClient();
   const localUserData = db.userData ? db.userData[lowerEmail] : undefined;
 
@@ -1083,6 +1092,14 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
                       ? String(localUser.mensagemUsuario).trim()
                       : '')));
 
+        const isBlockedFromDb = (userData.is_blocked !== undefined)
+          ? !!userData.is_blocked
+          : (userData.isBlocked !== undefined
+              ? !!userData.isBlocked
+              : (profileData?.is_blocked !== undefined
+                  ? !!profileData.is_blocked
+                  : (subData ? subData.plan === 'inativo' : (localUser ? !!localUser.isBlocked : false))));
+
         const compiledUser = {
           email: userData.email,
           password: userData.password || localUser?.password || '',
@@ -1097,7 +1114,7 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
           cpf: cpfValue || '',
           userMessage: resolvedUserMessage,
           mensagemUsuario: resolvedUserMessage,
-          isBlocked: !!(userData.is_blocked || userData.isBlocked || profileData?.is_blocked || profileData?.isBlocked || localUser?.isBlocked || localUser?.blocked || (subData ? subData.plan === 'inativo' : false) || localUser?.subscription?.plan === 'inativo'),
+          isBlocked: isBlockedFromDb,
           previousPlan: localUser?.previousPlan || (localUser?.subscription?.plan && localUser?.subscription?.plan !== 'inativo' ? localUser.subscription.plan : undefined),
           previousValidUntil: localUser?.previousValidUntil !== undefined ? localUser.previousValidUntil : (localUser?.subscription?.validUntil || null),
           previousApproved: localUser?.previousApproved !== undefined ? localUser.previousApproved : localUser?.subscription?.approved,
@@ -1464,17 +1481,9 @@ function ensureUserHasDefaults(data: any) {
   };
 }
 
-// Get user workspace data from relational tables in parallel with memory caching
+// Get user workspace data from relational tables in parallel without stale memory caching (Zero Cache)
 async function getUserDataByEmail(email: string, bypassCache = false): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
-
-  if (!bypassCache) {
-    const cached = userDataCache.get(lowerEmail);
-    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-      return cached.data;
-    }
-  }
-
   const supabase = getSupabaseClient();
   const db = getDb();
   const localData = db.userData ? db.userData[lowerEmail] : undefined;
@@ -1596,7 +1605,12 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
           value: Number(r.value),
           category: r.category,
           status: r.status,
-          paymentType: r.payment_type
+          paymentType: r.payment_type,
+          classification: (r.classification !== undefined && r.classification !== null && r.classification !== '')
+            ? r.classification
+            : (r.classificacao !== undefined && r.classificacao !== null && r.classificacao !== '')
+            ? r.classificacao
+            : (localData?.expenses?.find((e: any) => e.id === r.id)?.classification || undefined)
         })) : [],
         annualPlanning: (annualRes.data && annualRes.data.length > 0) ? annualRes.data.map((r: any) => ({
           year: r.year,
@@ -1768,9 +1782,14 @@ async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
               value: Number(exp.value),
               category: exp.category,
               status: exp.status,
-              payment_type: exp.paymentType
+              payment_type: exp.paymentType,
+              classification: exp.classification || null
             }));
-            await supabase.from('expenses').insert(rows);
+            let { error: expErr } = await supabase.from('expenses').insert(rows);
+            if (expErr && (expErr.code === '42703' || expErr.message?.includes('classification'))) {
+              const safeRows = rows.map(({ classification, ...rest }: any) => rest);
+              await supabase.from('expenses').insert(safeRows);
+            }
           }
         })());
       }
@@ -2009,6 +2028,18 @@ async function getAllUsersList(): Promise<any[]> {
                         ? String(localU.mensagemUsuario).trim()
                         : '')));
 
+          const isBlockedFromDb = (u.is_blocked !== undefined)
+            ? !!u.is_blocked
+            : (u.isBlocked !== undefined
+                ? !!u.isBlocked
+                : (prof?.is_blocked !== undefined
+                    ? !!prof.is_blocked
+                    : (sub ? sub.plan === 'inativo' : (localU ? !!localU.isBlocked : false))));
+
+          if (localDb.users[lowerU]) {
+            localDb.users[lowerU].isBlocked = isBlockedFromDb;
+          }
+
           usersMap.set(lowerU, {
             email: u.email,
             password: u.password || localU?.password || '',
@@ -2020,7 +2051,7 @@ async function getAllUsersList(): Promise<any[]> {
             cpf: prof ? prof.cpf : (localU?.cpf || ''),
             userMessage: userMsg,
             mensagemUsuario: userMsg,
-            isBlocked: !!(u.is_blocked || u.isBlocked || prof?.is_blocked || prof?.isBlocked || localU?.isBlocked || localU?.blocked || sub?.plan === 'inativo' || localU?.subscription?.plan === 'inativo'),
+            isBlocked: isBlockedFromDb,
             role: u.role || 'user',
             previousPlan: localU?.previousPlan || (localU?.subscription?.plan && localU?.subscription?.plan !== 'inativo' ? localU.subscription.plan : undefined),
             previousValidUntil: localU?.previousValidUntil !== undefined ? localU.previousValidUntil : (localU?.subscription?.validUntil || null),
@@ -2401,13 +2432,9 @@ app.post("/api/auth/login", async (req, res) => {
       } catch (e) {}
     }, 0);
 
-    // Instant user workspace data from memory / local DB (0ms response)
-    const localDb = getDb();
-    let cachedUserData = userDataCache.get(lowerE)?.data || localDb.userData?.[lowerE] || null;
-    if (!cachedUserData) {
-      cachedUserData = await getUserDataByEmail(lowerE);
-    }
-    const safeUserData = cachedUserData ? ensureUserHasDefaults(cachedUserData) : getDefaultUserData();
+    // Load fresh user workspace data directly from database (Zero Cache)
+    const freshUserData = await getUserDataByEmail(lowerE);
+    const safeUserData = freshUserData ? ensureUserHasDefaults(freshUserData) : getDefaultUserData();
 
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
@@ -2566,12 +2593,13 @@ app.post("/api/auth/delete-account", async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    if (user.cpf) {
-      await recordTrialHistory(lowerEmail, user.cpf);
+    const db = getDb();
+    const userCpf = user.cpf || db.userData?.[lowerEmail]?.cpf || (db.users?.[lowerEmail] as any)?.cpf || '';
+    if (userCpf) {
+      await recordTrialHistory(lowerEmail, userCpf);
     }
 
     // Delete from local DB
-    const db = getDb();
     if (db.users[lowerEmail]) {
       delete db.users[lowerEmail];
     }
@@ -3511,13 +3539,12 @@ app.post("/api/admin/delete-user", async (req, res) => {
       return res.status(400).json({ error: "Você não pode excluir o seu próprio usuário." });
     }
 
-    const targetUser = await getUserByEmail(lowerTargetEmail);
-    if (targetUser && targetUser.cpf) {
-      await recordTrialHistory(lowerTargetEmail, targetUser.cpf);
-    }
-
-    // Delete from local DB
     const db = getDb();
+    const targetUser = await getUserByEmail(lowerTargetEmail);
+    const targetCpf = targetUser?.cpf || db.userData?.[lowerTargetEmail]?.cpf || (db.users?.[lowerTargetEmail] as any)?.cpf || '';
+    if (targetCpf) {
+      await recordTrialHistory(lowerTargetEmail, targetCpf);
+    }
     if (db.users[lowerTargetEmail]) {
       delete db.users[lowerTargetEmail];
     }
