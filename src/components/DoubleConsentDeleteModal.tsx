@@ -268,15 +268,11 @@ export const DoubleConsentDeleteModal: React.FC<DoubleConsentDeleteModalProps> =
                 </p>
               </div>
 
-              {/* Retenção de CPF para Auditoria e Planos */}
+              {/* Informação sobre apagamento definitivo */}
               <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <span className="font-bold block">Política de Retenção Restrita:</span>
-                  <span>
-                    Apenas o CPF do usuário será mantido em tabela restrita e protegida para fins de auditoria contábil
-                    e validação de assinaturas/planos. Todos os demais dados serão irrevogavelmente destruídos.
-                  </span>
+                  <span className="font-bold">Todos os dados serão irrevogavelmente apagados.</span>
                 </div>
               </div>
             </div>
