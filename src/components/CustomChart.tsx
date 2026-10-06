@@ -653,8 +653,9 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                 const yRealized = getY(d.realized);
                 const hRealized = Math.max(yBaseline - yRealized, 2);
 
-                const positiveBalance = Math.max(d.balance, 0);
-                const yBalance = getY(positiveBalance);
+                const isExceeded = d.realized > d.budgeted;
+                const balanceValue = isExceeded ? Math.abs(d.balance) : Math.max(d.balance, 0);
+                const yBalance = getY(balanceValue);
                 const hBalance = Math.max(yBaseline - yBalance, 2);
 
                 const isHovered = hoveredIndex === i;
@@ -716,7 +717,7 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                       y={yBalance}
                       width={barWidth}
                       height={hBalance}
-                      fill="url(#balanceBarGrad)"
+                      fill={isExceeded ? "url(#balanceRedGrad)" : "url(#balanceYellowGrad)"}
                       rx="2"
                       ry="2"
                       className="transition-all duration-300"
@@ -752,20 +753,24 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
       {/* Fixed Legend below chart */}
       <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-blue-600 inline-block" />
+          <span className="h-3 w-3 rounded bg-blue-600 inline-block shadow-sm" />
           <span>Orçado</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-emerald-500 inline-block" />
+          <span className="h-3 w-3 rounded bg-emerald-500 inline-block shadow-sm" />
           <span>Realizado (No Limite)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-red-500 inline-block" />
+          <span className="h-3 w-3 rounded bg-red-500 inline-block shadow-sm" />
           <span>Realizado (Excedido)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-slate-600 inline-block" />
-          <span>Saldo</span>
+          <span className="h-3 w-3 rounded bg-gradient-to-b from-yellow-300 to-yellow-500 inline-block shadow-sm" />
+          <span>Saldo (Amarelo)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded bg-gradient-to-b from-red-500 to-red-700 inline-block shadow-sm" />
+          <span>Saldo Excedido (Vermelho)</span>
         </div>
       </div>
 
@@ -786,10 +791,20 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
               </div>
             );
           })()}
-          <div className="flex items-center gap-1.5 text-slate-600 font-semibold dark:text-slate-300">
-            <span className="h-2 w-2 rounded-full bg-slate-600" />
-            Saldo: R$ {data[hoveredIndex].balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </div>
+          {(() => {
+            const isBalanceExceeded = data[hoveredIndex].realized > data[hoveredIndex].budgeted;
+            return (
+              <div className={`flex items-center gap-1.5 font-semibold ${isBalanceExceeded ? 'text-red-500 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                <span className={`h-2 w-2 rounded-full ${isBalanceExceeded ? 'bg-red-500' : 'bg-yellow-400'}`} />
+                Saldo: R$ {data[hoveredIndex].balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {isBalanceExceeded && (
+                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 ml-0.5">
+                    (Excedeu Orçado)
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
