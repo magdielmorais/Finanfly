@@ -496,7 +496,7 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
 
-  const maxVal = Math.max(...data.flatMap(d => [d.budgeted, d.realized, Math.abs(d.balance)]), 100);
+  const maxVal = Math.max(...data.flatMap(d => [d.budgeted, d.realized, Math.max(d.balance, 0)]), 100);
   const roundedMax = Math.ceil(maxVal / 100) * 100;
 
   const getY = (val: number) => margin.top + chartHeight - (val / roundedMax) * chartHeight;
@@ -653,9 +653,8 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                 const yRealized = getY(d.realized);
                 const hRealized = Math.max(yBaseline - yRealized, 2);
 
-                const isExceeded = d.realized > d.budgeted;
-                const balanceValue = isExceeded ? Math.abs(d.balance) : Math.max(d.balance, 0);
-                const yBalance = getY(balanceValue);
+                const positiveBalance = Math.max(d.balance, 0);
+                const yBalance = getY(positiveBalance);
                 const hBalance = Math.max(yBaseline - yBalance, 2);
 
                 const isHovered = hoveredIndex === i;
@@ -717,7 +716,7 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
                       y={yBalance}
                       width={barWidth}
                       height={hBalance}
-                      fill={isExceeded ? "url(#balanceRedGrad)" : "url(#balanceYellowGrad)"}
+                      fill="url(#balanceYellowGrad)"
                       rx="2"
                       ry="2"
                       className="transition-all duration-300"
@@ -768,10 +767,6 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
           <span className="h-3 w-3 rounded bg-gradient-to-b from-yellow-300 to-yellow-500 inline-block shadow-sm" />
           <span>Saldo (Amarelo)</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-gradient-to-b from-red-500 to-red-700 inline-block shadow-sm" />
-          <span>Saldo Excedido (Vermelho)</span>
-        </div>
       </div>
 
       {/* Tooltip Overlay */}
@@ -791,20 +786,10 @@ export const ExpenseBudgetComparisonChart: React.FC<{ data: MonthlyComparisonDat
               </div>
             );
           })()}
-          {(() => {
-            const isBalanceExceeded = data[hoveredIndex].realized > data[hoveredIndex].budgeted;
-            return (
-              <div className={`flex items-center gap-1.5 font-semibold ${isBalanceExceeded ? 'text-red-500 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
-                <span className={`h-2 w-2 rounded-full ${isBalanceExceeded ? 'bg-red-500' : 'bg-yellow-400'}`} />
-                Saldo: R$ {data[hoveredIndex].balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                {isBalanceExceeded && (
-                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 ml-0.5">
-                    (Excedeu Orçado)
-                  </span>
-                )}
-              </div>
-            );
-          })()}
+          <div className="flex items-center gap-1.5 text-yellow-600 font-semibold dark:text-yellow-400">
+            <span className="h-2 w-2 rounded-full bg-yellow-400" />
+            Saldo: R$ {data[hoveredIndex].balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
         </div>
       )}
     </div>
