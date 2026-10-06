@@ -1038,14 +1038,21 @@ async function checkIsBlacklisted(email: string, cpf?: string): Promise<{ blackl
   return { blacklisted: false };
 }
 
-// Get user by email with auto-migration from local JSON DB to relational Supabase tables
+// Get user by email - pulling exclusively from Supabase when available
 async function getUserByEmail(email: string, bypassCache = false): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
 
+  // If bypassCache is false, try in-memory cache first for fast response
+  if (!bypassCache) {
+    const cached = userCache.get(lowerEmail);
+    if (cached && Date.now() - cached.timestamp < 300000) { // 5-minute cache
+      return cached.data;
+    }
+  }
+
+  const supabase = getSupabaseClient();
   const db = getDb();
   const localUser = db.users[lowerEmail];
-  const supabase = getSupabaseClient();
-  const localUserData = db.userData ? db.userData[lowerEmail] : undefined;
 
   if (supabase) {
     try {
@@ -1086,11 +1093,7 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
           ? messagesMap[lowerEmail]
           : (profileData?.user_message !== undefined && profileData.user_message !== ''
               ? String(profileData.user_message).trim()
-              : (localUser?.userMessage !== undefined && localUser.userMessage !== ''
-                  ? String(localUser.userMessage).trim()
-                  : (localUser?.mensagemUsuario !== undefined && localUser.mensagemUsuario !== ''
-                      ? String(localUser.mensagemUsuario).trim()
-                      : '')));
+              : '');
 
         const isBlockedFromDb = (userData.is_blocked !== undefined)
           ? !!userData.is_blocked
@@ -1098,14 +1101,14 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
               ? !!userData.isBlocked
               : (profileData?.is_blocked !== undefined
                   ? !!profileData.is_blocked
-                  : (subData ? subData.plan === 'inativo' : (localUser ? !!localUser.isBlocked : false))));
+                  : (subData ? subData.plan === 'inativo' : false)));
 
         const compiledUser = {
           email: userData.email,
-          password: userData.password || localUser?.password || '',
+          password: userData.password || '',
           role: userData.role || 'user',
-          createdAt: userData.created_at || userData.createdAt || new Date().toISOString(),
-          lastAccess: localUser?.lastAccess || profileData?.updated_at || userData?.created_at || new Date().toISOString(),
+          createdAt: userData.created_at || new Date().toISOString(),
+          lastAccess: profileData?.updated_at || userData?.created_at || new Date().toISOString(),
           name: profileData ? profileData.name : (userData.name || ''),
           address: profileData ? profileData.address : (userData.address || ''),
           city: profileData ? profileData.city : (userData.city || ''),
@@ -1115,78 +1118,64 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
           userMessage: resolvedUserMessage,
           mensagemUsuario: resolvedUserMessage,
           isBlocked: isBlockedFromDb,
-          previousPlan: localUser?.previousPlan || (localUser?.subscription?.plan && localUser?.subscription?.plan !== 'inativo' ? localUser.subscription.plan : undefined),
-          previousValidUntil: localUser?.previousValidUntil !== undefined ? localUser.previousValidUntil : (localUser?.subscription?.validUntil || null),
-          previousApproved: localUser?.previousApproved !== undefined ? localUser.previousApproved : localUser?.subscription?.approved,
-          previousSubscription: localUser?.previousSubscription || (localUser?.subscription?.plan !== 'inativo' ? localUser?.subscription : undefined),
           subscription: subData ? {
             plan: subData.plan || 'none',
             validUntil: subData.valid_until,
             selectedAt: subData.selected_at,
             freePlanUsed: !!subData.free_plan_used,
-            freePlanUsedReason: undefined,
             approved: !!subData.approved
           } : {
-            plan: localUser?.subscription?.plan || 'none',
-            validUntil: localUser?.subscription?.validUntil || null,
-            selectedAt: localUser?.subscription?.selectedAt || null,
-            freePlanUsed: !!localUser?.subscription?.freePlanUsed,
-            freePlanUsedReason: undefined,
-            approved: localUser?.subscription?.approved !== undefined ? !!localUser.subscription.approved : false
+            plan: 'none',
+            validUntil: null,
+            selectedAt: null,
+            freePlanUsed: false,
+            approved: false
           }
         };
 
         userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
-        // Also keep local DB updated
-        const curDb = getDb();
-        curDb.users[lowerEmail] = compiledUser;
-        saveDb(curDb);
-
         return compiledUser;
       }
 
-      // If user exists locally but not in Supabase, migrate them automatically
-      if (!userData && localUser) {
-        console.log(`Migrando usuário ${lowerEmail} para tabelas relacionais do Supabase...`);
-        await saveUser(localUser);
-        const localData = db.userData ? db.userData[lowerEmail] : undefined;
-        if (localData) {
-          await saveUserDataByEmail(lowerEmail, localData);
-        }
-        userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
-        return localUser;
-      }
+      // If Supabase is active but user is not found, they simply do not exist!
+      // Do NOT fall back to localUser and do NOT perform auto-migration.
+      return null;
     } catch (err: any) {
       if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
         markSupabaseKeyAsInvalid("Invalid API key");
       } else {
-        console.error("Falha ao consultar usuário no Supabase (usando dados locais):", err?.message || err);
+        console.error("Falha ao consultar usuário no Supabase:", err?.message || err);
       }
     }
   }
 
-  if (localUser) {
+  // Fallback to local JSON file DB ONLY if Supabase is NOT active/configured
+  if (!supabase && localUser) {
     userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
+    return localUser;
   }
 
-  return localUser || null;
+  return null;
 }
 
 // Save/Update user profile across users, profiles, and subscriptions tables
 async function saveUser(user: any): Promise<boolean> {
   const lowerEmail = user.email.toLowerCase().trim();
+  const supabase = getSupabaseClient();
 
-  // Keep local JSON DB updated and merge with existing data to strictly protect personal fields
-  const db = getDb();
-  const existingLocal = db.users[lowerEmail] || {};
+  // If Supabase is active, use the in-memory cache as source of truth for merging (protecting personal fields),
+  // otherwise fallback to the local DB file.
+  const existingSource = supabase 
+    ? (userCache.get(lowerEmail)?.data || {})
+    : (getDb().users[lowerEmail] || {});
   
-  const mergedName = user.name !== undefined && user.name !== '' ? user.name : (existingLocal.name || '');
-  const mergedAddress = user.address !== undefined && user.address !== '' ? user.address : (existingLocal.address || '');
-  const mergedCity = user.city !== undefined && user.city !== '' ? user.city : (existingLocal.city || '');
-  const mergedState = user.state !== undefined && user.state !== '' ? user.state : (existingLocal.state || '');
-  const mergedPhone = user.phone !== undefined && user.phone !== '' ? user.phone : (existingLocal.phone || '');
-  const mergedCpf = user.cpf !== undefined && user.cpf !== '' ? user.cpf : (existingLocal.cpf || '');
-  const mergedPassword = user.password !== undefined && user.password !== '' ? user.password : (existingLocal.password || '');
+  const mergedName = user.name !== undefined && user.name !== '' ? user.name : (existingSource.name || '');
+  const mergedAddress = user.address !== undefined && user.address !== '' ? user.address : (existingSource.address || '');
+  const mergedCity = user.city !== undefined && user.city !== '' ? user.city : (existingSource.city || '');
+  const mergedState = user.state !== undefined && user.state !== '' ? user.state : (existingSource.state || '');
+  const mergedPhone = user.phone !== undefined && user.phone !== '' ? user.phone : (existingSource.phone || '');
+  const mergedCpf = user.cpf !== undefined && user.cpf !== '' ? user.cpf : (existingSource.cpf || '');
+  const mergedPassword = user.password !== undefined && user.password !== '' ? user.password : (existingSource.password || '');
   const messagesMap = await getUserMessagesMap();
   const dbSavedMsg = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '') ? messagesMap[lowerEmail] : undefined;
 
@@ -1194,10 +1183,10 @@ async function saveUser(user: any): Promise<boolean> {
     ? user.userMessage 
     : (user.mensagemUsuario !== undefined 
         ? user.mensagemUsuario 
-        : (dbSavedMsg !== undefined ? dbSavedMsg : (existingLocal.userMessage !== undefined ? existingLocal.userMessage : (existingLocal.mensagemUsuario || ''))));
+        : (dbSavedMsg !== undefined ? dbSavedMsg : (existingSource.userMessage !== undefined ? existingSource.userMessage : (existingSource.mensagemUsuario || ''))));
 
   const finalUser = {
-    ...existingLocal,
+    ...existingSource,
     ...user,
     name: mergedName,
     address: mergedAddress,
@@ -1213,18 +1202,21 @@ async function saveUser(user: any): Promise<boolean> {
   // Invalidate and update user cache immediately
   userCache.set(lowerEmail, { data: { ...finalUser }, timestamp: Date.now() });
 
-  db.users[lowerEmail] = { ...finalUser };
+  if (!supabase) {
+    const db = getDb();
+    db.users[lowerEmail] = { ...finalUser };
 
-  if (mergedUserMessage !== undefined) {
-    db.users[lowerEmail].userMessage = mergedUserMessage;
-    db.users[lowerEmail].mensagemUsuario = mergedUserMessage;
-    if (!db.userData) db.userData = {};
-    if (db.userData[lowerEmail]) {
-      db.userData[lowerEmail].userMessage = mergedUserMessage;
-      db.userData[lowerEmail].mensagemUsuario = mergedUserMessage;
+    if (mergedUserMessage !== undefined) {
+      db.users[lowerEmail].userMessage = mergedUserMessage;
+      db.users[lowerEmail].mensagemUsuario = mergedUserMessage;
+      if (!db.userData) db.userData = {};
+      if (db.userData[lowerEmail]) {
+        db.userData[lowerEmail].userMessage = mergedUserMessage;
+        db.userData[lowerEmail].mensagemUsuario = mergedUserMessage;
+      }
     }
+    saveDb(db);
   }
-  saveDb(db);
 
   if (mergedUserMessage !== undefined) {
     saveUserMessageToDatabase(lowerEmail, mergedUserMessage).catch(err => console.error("Error persisting user message in saveUser:", err));
@@ -1234,7 +1226,6 @@ async function saveUser(user: any): Promise<boolean> {
     recordTrialHistory(lowerEmail, finalUser.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
   }
 
-  const supabase = getSupabaseClient();
   if (supabase) {
     try {
       // 1. Upsert users table (for credential validation)
@@ -1529,7 +1520,7 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         backupUserDataRes
       ] = await Promise.race([queryPromise, timeoutPromise]);
 
-      // If database schema is missing, fall back to monolithic user_data table or local DB
+      // If database schema is missing, fall back to monolithic user_data table
       const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && res.error.code === '42P01');
 
       if (relationMissing) {
@@ -1545,50 +1536,28 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
           userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
           return completedData;
         }
-        if (localData) {
-          const completedLocal = ensureUserHasDefaults(localData);
-          userDataCache.set(lowerEmail, { data: completedLocal, timestamp: Date.now() });
-          return completedLocal;
-        }
+        
         const freshDefault = getDefaultUserData();
         userDataCache.set(lowerEmail, { data: freshDefault, timestamp: Date.now() });
         return freshDefault;
       }
 
-      // Check if user has no relational records but we have local backup to migrate
-      const hasAnyRelationalData = 
-        (pTypesRes.data && pTypesRes.data.length > 0) ||
-        (pStatusesRes.data && pStatusesRes.data.length > 0) ||
-        (incCatsRes.data && incCatsRes.data.length > 0) ||
-        (expCatsRes.data && expCatsRes.data.length > 0) ||
-        (incomesRes.data && incomesRes.data.length > 0) ||
-        (expensesRes.data && expensesRes.data.length > 0) ||
-        (shopRes.data && shopRes.data.length > 0);
-
-      if (!hasAnyRelationalData && localData) {
-        console.log(`Migrando dados locais de ${lowerEmail} para as novas tabelas relacionais do Supabase...`);
-        const readyLocal = ensureUserHasDefaults(localData);
-        await saveUserDataByEmail(lowerEmail, readyLocal);
-        userDataCache.set(lowerEmail, { data: readyLocal, timestamp: Date.now() });
-        return readyLocal;
-      }
-
-      // Map relational results to application structures
+      // Map relational results to application structures (never falling back to db.json local file)
       const responseData: any = {
-        receiptTypes: (localData?.receiptTypes && localData.receiptTypes.length > 0) ? localData.receiptTypes : [...DEFAULT_RECEIPT_TYPES],
-        receiptStatuses: (localData?.receiptStatuses && localData.receiptStatuses.length > 0) ? localData.receiptStatuses : [...DEFAULT_RECEIPT_STATUSES],
+        receiptTypes: [...DEFAULT_RECEIPT_TYPES],
+        receiptStatuses: [...DEFAULT_RECEIPT_STATUSES],
         paymentTypes: (pTypesRes.data && pTypesRes.data.length > 0)
           ? pTypesRes.data.map((r: any) => r.name)
-          : ((localData?.paymentTypes && localData.paymentTypes.length > 0) ? localData.paymentTypes : [...DEFAULT_PAYMENT_TYPES]),
+          : [...DEFAULT_PAYMENT_TYPES],
         paymentStatuses: (pStatusesRes.data && pStatusesRes.data.length > 0)
           ? pStatusesRes.data.map((r: any) => r.name)
-          : ((localData?.paymentStatuses && localData.paymentStatuses.length > 0) ? localData.paymentStatuses : [...DEFAULT_PAYMENT_STATUSES]),
+          : [...DEFAULT_PAYMENT_STATUSES],
         incomeCategories: (incCatsRes.data && incCatsRes.data.length > 0)
           ? incCatsRes.data.map((r: any) => r.name)
-          : ((localData?.incomeCategories && localData.incomeCategories.length > 0) ? localData.incomeCategories : [...DEFAULT_INCOME_CATEGORIES]),
+          : [...DEFAULT_INCOME_CATEGORIES],
         expenseCategories: (expCatsRes.data && expCatsRes.data.length > 0)
           ? expCatsRes.data.map((r: any) => r.name)
-          : ((localData?.expenseCategories && localData.expenseCategories.length > 0) ? localData.expenseCategories : [...DEFAULT_EXPENSE_CATEGORIES]),
+          : [...DEFAULT_EXPENSE_CATEGORIES],
         incomes: incomesRes.data ? incomesRes.data.map((r: any) => ({
           id: r.id,
           date: r.date,
@@ -1610,12 +1579,12 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
             ? r.classification
             : (r.classificacao !== undefined && r.classificacao !== null && r.classificacao !== '')
             ? r.classificacao
-            : (localData?.expenses?.find((e: any) => e.id === r.id)?.classification || undefined)
+            : undefined
         })) : [],
         annualPlanning: (annualRes.data && annualRes.data.length > 0) ? annualRes.data.map((r: any) => ({
           year: r.year,
           monthlyBudgets: r.monthly_budgets
-        })) : (localData?.annualPlanning || [
+        })) : [
           {
             year: 2026,
             monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
@@ -1624,7 +1593,7 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
               expenseBudget: 0
             }))
           }
-        ]),
+        ],
         shoppingList: shopRes.data ? shopRes.data.map((r: any) => ({
           id: r.id,
           name: r.name,
@@ -1653,19 +1622,19 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         })) : [],
         trips: (tripsRes?.data && tripsRes.data.length > 0)
           ? tripsRes.data.map((r: any) => ({ id: r.id, name: r.name, expenses: r.expenses || [] }))
-          : (localData?.trips && localData.trips.length > 0 ? localData.trips : (backupUserDataRes?.data?.data?.trips || [])),
+          : (backupUserDataRes?.data?.data?.trips || []),
         wishes: (wishesRes?.data && wishesRes.data.length > 0)
           ? wishesRes.data.map((r: any) => ({ id: r.id, title: r.title, description: r.description, targetDate: r.target_date, value: Number(r.value), status: r.status }))
-          : (localData?.wishes && localData.wishes.length > 0 ? localData.wishes : (backupUserDataRes?.data?.data?.wishes || [])),
+          : (backupUserDataRes?.data?.data?.wishes || []),
         investments: (investRes?.data && investRes.data.length > 0)
           ? investRes.data.map((r: any) => ({ id: r.id, name: r.name, type: r.type, date: r.date, value: Number(r.value), status: r.status, notes: r.notes }))
-          : (localData?.investments && localData.investments.length > 0 ? localData.investments : (backupUserDataRes?.data?.data?.investments || [])),
+          : (backupUserDataRes?.data?.data?.investments || []),
         investmentTypes: (invTypesRes?.data && invTypesRes.data.length > 0)
           ? invTypesRes.data.map((r: any) => r.name)
-          : ((localData?.investmentTypes && localData.investmentTypes.length > 0) ? localData.investmentTypes : (backupUserDataRes?.data?.data?.investmentTypes || [...DEFAULT_INVESTMENT_TYPES])),
+          : (backupUserDataRes?.data?.data?.investmentTypes || [...DEFAULT_INVESTMENT_TYPES]),
         investmentStatuses: (invStatusesRes?.data && invStatusesRes.data.length > 0)
           ? invStatusesRes.data.map((r: any) => r.name)
-          : ((localData?.investmentStatuses && localData.investmentStatuses.length > 0) ? localData.investmentStatuses : (backupUserDataRes?.data?.data?.investmentStatuses || [...DEFAULT_INVESTMENT_STATUSES]))
+          : (backupUserDataRes?.data?.data?.investmentStatuses || [...DEFAULT_INVESTMENT_STATUSES])
       };
 
       const finalResponse = ensureUserHasDefaults(responseData);
@@ -1676,7 +1645,8 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
     }
   }
 
-  if (localData) {
+  // Fallback to local DB file ONLY if Supabase is NOT active/configured
+  if (!supabase && localData) {
     const finalLocal = ensureUserHasDefaults(localData);
     userDataCache.set(lowerEmail, { data: finalLocal, timestamp: Date.now() });
     return finalLocal;
@@ -1690,17 +1660,19 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
 // Save/Update user workspace data by syncing modified lists to their relational tables in Supabase
 async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
   const lowerEmail = email.toLowerCase().trim();
+  const supabase = getSupabaseClient();
 
   // Update in-memory cache immediately
   userDataCache.set(lowerEmail, { data: { ...data }, timestamp: Date.now() });
 
-  // 1. Always update local fallback DB
-  const db = getDb();
-  if (!db.userData) db.userData = {};
-  db.userData[lowerEmail] = data;
-  saveDb(db);
+  // Only update local fallback file if Supabase is NOT active
+  if (!supabase) {
+    const db = getDb();
+    if (!db.userData) db.userData = {};
+    db.userData[lowerEmail] = data;
+    saveDb(db);
+  }
 
-  const supabase = getSupabaseClient();
   if (supabase) {
     try {
       const promises: Promise<any>[] = [];
