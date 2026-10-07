@@ -405,49 +405,23 @@ function initDb() {
 
 initDb();
 
-let memoryDb: Database | null = null;
-
 function getDb(): Database {
-  if (memoryDb) {
-    return memoryDb;
-  }
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, "utf-8");
-      memoryDb = JSON.parse(data);
-      return memoryDb!;
+      return JSON.parse(data);
     }
   } catch (error) {
-    console.error("Error reading database file", error);
+    console.error("Error reading database file from disk:", error);
   }
-  memoryDb = { users: {}, userData: {} };
-  return memoryDb;
+  return { users: {}, userData: {} };
 }
 
-let saveDbTimeout: NodeJS.Timeout | null = null;
-function saveDb(db: Database, immediate = false) {
-  memoryDb = db;
-  const doWrite = () => {
-    try {
-      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-    } catch (err) {
-      console.error("Error saving database file:", err);
-    }
-  };
-
-  if (immediate) {
-    if (saveDbTimeout) {
-      clearTimeout(saveDbTimeout);
-      saveDbTimeout = null;
-    }
-    doWrite();
-  } else {
-    if (!saveDbTimeout) {
-      saveDbTimeout = setTimeout(() => {
-        saveDbTimeout = null;
-        doWrite();
-      }, 50);
-    }
+function saveDb(db: Database, _immediate = false) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  } catch (err) {
+    console.error("Error saving database file to disk immediately:", err);
   }
 }
 
@@ -1544,8 +1518,12 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
 
       // Map relational results to application structures (never falling back to db.json local file)
       const responseData: any = {
-        receiptTypes: [...DEFAULT_RECEIPT_TYPES],
-        receiptStatuses: [...DEFAULT_RECEIPT_STATUSES],
+        receiptTypes: (backupUserDataRes?.data?.data?.receiptTypes && backupUserDataRes.data.data.receiptTypes.length > 0)
+          ? backupUserDataRes.data.data.receiptTypes
+          : [...DEFAULT_RECEIPT_TYPES],
+        receiptStatuses: (backupUserDataRes?.data?.data?.receiptStatuses && backupUserDataRes.data.data.receiptStatuses.length > 0)
+          ? backupUserDataRes.data.data.receiptStatuses
+          : [...DEFAULT_RECEIPT_STATUSES],
         paymentTypes: (pTypesRes.data && pTypesRes.data.length > 0)
           ? pTypesRes.data.map((r: any) => r.name)
           : [...DEFAULT_PAYMENT_TYPES],
@@ -1567,20 +1545,26 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
           status: r.status,
           paymentType: r.payment_type
         })) : [],
-        expenses: expensesRes.data ? expensesRes.data.map((r: any) => ({
-          id: r.id,
-          date: r.date,
-          description: r.description,
-          value: Number(r.value),
-          category: r.category,
-          status: r.status,
-          paymentType: r.payment_type,
-          classification: (r.classification !== undefined && r.classification !== null && r.classification !== '')
+        expenses: expensesRes.data ? expensesRes.data.map((r: any) => {
+          const backupExp = backupUserDataRes?.data?.data?.expenses?.find((b: any) => b.id === r.id);
+          const rawClass = (backupExp && backupExp.classification !== undefined && backupExp.classification !== null && backupExp.classification !== '')
+            ? backupExp.classification
+            : (r.classification !== undefined && r.classification !== null && r.classification !== '')
             ? r.classification
             : (r.classificacao !== undefined && r.classificacao !== null && r.classificacao !== '')
             ? r.classificacao
-            : undefined
-        })) : [],
+            : undefined;
+          return {
+            id: r.id,
+            date: r.date,
+            description: r.description,
+            value: Number(r.value),
+            category: r.category,
+            status: r.status,
+            paymentType: r.payment_type,
+            classification: rawClass || undefined
+          };
+        }) : [],
         annualPlanning: (annualRes.data && annualRes.data.length > 0) ? annualRes.data.map((r: any) => ({
           year: r.year,
           monthlyBudgets: r.monthly_budgets

@@ -3258,6 +3258,151 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
     return categoryModalLaunches.reduce((sum, item) => sum + item.value, 0);
   }, [categoryModalLaunches]);
 
+  const categoryWeeklyData = useMemo(() => {
+    if (!selectedCategoryModal) return null;
+
+    // 1. Quantidade de semanas e intervalos do respectivo mês usando calendário de folhinha (grade domingo a sábado)
+    const lastDay = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    
+    // 2. Valor orçado da respectiva categoria
+    const currentYearPlan = userData.annualPlanning?.find(p => p.year === selectedYear);
+    const currentMonthBudget = currentYearPlan?.monthlyBudgets?.[selectedMonth];
+    const catBudgetObj = currentMonthBudget?.categoryBudgets?.find(cb => cb.category === selectedCategoryModal);
+    const categoryBudget = Number(catBudgetObj?.budgetedValue || 0);
+
+    // Agrupamento dos dias do mês em semanas conforme a folhinha (Domingo = 0 a Sábado = 6)
+    interface CalendarWeek {
+      weekNum: number;
+      label: string;
+      rangeLabel: string;
+      startDay: number;
+      endDay: number;
+      spent: number;
+      isAbove: boolean;
+      isBelow: boolean;
+      isEqual: boolean;
+      diffFromAvg: number;
+    }
+
+    const weeksIntervals: { weekNum: number; startDay: number; endDay: number }[] = [];
+    let currentWeekStart = 1;
+    let weekCounter = 1;
+
+    for (let day = 1; day <= lastDay; day++) {
+      const dayOfWeek = new Date(selectedYear, selectedMonth, day).getDay(); // 0: Domingo, 6: Sábado
+      if (dayOfWeek === 6 || day === lastDay) {
+        weeksIntervals.push({
+          weekNum: weekCounter,
+          startDay: currentWeekStart,
+          endDay: day
+        });
+        weekCounter++;
+        currentWeekStart = day + 1;
+      }
+    }
+
+    const numWeeks = weeksIntervals.length;
+
+    // 3. Valor médio disponível por semana (planejado)
+    const avgWeeklyBudget = numWeeks > 0 ? (categoryBudget / numWeeks) : 0;
+
+    // 4. Gastos por semana da folhinha mostrando a soma de cada semana
+    const weeks: CalendarWeek[] = weeksIntervals.map((interval) => {
+      const weekExpenses = userData.expenses.filter(exp => {
+        if (!exp.date || exp.category !== selectedCategoryModal) return false;
+        const parts = exp.date.split('-');
+        if (parts.length >= 3) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          const d = parseInt(parts[2], 10);
+          return y === selectedYear && m === selectedMonth && d >= interval.startDay && d <= interval.endDay;
+        }
+        return false;
+      });
+
+      const spent = weekExpenses.reduce((sum, e) => sum + Number(e.value || 0), 0);
+      const diffFromAvg = spent - avgWeeklyBudget;
+      const isEqual = Math.abs(diffFromAvg) < 0.01;
+      const isAbove = !isEqual && diffFromAvg > 0;
+      const isBelow = !isEqual && diffFromAvg < 0;
+
+      return {
+        weekNum: interval.weekNum,
+        label: `Semana ${interval.weekNum}`,
+        rangeLabel: `${String(interval.startDay).padStart(2, '0')} a ${String(interval.endDay).padStart(2, '0')}`,
+        startDay: interval.startDay,
+        endDay: interval.endDay,
+        spent,
+        isAbove,
+        isBelow,
+        isEqual,
+        diffFromAvg
+      };
+    });
+
+    const totalSpent = weeks.reduce((sum, w) => sum + w.spent, 0);
+
+    // 5. Mostrar se está acima, abaixo ou em linha com o previsto das semanas orçadas
+    const overallDiff = totalSpent - categoryBudget;
+    const isOverallEqual = Math.abs(overallDiff) < 0.01 || (categoryBudget === 0 && totalSpent === 0);
+    const isOverallAbove = !isOverallEqual && overallDiff > 0;
+    const isOverallBelow = !isOverallEqual && overallDiff < 0;
+
+    // 6. Mostrar o saldo disponível do restante do mês (se tiver acabado é zero)
+    const rawBalance = categoryBudget - totalSpent;
+    const availableBalanceRemaining = Math.max(0, rawBalance);
+
+    // 7. Mostrar o valor médio para o restante de semanas que ainda falta, do valor disponível que ainda tem
+    const now = new Date();
+    const isPast = selectedYear < now.getFullYear() || (selectedYear === now.getFullYear() && selectedMonth < now.getMonth());
+    const isFuture = selectedYear > now.getFullYear() || (selectedYear === now.getFullYear() && selectedMonth > now.getMonth());
+
+    let currentWeekIdx = 0;
+    let remainingWeeks = 0;
+
+    if (isPast) {
+      remainingWeeks = 0;
+    } else if (isFuture) {
+      remainingWeeks = numWeeks;
+    } else {
+      const todayDay = now.getDate();
+      for (let i = 0; i < weeks.length; i++) {
+        if (todayDay >= weeks[i].startDay && todayDay <= weeks[i].endDay) {
+          currentWeekIdx = i;
+          break;
+        }
+      }
+      remainingWeeks = Math.max(1, numWeeks - currentWeekIdx);
+    }
+
+    const avgRemainingPerWeek = (remainingWeeks > 0 && availableBalanceRemaining > 0)
+      ? (availableBalanceRemaining / remainingWeeks)
+      : 0;
+
+    const isCurrentMonth = !isPast && !isFuture;
+    const currentWeekNumber = isCurrentMonth ? (currentWeekIdx + 1) : null;
+
+    return {
+      numWeeks,
+      categoryBudget,
+      avgWeeklyBudget,
+      weeks,
+      totalSpent,
+      isOverallAbove,
+      isOverallBelow,
+      isOverallEqual,
+      overallDiff,
+      availableBalanceRemaining,
+      remainingWeeks,
+      currentWeekIdx,
+      currentWeekNumber,
+      isCurrentMonth,
+      avgRemainingPerWeek,
+      isPast,
+      isFuture
+    };
+  }, [userData.expenses, userData.annualPlanning, selectedCategoryModal, selectedYear, selectedMonth]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800 gap-3">
@@ -3779,7 +3924,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[85vh] overflow-hidden cursor-default"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl lg:max-w-5xl w-full flex flex-col max-h-[92vh] overflow-hidden overflow-x-hidden cursor-default"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Cabeçalho do Pop-up */}
@@ -3790,7 +3935,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                       {selectedCategoryModal}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Lançamentos de {monthsList[selectedMonth]} de {selectedYear}
+                      Lançamentos e Acompanhamento de {monthsList[selectedMonth]} de {selectedYear}
                     </p>
                   </div>
                   <button
@@ -3802,61 +3947,309 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                   </button>
                 </div>
 
-                {/* Conteúdo / Tabela de Lançamentos */}
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                  {categoryModalLaunches.length === 0 ? (
-                    <div className="py-10 text-center text-slate-400 text-xs">
-                      <p className="font-semibold text-slate-600 dark:text-slate-300">
-                        Nenhum lançamento nesta categoria para este mês.
-                      </p>
+                {/* Conteúdo com dois Cards: Card 1 (Lançamentos da Categoria) e Card 2 (Acompanhamento Semanal) */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-3.5 md:p-4 custom-scrollbar space-y-3.5">
+                  {/* CARD 1: LANÇAMENTOS DA CATEGORIA */}
+                  <div className="w-full bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-4 space-y-2 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                          Lançamentos do Mês
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400">
+                        {categoryModalLaunches.length} {categoryModalLaunches.length === 1 ? 'registro' : 'registros'}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                            <th className="pb-2.5 pl-1">Data</th>
-                            <th className="pb-2.5 px-2">Descrição</th>
-                            <th className="pb-2.5 pr-1 text-right">Valor</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                          {categoryModalLaunches.map((item) => (
-                            <tr
-                              key={item.id}
-                              className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                            >
-                              <td className="py-2.5 pl-1 pr-2 text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
-                                {formatShortDate(item.date)}
-                              </td>
-                              <td className="py-2.5 px-2 font-medium text-slate-800 dark:text-slate-200">
-                                {item.description || 'Sem descrição'}
-                              </td>
-                              <td
-                                className={`py-2.5 pr-1 text-right font-mono font-bold whitespace-nowrap ${
-                                  item.type === 'despesa'
-                                    ? 'text-rose-600 dark:text-rose-400'
-                                    : 'text-emerald-600 dark:text-emerald-400'
-                                }`}
-                              >
-                                {item.value.toLocaleString('pt-BR', {
-                                  style: 'currency',
-                                  currency: 'BRL',
-                                })}
-                              </td>
+
+                    {categoryModalLaunches.length === 0 ? (
+                      <div className="py-4 text-center text-slate-400 text-xs">
+                        <p className="font-semibold text-slate-600 dark:text-slate-300">
+                          Nenhum lançamento nesta categoria para este mês.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto custom-scrollbar border border-slate-100 dark:border-slate-800/80 rounded-lg">
+                        <table className="w-full text-left text-xs border-collapse table-fixed">
+                          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900 z-10">
+                            <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              <th className="py-1.5 pl-3 w-20 sm:w-24">Data</th>
+                              <th className="py-1.5 px-2">Descrição</th>
+                              <th className="py-1.5 pr-3 text-right w-24 sm:w-28">Valor</th>
                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white/50 dark:bg-slate-900/40">
+                            {categoryModalLaunches.map((item) => (
+                              <tr
+                                key={item.id}
+                                className="hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors"
+                              >
+                                <td className="py-1.5 pl-3 pr-2 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                  {formatShortDate(item.date)}
+                                </td>
+                                <td className="py-1.5 px-2 font-medium text-slate-800 dark:text-slate-200 text-xs break-words whitespace-normal leading-snug">
+                                  {item.description || 'Sem descrição'}
+                                </td>
+                                <td
+                                  className={`py-1.5 pr-3 text-right font-mono font-bold text-xs whitespace-nowrap ${
+                                    item.type === 'despesa'
+                                      ? 'text-rose-600 dark:text-rose-400'
+                                      : 'text-emerald-600 dark:text-emerald-400'
+                                  }`}
+                                >
+                                  {item.value.toLocaleString('pt-BR', {
+                                    style: 'currency',
+                                    currency: 'BRL',
+                                  })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 dark:border-slate-800 text-xs">
+                      <span className="font-semibold text-slate-500 dark:text-slate-400">
+                        Total Realizado na Categoria:
+                      </span>
+                      <strong className="text-slate-900 dark:text-white font-mono font-bold text-sm">
+                        {categoryModalTotal.toLocaleString('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        })}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* CARD 2: ACOMPANHAMENTO SEMANAL E PLANEJAMENTO ORÇAMENTÁRIO (IMPLANTADO ABAIXO DO CARD ATUAL) */}
+                  {categoryWeeklyData && (
+                    <div className="w-full bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/90 dark:border-slate-800 rounded-xl p-3 sm:p-4 space-y-3.5 shadow-xs">
+                      {/* Cabeçalho do Card 2 */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-slate-200/70 dark:border-slate-800 pb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400">
+                            <Calendar className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                              Acompanhamento Semanal & Planejamento
+                            </h4>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Detalhamento de gastos por semana e disponibilidade orçada
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Mostrar se está acima, abaixo ou em linha com o previsto das semanas orçadas */}
+                        <div className="flex items-center">
+                          {categoryWeeklyData.categoryBudget === 0 && categoryWeeklyData.totalSpent === 0 ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              Sem orçamento definido
+                            </span>
+                          ) : categoryWeeklyData.isOverallAbove ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 shadow-xs">
+                              <TrendingUp className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                              <span>Acima do Previsto (+{categoryWeeklyData.overallDiff.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>
+                            </span>
+                          ) : categoryWeeklyData.isOverallBelow ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 shadow-xs">
+                              <TrendingDown className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span>Abaixo do Previsto (Economia de {Math.abs(categoryWeeklyData.overallDiff).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60 shadow-xs">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <span>Em Linha com o Previsto</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Grid com os campos principais: Orçado Mês, Semanas, Semana Atual, Média Disponível e Saldo Disponível com quebra automática de texto */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+                        {/* Valor orçado da respectiva categoria */}
+                        <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block leading-tight break-words whitespace-normal">
+                            Valor Orçado Mês
+                          </span>
+                          <div className="text-sm sm:text-base font-extrabold font-mono text-blue-600 dark:text-sky-400 mt-1 break-words">
+                            {categoryWeeklyData.categoryBudget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                        </div>
+
+                        {/* Quantidade de semanas (puxado automaticamente do respectivo mês em orçamento anual) */}
+                        <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block leading-tight break-words whitespace-normal">
+                            Qtd. de Semanas
+                          </span>
+                          <div className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100 mt-1 flex items-center gap-1 break-words">
+                            <span>{categoryWeeklyData.numWeeks} semanas</span>
+                          </div>
+                        </div>
+
+                        {/* Na frente de Qtd. Semanas: campo com a Semana Atual */}
+                        <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block leading-tight break-words whitespace-normal">
+                            Semana Atual
+                          </span>
+                          <div className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-100 mt-1 break-words">
+                            {categoryWeeklyData.isCurrentMonth && categoryWeeklyData.currentWeekNumber ? (
+                              <span className="inline-flex items-center gap-1 text-blue-600 dark:text-sky-400">
+                                <span>Semana {categoryWeeklyData.currentWeekNumber}</span>
+                              </span>
+                            ) : categoryWeeklyData.isPast ? (
+                              <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                                Mês encerrado
+                              </span>
+                            ) : (
+                              <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                                Mês futuro
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Valor médio disponível por semana */}
+                        <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block leading-tight break-words whitespace-normal">
+                            Média Prevista / Semana
+                          </span>
+                          <div className="text-sm sm:text-base font-extrabold font-mono text-slate-800 dark:text-slate-100 mt-1 break-words">
+                            {categoryWeeklyData.avgWeeklyBudget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                        </div>
+
+                        {/* Mostrar o saldo disponível do restante do mês (se tiver acabado é zero) */}
+                        <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between col-span-2 sm:col-span-1">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block leading-tight break-words whitespace-normal">
+                            Saldo Restante do Mês
+                          </span>
+                          <div className={`text-sm sm:text-base font-extrabold font-mono mt-1 break-words ${
+                            categoryWeeklyData.availableBalanceRemaining <= 0
+                              ? 'text-slate-400 dark:text-slate-500 font-normal'
+                              : 'text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            {categoryWeeklyData.availableBalanceRemaining.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mostrar o valor médio para o restante de semanas que ainda falta, do valor disponível que ainda tem */}
+                      <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-start sm:items-center gap-2.5">
+                          <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5 sm:mt-0" />
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block leading-tight break-words">
+                              Média Disponível para as Semanas Restantes:
+                            </span>
+                            <span className="text-[11px] text-slate-600 dark:text-slate-300 block leading-relaxed break-words mt-0.5">
+                              {categoryWeeklyData.remainingWeeks > 0 ? (
+                                <>
+                                  Calculado sobre o <strong>total de saldo existente</strong> ({categoryWeeklyData.availableBalanceRemaining.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) pelas <strong>{categoryWeeklyData.remainingWeeks} {categoryWeeklyData.remainingWeeks === 1 ? 'semana restante' : 'semanas restantes'}</strong> no mês{categoryWeeklyData.isCurrentMonth && categoryWeeklyData.currentWeekNumber ? ` (incluindo a atual: Semana ${categoryWeeklyData.currentWeekNumber})` : ''}.
+                                </>
+                              ) : (
+                                'Mês encerrado sem semanas restantes.'
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-left sm:text-right shrink-0">
+                          <div className={`text-base sm:text-lg font-black font-mono ${
+                            categoryWeeklyData.availableBalanceRemaining <= 0
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : 'text-blue-700 dark:text-sky-300'
+                          }`}>
+                            {categoryWeeklyData.availableBalanceRemaining <= 0
+                              ? 'R$ 0,00 / sem'
+                              : `${categoryWeeklyData.avgRemainingPerWeek.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / sem`}
+                          </div>
+                          {categoryWeeklyData.availableBalanceRemaining <= 0 ? (
+                            <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400 block">
+                              Teto orçado esgotado
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block">
+                              {categoryWeeklyData.remainingWeeks > 0
+                                ? `Saldo: ${categoryWeeklyData.availableBalanceRemaining.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ÷ ${categoryWeeklyData.remainingWeeks} sem`
+                                : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Gastos por semana mostrando a soma de cada semana */}
+                      <div className="space-y-2 pt-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs font-bold text-slate-700 dark:text-slate-200">
+                          <span className="uppercase tracking-wider text-[11px] break-words">Gastos Semana a Semana (Soma de Cada Semana)</span>
+                          <span className="text-[11px] font-normal text-slate-400 whitespace-nowrap">
+                            Média prevista: {categoryWeeklyData.avgWeeklyBudget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/sem
+                          </span>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {categoryWeeklyData.weeks.map((week) => (
+                            <div
+                              key={week.weekNum}
+                              className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-2xs hover:border-blue-300 dark:hover:border-slate-700 transition-colors"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-xs font-bold text-slate-800 dark:text-white">
+                                    {week.label}
+                                  </span>
+                                  <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 font-mono">
+                                    ({week.rangeLabel})
+                                  </span>
+                                </div>
+                                <div className="mt-1 break-words">
+                                  {categoryWeeklyData.categoryBudget > 0 ? (
+                                    week.isAbove ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 break-words">
+                                        <TrendingUp className="h-3 w-3 shrink-0" />
+                                        Acima (+{week.diffFromAvg.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                                      </span>
+                                    ) : week.isBelow ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 break-words">
+                                        <TrendingDown className="h-3 w-3 shrink-0" />
+                                        Abaixo (-{Math.abs(week.diffFromAvg).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                                        <Check className="h-3 w-3 shrink-0" />
+                                        Em linha com o previsto
+                                      </span>
+                                    )
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400">Sem teto semanal</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-xs sm:text-sm font-black font-mono text-slate-900 dark:text-white block">
+                                  {week.spent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {categoryWeeklyData.totalSpent > 0
+                                    ? `${((week.spent / categoryWeeklyData.totalSpent) * 100).toFixed(0)}% do mês`
+                                    : '0% do mês'}
+                                </span>
+                              </div>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Rodapé do Pop-up com Novo lançamento, Lista de Despesas e Voltar */}
-                <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex flex-col gap-3 shrink-0">
-                  <div className="flex items-center justify-between">
+                {/* Rodapé do Pop-up com Novo lançamento, Lista Despesas e Voltar dispostos horizontalmente lado a lado */}
+                <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      Total nesta categoria:
+                      Total na Categoria:
                     </span>
                     <strong className="text-slate-900 dark:text-white font-mono font-bold text-sm sm:text-base">
                       {categoryModalTotal.toLocaleString('pt-BR', {
@@ -3866,32 +4259,32 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                     </strong>
                   </div>
 
-                  {/* Botões um abaixo do outro alinhados à direita: Novo lançamento por cima de todos, Lista de Despesas no meio e Voltar por último */}
-                  <div className="flex flex-col items-end gap-2.5 pt-1 w-full">
+                  {/* Três botões de link ao lado horizontalmente na mesma linha: Novo lançamento, Lista Despesas e Voltar */}
+                  <div className="flex items-center justify-end gap-2 flex-wrap sm:flex-nowrap">
                     <button
                       type="button"
                       onClick={handleNovoLancamento}
-                      className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-950/20 transition-all cursor-pointer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm shadow-emerald-950/20 transition-all cursor-pointer whitespace-nowrap"
                       title="Abrir formulário de Novo Registro de Despesa"
                     >
-                      <Plus className="h-4 w-4 shrink-0" />
+                      <Plus className="h-3.5 w-3.5 shrink-0" />
                       <span>Novo lançamento</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={handleListaDespesas}
-                      className="w-fit inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-sm"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-2xs whitespace-nowrap"
                       title="Ir para a Lista de Despesas (Gastos)"
                     >
-                      <Wallet className="h-4 w-4 text-blue-500 shrink-0" />
-                      <span>Lista de Despesas</span>
+                      <Wallet className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                      <span>Lista Despesas</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setSelectedCategoryModal(null)}
-                      className="w-fit inline-flex items-center justify-center px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800/90 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-700 dark:text-slate-300 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer"
+                      className="inline-flex items-center justify-center px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800/90 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-700 dark:text-slate-300 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer whitespace-nowrap"
                       title="Voltar ao Resumo Mensal"
                     >
                       Voltar

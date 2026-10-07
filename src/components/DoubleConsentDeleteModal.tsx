@@ -141,11 +141,10 @@ export const DoubleConsentDeleteModal: React.FC<DoubleConsentDeleteModalProps> =
               </p>
             </div>
 
-            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 flex items-start gap-2">
-              <ShieldAlert className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-              <span>
-                <strong>Retenção Restrita:</strong> Por diretrizes de segurança, auditoria e controle de planos de assinatura,
-                apenas o registro do CPF é mantido em tabela restrita para impedir uso fraudulento de novos períodos gratuitos.
+            <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-3 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <span className="font-semibold">
+                Todos os dados serão irrevogavelmente apagados.
               </span>
             </div>
           </div>

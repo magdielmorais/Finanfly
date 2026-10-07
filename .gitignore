@@ -12,4 +12,5 @@ nodejs/.env
 nodejs/*.env
 !.env.example
 !nodejs/.env.example
-
+db.json
+db.json*

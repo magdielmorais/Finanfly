@@ -523,7 +523,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       setUsers(prev => prev.filter(u => u.email !== targetEmail));
       setUserToDelete(null);
       setDeleteUserError('');
-      setSuccessMsg('Usuário excluído com sucesso! Os dados foram removidos e o CPF foi retido de forma restrita para auditoria e planos.');
+      setSuccessMsg('Usuário excluído com sucesso! Todos os dados foram irrevogavelmente apagados.');
     } catch (err: any) {
       setDeleteUserError(err.message || 'Erro ao tentar deletar o usuário.');
     } finally {
