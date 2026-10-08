@@ -6024,9 +6024,9 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
       <div className="flex flex-col items-start gap-3.5 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Plano de Ação para Déficit Orçamentário <span className="font-normal text-slate-600 dark:text-slate-400">(Não cumprimento do limite financeiro)</span>
+            Plano de Ajuste <span className="font-normal text-slate-600 dark:text-slate-400">(Ações de aprendizado e correção de desvios)</span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Crie ações de aprendizados para as categorias de custos extrapolados, melhores os hábitos e comportamentos e tenha melhor controle sobre os gastos.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Crie ações de aprendizados para as categorias de custos extrapolados, melhore os hábitos e comportamentos e tenha melhor controle sobre os gastos.</p>
         </div>
         <button
           onClick={() => {
@@ -6295,7 +6295,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
         icon={<Sliders className="h-4 w-4 text-emerald-500" />}
       >
         <div className="space-y-2">
-          <p className="font-medium text-slate-700 dark:text-slate-300">As Ações de aprendizado servem para registrar planos de ação quando despesas superam as previsões ou ocorrem inconsistências:</p>
+          <p className="font-medium text-slate-700 dark:text-slate-300">As Ações de aprendizado servem para registrar planos de ação quando despesas superam as previsões ou ocorrem desvios:</p>
           <ul className="list-decimal pl-4 space-y-1.5">
             <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Ação</strong> abaixo do título para abrir a janela.</li>
             <li>Selecione a <strong className="text-slate-800 dark:text-white">Categoria</strong> e digite o <strong className="text-slate-800 dark:text-white">Motivo do Desvio</strong> (por que o gasto ultrapassou o planejado).</li>
