@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, UserData } from '../types';
 import { getUserInitials } from '../utils/userUtils';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check, Calendar } from 'lucide-react';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
 
 interface AdminPageProps {
@@ -82,7 +82,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         loading: false,
         active: false,
         url: '',
-        message: 'Erro ao verificar conexo com o Supabase.',
+        message: 'Erro ao verificar conexão com o Supabase.',
         schema: '',
         differentialSql: '',
         fullSafeSql: '',
@@ -268,6 +268,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [blockSuccess, setBlockSuccess] = useState('');
   const [blockError, setBlockError] = useState('');
 
+  // Extend Subscription Modal state
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [extendTargetEmail, setExtendTargetEmail] = useState('');
+  const [extendUserSearch, setExtendUserSearch] = useState('');
+  const [extendPlan, setExtendPlan] = useState<string>('mensal');
+  const [extendNewDate, setExtendNewDate] = useState<string>('');
+  const [extendDaysToAdd, setExtendDaysToAdd] = useState<number | ''>(30);
+  const [savingExtend, setSavingExtend] = useState(false);
+  const [extendError, setExtendError] = useState('');
+  const [extendSuccess, setExtendSuccess] = useState('');
+
   // Filtering state
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -320,7 +331,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       list.push({
         type: 'Receita',
         typeBadge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
-        description: inc.description || 'Sem descrio',
+        description: inc.description || 'Sem descrição',
         details: [inc.category ? `Categoria: ${inc.category}` : null, inc.paymentType ? `Tipo: ${inc.paymentType}` : null].filter(Boolean).join('  ') || 'Sem detalhes',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
@@ -334,8 +345,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       list.push({
         type: 'Despesa',
         typeBadge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800',
-        description: exp.description || 'Sem descrio',
-        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Tipo: ${exp.paymentType}` : null, exp.classification ? `Classificao: ${exp.classification}` : null].filter(Boolean).join('  ') || 'Sem detalhes',
+        description: exp.description || 'Sem descrição',
+        details: [exp.category ? `Categoria: ${exp.category}` : null, exp.paymentType ? `Tipo: ${exp.paymentType}` : null, exp.classification ? `Classificação: ${exp.classification}` : null].filter(Boolean).join('  ') || 'Sem detalhes',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -402,10 +413,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       const d = plan.deadline || '';
       const ts = d ? new Date(d).getTime() : 0;
       list.push({
-        type: 'Plano de Ao',
+        type: 'Plano de Ação',
         typeBadge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
-        description: plan.description || 'Plano de Ao',
-        details: plan.target ? `Alvo: ${plan.target}` : 'Ao',
+        description: plan.description || 'Plano de Ação',
+        details: plan.target ? `Alvo: ${plan.target}` : 'Ação',
         date: d,
         timestamp: isNaN(ts) ? 0 : ts
       });
@@ -472,10 +483,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         headers: { 'x-user-email': adminUser.email }
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao carregar usurios.');
+      if (!res.ok) throw new Error(data.error || 'Erro ao carregar usuários.');
       setUsers(data.users || []);
     } catch (err: any) {
-      setError(err.message || 'Erro ao carregar lista de usurios.');
+      setError(err.message || 'Erro ao carregar lista de usuários.');
     } finally {
       setLoading(false);
     }
@@ -501,7 +512,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       setFoundPassword(data.password);
       setSuccessMsg(`Senha localizada com sucesso!`);
     } catch (err: any) {
-      setError(err.message || 'Erro de conexo.');
+      setError(err.message || 'Erro de conexão.');
     }
   };
 
@@ -534,7 +545,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const handleSendPasswordEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmailForReminder) {
-      setEmailReminderError('Por favor, selecione um usurio.');
+      setEmailReminderError('Por favor, selecione um usuário.');
       return;
     }
     setSendingEmail(true);
@@ -621,7 +632,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         setEditSuccess('');
       }, 900);
     } catch (err: any) {
-      setEditError(err.message || 'Erro ao atualizar dados do usurio.');
+      setEditError(err.message || 'Erro ao atualizar dados do usuário.');
     } finally {
       setSavingEdit(false);
     }
@@ -734,7 +745,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       // Refresh user list
       fetchUsers();
     } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar aprovao.');
+      alert(err.message || 'Erro ao atualizar aprovação.');
     }
   };
 
@@ -764,7 +775,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao registrar usurio.');
+      if (!res.ok) throw new Error(data.error || 'Erro ao registrar usuário.');
 
       setSuccessMsg('Usuário criado com sucesso!');
       setNewEmail('');
@@ -776,7 +787,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       // Refresh user list
       fetchUsers();
     } catch (err: any) {
-      setError(err.message || 'Erro ao criar usurio.');
+      setError(err.message || 'Erro ao criar usuário.');
     }
   };
 
@@ -914,6 +925,151 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     }
   };
 
+  // Extend Subscription Modal Handlers
+  const selectedUserForExtend = useMemo(() => {
+    if (!extendTargetEmail) return null;
+    return users.find(u => u.email.toLowerCase() === extendTargetEmail.toLowerCase()) || null;
+  }, [users, extendTargetEmail]);
+
+  const filteredUsersForExtend = useMemo(() => {
+    if (!extendUserSearch.trim()) return users;
+    const q = extendUserSearch.toLowerCase().trim();
+    return users.filter(u =>
+      (u.name && u.name.toLowerCase().includes(q)) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.subscription?.plan && u.subscription.plan.toLowerCase().includes(q))
+    );
+  }, [users, extendUserSearch]);
+
+  const setupExtendFields = (user: UserProfile) => {
+    const currentPlan = user.subscription?.plan || 'mensal';
+    setExtendPlan(currentPlan === 'none' ? 'mensal' : currentPlan);
+
+    const validUntilStr = user.subscription?.validUntil;
+    let baseTime = Date.now();
+    if (validUntilStr) {
+      const parsed = new Date(validUntilStr).getTime();
+      if (!isNaN(parsed) && parsed > baseTime) {
+        baseTime = parsed;
+      }
+    }
+    const nextDate = new Date(baseTime + 30 * 24 * 60 * 60 * 1000);
+    setExtendNewDate(nextDate.toISOString().split('T')[0]);
+    setExtendDaysToAdd(30);
+  };
+
+  const handleOpenExtendModal = (targetUser?: UserProfile) => {
+    setExtendError('');
+    setExtendSuccess('');
+    setExtendUserSearch('');
+
+    const userToSelect = targetUser || users.find(u => u.role !== 'admin') || users[0] || null;
+    if (userToSelect) {
+      setExtendTargetEmail(userToSelect.email);
+      setupExtendFields(userToSelect);
+    } else {
+      setExtendTargetEmail('');
+      setExtendPlan('mensal');
+      const nextDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      setExtendNewDate(nextDate.toISOString().split('T')[0]);
+      setExtendDaysToAdd(30);
+    }
+
+    setShowExtendModal(true);
+  };
+
+  const handleSelectUserForExtend = (email: string) => {
+    setExtendTargetEmail(email);
+    setExtendError('');
+    setExtendSuccess('');
+    const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (found) {
+      setupExtendFields(found);
+    }
+  };
+
+  const handleApplyPresetDays = (days: number) => {
+    setExtendDaysToAdd(days);
+    const validUntilStr = selectedUserForExtend?.subscription?.validUntil;
+    let baseTime = Date.now();
+    if (validUntilStr) {
+      const parsed = new Date(validUntilStr).getTime();
+      if (!isNaN(parsed) && parsed > baseTime) {
+        baseTime = parsed;
+      }
+    }
+    const nextDate = new Date(baseTime + days * 24 * 60 * 60 * 1000);
+    setExtendNewDate(nextDate.toISOString().split('T')[0]);
+  };
+
+  const handleDaysInputChange = (val: string) => {
+    if (val === '') {
+      setExtendDaysToAdd('');
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+      setExtendDaysToAdd(num);
+      const validUntilStr = selectedUserForExtend?.subscription?.validUntil;
+      let baseTime = Date.now();
+      if (validUntilStr) {
+        const parsed = new Date(validUntilStr).getTime();
+        if (!isNaN(parsed) && parsed > baseTime) {
+          baseTime = parsed;
+        }
+      }
+      const nextDate = new Date(baseTime + num * 24 * 60 * 60 * 1000);
+      setExtendNewDate(nextDate.toISOString().split('T')[0]);
+    }
+  };
+
+  const handleSaveExtendSubscription = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extendTargetEmail) {
+      setExtendError('Por favor, selecione um usuário.');
+      return;
+    }
+    if (!extendNewDate) {
+      setExtendError('Por favor, defina a nova data de validade.');
+      return;
+    }
+
+    setSavingExtend(true);
+    setExtendError('');
+    setExtendSuccess('');
+
+    try {
+      const res = await fetch('/api/admin/extend-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': adminUser.email
+        },
+        body: JSON.stringify({
+          targetEmail: extendTargetEmail,
+          newValidUntil: new Date(extendNewDate + 'T23:59:59.999Z').toISOString(),
+          plan: extendPlan
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao estender prazo da assinatura.');
+
+      const formattedDate = new Date(extendNewDate + 'T23:59:59.999Z').toLocaleDateString('pt-BR');
+      setExtendSuccess(`Prazo de ${selectedUserForExtend?.name || extendTargetEmail} estendido até ${formattedDate} com sucesso!`);
+      setSuccessMsg(`Prazo do usuário ${selectedUserForExtend?.name || extendTargetEmail} estendido até ${formattedDate}!`);
+      await fetchUsers();
+      setTimeout(() => {
+        setShowExtendModal(false);
+        setExtendSuccess('');
+      }, 1500);
+    } catch (err: any) {
+      setExtendError(err.message || 'Erro ao estender prazo da assinatura.');
+    } finally {
+      setSavingExtend(false);
+    }
+  };
+
   const handleSavePrices = async (e: React.FormEvent) => {
     e.preventDefault();
     setPricesLoading(true);
@@ -931,7 +1087,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar valores.');
-      setPricesSuccess('Valores salvos e sincronizados com a pgina de assinaturas com sucesso!');
+      setPricesSuccess('Valores salvos e sincronizados com a página de assinaturas com sucesso!');
       if (data.prices) {
         setPricesDePor(data.prices);
         if (typeof window !== 'undefined') {
@@ -1016,7 +1172,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             Painel Geral do Administrador
           </span>
           <h2 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
-            Gesto de Contas e Assinaturas
+            Gestão de Contas e Assinaturas
           </h2>
         </div>
         <button
@@ -1039,7 +1195,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <Users className="h-4 w-4" />
-          Gesto de Usuários
+          Gestão de Usuários
         </button>
         <button
           onClick={() => setActiveTab('config-valores')}
@@ -1050,7 +1206,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <Settings className="h-4 w-4" />
-          Configurao de Valores
+          Configuração de Valores
         </button>
         <button
           onClick={() => setActiveTab('limite-uso-gratuito')}
@@ -1083,7 +1239,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <FileText className="h-4 w-4" />
-          Relatrios
+          Relatórios
         </button>
         <button
           onClick={() => setActiveTab('conexao')}
@@ -1094,7 +1250,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           }`}
         >
           <Database className="h-4 w-4" />
-          Conexo
+          Conexão
         </button>
       </div>
 
@@ -1103,7 +1259,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         <div className="grid gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Total Usuários</span>
+            <span className="text-xs font-semibold text-slate-500">Total de Usuários</span>
             <Users className="h-4 w-4 text-slate-400" />
           </div>
           <div className="mt-2.5">
@@ -1141,7 +1297,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
           <div className="mt-2.5">
             <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400 font-mono">{stats.pendingApproval}</h3>
-            <p className="mt-1 text-[10px] text-slate-400">Aguardando liberao manual</p>
+            <p className="mt-1 text-[10px] text-slate-400">Aguardando liberação manual</p>
           </div>
         </div>
       </div>
@@ -1152,10 +1308,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         {/* Panel header with "Cadastrar e Liberar Acesso" and "Relembrar Senha" triggers */}
         <div className="flex flex-col gap-3.5 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
           <div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white break-words">
               Usuários Cadastrados & Aprovações Manuais
             </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">Gerencie os acessos, permisses e planos dos usurios da plataforma.</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 break-words">Gerencie os acessos, permissões e planos dos usuários da plataforma.</p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full">
             <button
@@ -1198,7 +1354,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors w-full sm:w-auto"
             >
               <Mail className="h-4 w-4 text-violet-500" />
-              {showEmailReminderForm ? 'Fechar Lembrar E-mail' : 'Lembrar senha usurio e-mail'}
+              {showEmailReminderForm ? 'Fechar Lembrar E-mail' : 'Lembrar senha usuário e-mail'}
+            </button>
+            <button
+              onClick={() => handleOpenExtendModal()}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-4 py-2 text-xs font-bold shadow-sm hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors w-full sm:w-auto"
+            >
+              <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              Estender Prazo
             </button>
           </div>
         </div>
@@ -1208,7 +1371,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           <div className="rounded-xl border border-violet-200 bg-violet-50/10 p-5 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/10 animate-fade-in space-y-4">
             <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
               <Mail className="h-4 w-4 text-violet-500" />
-              Lembrar senha usurio e-mail
+              Lembrar senha usuário e-mail
             </h3>
 
             {emailReminderError && <p className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 px-3 py-2 rounded-lg">{emailReminderError}</p>}
@@ -1227,7 +1390,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     }}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-medium"
                   >
-                    <option value="">-- Selecione o usurio para enviar a senha por e-mail --</option>
+                    <option value="">-- Selecione o usuário para enviar a senha por e-mail --</option>
                     {users.map((u) => (
                       <option key={u.email} value={u.email}>
                         {u.name} ({u.email})
@@ -1287,7 +1450,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     }}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white font-medium"
                   >
-                    <option value="">-- Escolha um usurio para consultar a senha --</option>
+                    <option value="">-- Escolha um usuário para consultar a senha --</option>
                     {users.map((u) => (
                       <option key={u.email} value={u.email}>
                         {u.name} ({u.email})
@@ -1373,11 +1536,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Senha Provisria</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Senha Provisória</label>
                   <div className="relative mt-1">
                     <input
                       type={showNewPassword ? 'text' : 'password'}
-                      placeholder="Padro: user123"
+                      placeholder="Padrão: user123"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -1394,7 +1557,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nvel</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nível</label>
                   <select
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value as 'user' | 'admin')}
@@ -1413,11 +1576,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="none">Nenhum (Acessa e escolhe plano)</option>
-                    <option value="inativo">Inativo  (Bloqueado)</option>
-                    <option value="gratis">Grtis (60d)</option>
+                    <option value="inativo">Inativo (Bloqueado)</option>
+                    <option value="gratis">Grátis (60d)</option>
                     <option value="mensal">Mensal</option>
                     <option value="anual">Anual</option>
-                    <option value="livre">Plano Livre  (Sem cobrana / Vitalcio)</option>
+                    <option value="livre">Plano Livre (Sem cobrança / Vitalício)</option>
                   </select>
                 </div>
               </div>
@@ -1448,7 +1611,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
 
         {/* Users list panel */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 w-full">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 w-full">
+          {/* Card Header Title */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/60">
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white break-words">
+                Lista de Usuários Cadastrados
+              </h4>
+              <p className="text-[10px] text-slate-400 break-words">
+                Total: {filteredUsers.length} {filteredUsers.length === 1 ? 'usuário listado' : 'usuários listados'}
+              </p>
+            </div>
+          </div>
+
           {/* Filters Bar */}
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800/60">
             <div className="w-full sm:max-w-xs relative">
@@ -1476,7 +1651,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 <option value="all">Todos os Status</option>
                 <option value="approved">Aprovados / Ativos </option>
                 <option value="none">Nenhum (Pendente de Plano) </option>
-                <option value="pending">Pendentes de Aprovao </option>
+                <option value="pending">Pendentes de Aprovação </option>
                 <option value="expired">Planos Expirados </option>
                 <option value="blocked">Inativos / Bloqueados </option>
                 <option value="admin">Administradores </option>
@@ -1500,86 +1675,118 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
 
           {loading ? (
-            <div className="py-12 text-center text-xs text-slate-400">Carregando usurios...</div>
+            <div className="py-12 text-center text-xs text-slate-400">Carregando usuários...</div>
           ) : users.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-400">Nenhum usurio cadastrado.</div>
+            <div className="py-12 text-center text-xs text-slate-400">Nenhum usuário cadastrado.</div>
           ) : filteredUsers.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-400 font-medium">Nenhum usurio corresponde aos filtros aplicados.</div>
+            <div className="py-12 text-center text-xs text-slate-400 font-medium">Nenhum usuário corresponde aos filtros aplicados.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-800">
-                    <th className="pb-3.5 font-bold uppercase tracking-wider">Usuário</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider">Nvel / Perfil</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider">Plano</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider">Data de Cadastro</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider">Data de acesso</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider text-center">Status Acesso</th>
-                    <th className="pb-3.5 font-bold uppercase tracking-wider text-right">Aes</th>
+                    <th className="pb-3 pr-2.5 font-bold uppercase tracking-wider break-words max-w-[170px]">Usuário</th>
+                    <th className="px-2.5 pb-3 font-bold uppercase tracking-wider break-words text-center whitespace-nowrap">Nível / Perfil</th>
+                    <th className="px-2.5 pb-3 font-bold uppercase tracking-wider break-words whitespace-nowrap">Plano</th>
+                    <th className="px-3 pb-3 font-bold uppercase tracking-wider break-words leading-tight max-w-[100px]">Data de Cadastro</th>
+                    <th className="px-3 pb-3 font-bold uppercase tracking-wider break-words leading-tight max-w-[120px]">Data expiração assinatura</th>
+                    <th className="px-3 pb-3 font-bold uppercase tracking-wider break-words leading-tight max-w-[100px]">Data de acesso</th>
+                    <th className="px-2.5 pb-3 font-bold uppercase tracking-wider text-center break-words leading-tight max-w-[90px]">Status Acesso</th>
+                    <th className="pl-2.5 pb-3 font-bold uppercase tracking-wider text-right whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {filteredUsers.map((user) => {
                     const plan = user.subscription?.plan || 'none';
                     const isBlocked = !!user.isBlocked || plan === 'inativo';
-                    const valid = plan === 'livre' || (user.subscription?.validUntil && new Date(user.subscription.validUntil) > new Date());
+                    const validUntil = user.subscription?.validUntil;
+                    const isLivre = plan === 'livre' || user.role === 'admin';
                     const isApproved = user.subscription?.approved !== false;
+
+                    // Calculate subscription expiration details
+                    let isExpired = false;
+                    let expFormattedDate = '-';
+                    let expSubtitle = '';
+
+                    if (isLivre) {
+                      expFormattedDate = 'Vitalício';
+                      expSubtitle = user.role === 'admin' ? 'Acesso Admin' : 'Sem expiração';
+                    } else if (plan === 'inativo' || isBlocked) {
+                      isExpired = true;
+                      expFormattedDate = validUntil ? new Date(validUntil).toLocaleDateString('pt-BR') : 'Inativo';
+                      expSubtitle = 'Acesso bloqueado/inativo';
+                    } else if (validUntil) {
+                      const expDate = new Date(validUntil);
+                      const now = new Date();
+                      const diffTime = expDate.getTime() - now.getTime();
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      isExpired = diffDays <= 0;
+                      expFormattedDate = expDate.toLocaleDateString('pt-BR');
+                      if (isExpired) {
+                        expSubtitle = diffDays === 0 ? 'Expirou hoje' : `Expirada há ${Math.abs(diffDays)}d`;
+                      } else {
+                        expSubtitle = diffDays === 1 ? 'Vence amanhã' : `Restam ${diffDays}d`;
+                      }
+                    } else {
+                      if (plan === 'none') {
+                        isExpired = true;
+                        expFormattedDate = 'Pendente';
+                        expSubtitle = 'Sem assinatura';
+                      } else {
+                        expFormattedDate = 'Sem data';
+                        expSubtitle = '';
+                      }
+                    }
 
                     return (
                       <tr key={user.email} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                        <td className="py-3">
-                          <div className="flex items-center gap-2.5">
+                        <td className="py-2.5 pr-2.5">
+                          <div className="flex items-center gap-2">
                             <div 
-                              className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 select-none shadow-sm"
+                              className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0 select-none shadow-sm"
                               title={`Iniciais: ${getUserInitials(user.name, user.email)}`}
                             >
                               {getUserInitials(user.name, user.email)}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-slate-800 dark:text-slate-200">{user.name}</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px] sm:max-w-xs">{user.name}</span>
                                 {isBlocked && (
-                                    <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm">
-                                    <Lock className="h-2.5 w-2.5" /> Inativo / Bloqueado
+                                    <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1 py-0.5 text-[9px] font-extrabold text-rose-600 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-sm shrink-0">
+                                    <Lock className="h-2 w-2" /> Bloqueado
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
+                              <div className="text-[10px] text-slate-400 font-mono truncate max-w-[150px] sm:max-w-xs">{user.email}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3">
+                        <td className="px-2.5 py-2.5 whitespace-nowrap text-center">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             user.role === 'admin'
                               ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
                               : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                           }`}>
-                            {user.role === 'admin' ? 'Administrador' : 'Usuário'}
+                            {user.role === 'admin' ? 'Admin' : 'Usuário'}
                           </span>
                         </td>
-                        <td className="py-3">
-                          <div className="font-semibold text-slate-700 dark:text-slate-300">
-                            {plan === 'inativo' && <span className="text-rose-600 dark:text-rose-400">Inativo </span>}
-                            {plan === 'none' && <span className="text-amber-600 dark:text-amber-400">Nenhum (Pendente) </span>}
-                            {plan === 'gratis' && 'Grtis (60d)'}
+                        <td className="px-2.5 py-2.5 whitespace-nowrap">
+                          <div className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                            {plan === 'inativo' && <span className="text-rose-600 dark:text-rose-400">Inativo</span>}
+                            {plan === 'none' && <span className="text-amber-600 dark:text-amber-400">Pendente</span>}
+                            {plan === 'gratis' && 'Grátis (60d)'}
                             {plan === 'mensal' && 'Mensal'}
-                            {plan === 'anual' && 'Anual '}
-                            {plan === 'livre' && 'Livre '}
+                            {plan === 'anual' && 'Anual'}
+                            {plan === 'livre' && 'Livre'}
                           </div>
-                          {plan !== 'livre' && plan !== 'inativo' && plan !== 'none' && user.subscription?.validUntil && (
-                            <div className="text-[9px] text-slate-400 font-mono">
-                              Exp: {new Date(user.subscription.validUntil).toLocaleDateString('pt-BR')}
-                            </div>
-                          )}
-                          {plan === 'livre' && (
-                            <div className="text-[9px] text-emerald-500 font-semibold">
-                              Acesso Vitalcio
+                          {isLivre && (
+                            <div className="text-[9px] text-purple-600 dark:text-purple-400 font-semibold">
+                              Acesso Vitalício
                             </div>
                           )}
                         </td>
-                        <td className="py-3">
-                          <div className="font-medium text-slate-700 dark:text-slate-300">
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <div className="font-medium text-slate-700 dark:text-slate-300 font-mono text-[11px]">
                             {user.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : '-'}
                           </div>
                           {user.createdAt && (
@@ -1588,8 +1795,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                             </div>
                           )}
                         </td>
-                        <td className="py-3">
-                          <div className="font-medium text-slate-700 dark:text-slate-300">
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          {isLivre ? (
+                            <div>
+                              <div className="font-semibold text-purple-600 dark:text-purple-400 text-[11px]">
+                                {expFormattedDate}
+                              </div>
+                              <div className="text-[9px] text-slate-400 font-mono">
+                                {expSubtitle}
+                              </div>
+                            </div>
+                          ) : isExpired ? (
+                            <div className="text-red-600 dark:text-red-400">
+                              <div className="font-bold font-mono text-red-600 dark:text-red-400 flex items-center gap-1 text-[11px]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-600 dark:bg-red-400 shrink-0 inline-block animate-pulse" />
+                                <span>{expFormattedDate}</span>
+                              </div>
+                              {expSubtitle && (
+                                <div className="text-[9px] font-semibold text-red-500 dark:text-red-400 mt-0.5">
+                                  {expSubtitle}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-medium font-mono text-slate-700 dark:text-slate-300 text-[11px]">
+                                {expFormattedDate}
+                              </div>
+                              {expSubtitle && (
+                                <div className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                  {expSubtitle}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <div className="font-medium text-slate-700 dark:text-slate-300 font-mono text-[11px]">
                             {user.lastAccess
                               ? new Date(user.lastAccess).toLocaleDateString('pt-BR')
                               : user.createdAt
@@ -1602,25 +1844,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                             </div>
                           )}
                         </td>
-                        <td className="py-3 text-center">
+                        <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
                           {user.role === 'admin' ? (
                             <span className="text-[10px] text-emerald-600 font-bold">Livre</span>
                           ) : isBlocked ? (
-                            <span className="text-[10px] text-rose-600 font-bold bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900">Bloqueado</span>
+                            <span className="text-[10px] text-rose-600 font-bold bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900">Bloqueado</span>
                           ) : (
                             <button
                               onClick={() => handleToggleApproval(user.email, isApproved)}
-                              className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
                                 isApproved
                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40'
                                    : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40'
                               }`}
                             >
-                              {isApproved ? 'Aprovado ' : 'Aprovar manual '}
+                              {isApproved ? 'Aprovado' : 'Aprovar'}
                             </button>
                           )}
                         </td>
-                        <td className="py-3 text-right">
+                        <td className="pl-2.5 py-2.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleOpenBlockModal(user)}
@@ -1636,24 +1878,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                             </button>
                             <button
                               onClick={() => handleInspectUser(user)}
-                              title="Auditar dados do usurio"
+                              title="Auditar dados do usuário"
                               aria-label="Auditar"
                               className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors"
                             >
                               <Eye className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => handleEditClick(user)}
-                              title="Editar cadastro do usurio"
-                              aria-label="Editar"
+                              onClick={() => handleOpenExtendModal(user)}
+                              title="Estender prazo de validade da assinatura"
+                              aria-label="Estender Prazo"
                               className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 transition-colors"
+                            >
+                              <Calendar className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEditClick(user)}
+                              title="Editar cadastro do usuário"
+                              aria-label="Editar"
+                              className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors"
                             >
                               <Pencil className="h-4 w-4" />
                             </button>
                             {user.email.toLowerCase().trim() !== adminUser.email.toLowerCase().trim() && (
                               <button
                                 onClick={() => setUserToDelete(user)}
-                                title="Excluir usurio e todos os seus dados"
+                                title="Excluir usuário e todos os seus dados"
                                 aria-label="Excluir"
                                 className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
                               >
@@ -1689,7 +1939,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm sm:text-base text-slate-800 dark:text-white">
-                    Visualizao e Auditoria de Dados: {selectedUserForAudit.name}
+                    Visualização e Auditoria de Dados: {selectedUserForAudit.name}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {selectedUserForAudit.email}
@@ -1728,12 +1978,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </div>
             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
               <Phone className="h-4 w-4 text-emerald-500 shrink-0" />
-              <span>Telefone: <strong>{selectedUserForAudit.phone || 'No cadastrado'}</strong></span>
+              <span>Telefone: <strong>{selectedUserForAudit.phone || 'Não cadastrado'}</strong></span>
             </div>
             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
               <Clock className="h-4 w-4 text-purple-500 shrink-0" />
               <span>
-                ltimo Acesso:{' '}
+                Último Acesso:{' '}
                 <strong>
                   {auditData?.lastAccess
                     ? new Date(auditData.lastAccess).toLocaleString('pt-BR', {
@@ -1753,28 +2003,28 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <MapPin className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
               <div className="space-y-0.5 text-slate-700 dark:text-slate-300">
                 <div>
-                  Endereo: <strong className="text-slate-800 dark:text-white">{selectedUserForAudit.address || 'No informado'}</strong>
+                  Endereço: <strong className="text-slate-800 dark:text-white">{selectedUserForAudit.address || 'Não informado'}</strong>
                 </div>
                 {(selectedUserForAudit.city || selectedUserForAudit.state) && (
                   <div className="text-[11px] text-slate-500">
-                    Cidade/Estado: <strong className="text-slate-700 dark:text-slate-200">{selectedUserForAudit.city || 'No informado'} - {selectedUserForAudit.state || 'No informado'}</strong>
+                    Cidade/Estado: <strong className="text-slate-700 dark:text-slate-200">{selectedUserForAudit.city || 'Não informado'} - {selectedUserForAudit.state || 'Não informado'}</strong>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Campo Mensagem Usuário (Atribudo aos dados pessoais do usurio, visvel e editvel exclusivamente pelo administrador na auditoria) */}
+          {/* Campo Mensagem Usuário (Atribuído aos dados pessoais do usuário, visível e editável exclusivamente pelo administrador na auditoria) */}
           <div className="mb-6 rounded-xl border border-blue-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
-                  mensagem usurio
+                  mensagem usuário
                 </h4>
               </div>
               <span className="text-[11px] text-slate-400 italic">
-                Anotao interna de dados pessoais (visvel apenas no painel do administrador)
+                Anotação interna de dados pessoais (visível apenas no painel do administrador)
               </span>
             </div>
 
@@ -1783,7 +2033,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 rows={3}
                 value={auditUserMessage}
                 onChange={(e) => setAuditUserMessage(e.target.value)}
-                placeholder="Escreva aqui a mensagem do usurio ou anotações internas..."
+                placeholder="Escreva aqui a mensagem do usuário ou anotações internas..."
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
               />
             </div>
@@ -1816,29 +2066,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </div>
 
           {loadingAudit ? (
-            <p className="text-center text-xs text-slate-400 py-6">Buscando auditoria de lanamentos do usurio...</p>
+            <p className="text-center text-xs text-slate-400 py-6">Buscando auditoria de lançamentos do usuário...</p>
           ) : !auditData ? (
-            <p className="text-center text-xs text-slate-400 py-6">Nenhum registro para este usurio.</p>
+            <p className="text-center text-xs text-slate-400 py-6">Nenhum registro para este usuário.</p>
           ) : (
             <div className="space-y-6">
-              {/* Status de lanamento de dados */}
+              {/* Status de lançamento de dados */}
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
-                      Status de Lanamento de Dados
+                      Status de Lançamento de Dados
                     </h4>
                   </div>
                   {auditAnalysis.totalEntriesCount > 0 ? (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 w-fit">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Realizando Lanamentos Ativamente
+                      Realizando Lançamentos Ativamente
                     </span>
                   ) : (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1.5 w-fit">
                       <XCircle className="h-3.5 w-3.5 text-amber-600" />
-                      Sem Lanamentos Cadastrados
+                      Sem Lançamentos Cadastrados
                     </span>
                   )}
                 </div>
@@ -1846,7 +2096,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 text-xs text-slate-600 dark:text-slate-300">
                   <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Registrado</span>
-                    <strong className="text-sm font-extrabold text-slate-800 dark:text-white">{auditAnalysis.totalEntriesCount} lanamentos</strong>
+                    <strong className="text-sm font-extrabold text-slate-800 dark:text-white">{auditAnalysis.totalEntriesCount} lançamentos</strong>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 uppercase font-bold block">Receitas / Despesas</span>
@@ -1857,27 +2107,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.investmentsCount} cadastros</strong>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Outros Mdulos</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Outros Módulos</span>
                     <strong className="text-slate-800 dark:text-white font-bold">{auditAnalysis.tripsCount + auditAnalysis.wishesCount + auditAnalysis.shoppingCount + auditAnalysis.plansCount} registros</strong>
                   </div>
                 </div>
               </div>
 
-              {/* Breve histórico dos ltimos 30 tipos de lanamento (sem valores) */}
+              {/* Breve histórico dos últimos 30 tipos de lançamento (sem valores) */}
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                 <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
                   <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
                     <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    ltimos Lanamentos (At 30 itens  Sem Exibio de Valores)
+                    Últimos Lançamentos (Até 30 itens - Sem Exibição de Valores)
                   </h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Histrico com os tipos, descries e categorias das movimentações recentes do usurio.
+                    Histórico com os tipos, descrições e categorias das movimentações recentes do usuário.
                   </p>
                 </div>
 
                 {auditAnalysis.recent30AuditEntries.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-6">
-                    Nenhum lanamento foi realizado por este usurio at o momento.
+                    Nenhum lançamento foi realizado por este usuário até o momento.
                   </p>
                 ) : (
                   <div className="overflow-x-auto max-h-80 overflow-y-auto">
@@ -1885,8 +2135,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <thead>
                         <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase text-slate-400 bg-slate-50/50 dark:bg-slate-800/30">
                           <th className="py-2 px-3 w-10">#</th>
-                          <th className="py-2 px-3">Tipo / Mdulo</th>
-                          <th className="py-2 px-3">Descrio do Lanamento</th>
+                          <th className="py-2 px-3">Tipo / Módulo</th>
+                          <th className="py-2 px-3">Descrição do Lançamento</th>
                           <th className="py-2 px-3">Categoria / Detalhes</th>
                           <th className="py-2 px-3 text-right">Data</th>
                         </tr>
@@ -1938,10 +2188,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-emerald-500" />
-              Configurao de Valores dos Planos de Assinatura
+              Configuração de Valores dos Planos de Assinatura
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Defina os valores "De" (original/riscado) e "Por" (atual/cobrado) para os planos mensal e anual. Esses valores sero exibidos na tela de contratao.
+              Defina os valores "De" (original/riscado) e "Por" (atual/cobrado) para os planos mensal e anual. Esses valores serão exibidos na tela de contratação.
             </p>
           </div>
 
@@ -2077,7 +2327,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               Limite de Uso Gratuito
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Defina a quantidade de dias que o usurio ter de perodo de experincia (trial) ao selecionar o plano gratuito no sistema.
+              Defina a quantidade de dias que o usuário terá de período de experiência (trial) ao selecionar o plano gratuito no sistema.
             </p>
           </div>
 
@@ -2097,7 +2347,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <div className="max-w-md p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-4">
               <div>
                 <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                  Dias de Perodo de Experincia
+                  Dias de Período de Experiência
                 </label>
                 <div className="relative rounded-lg shadow-sm">
                   <input
@@ -2111,7 +2361,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   />
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                  Novos usurios ou alterações manuais para o plano gratuito usaro este perodo de tempo para definir a data limite de expirao da assinatura.
+                  Novos usuários ou alterações manuais para o plano gratuito usarão este período de tempo para definir a data limite de expiração da assinatura.
                 </p>
               </div>
             </div>
@@ -2122,7 +2372,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 disabled={freeTrialLoading}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
               >
-                {freeTrialLoading ? 'Salvando...' : 'Salvar Configurao'}
+                {freeTrialLoading ? 'Salvando...' : 'Salvar Configuração'}
               </button>
             </div>
           </form>
@@ -2134,10 +2384,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
               <Bell className="h-5 w-5 text-amber-500" />
-              Configurao de Avisos e Cards da Pgina Inicial
+              Configuração de Avisos e Cards da Página Inicial
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Personalize o ttulo e as mensagens explicativas dos cards e avisos exibidos na pgina inicial para todos os usurios do sistema.
+              Personalize o título e as mensagens explicativas dos cards e avisos exibidos na página inicial para todos os usuários do sistema.
             </p>
           </div>
 
@@ -2154,12 +2404,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           )}
 
           <form onSubmit={handleSaveNotices} className="space-y-8 text-xs">
-            {/* Seo 1: Cards Principais da Pgina Inicial */}
+            {/* Seção 1: Cards Principais da Página Inicial */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
                 <span className="h-2 w-2 rounded-full bg-blue-500" />
                 <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  Cards Principais da Pgina Inicial
+                  Cards Principais da Página Inicial
                 </h4>
               </div>
 
@@ -2175,7 +2425,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Ttulo do Card
+                        Título do Card
                       </label>
                       <input
                         type="text"
@@ -2212,7 +2462,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Ttulo do Card
+                        Título do Card
                       </label>
                       <input
                         type="text"
@@ -2249,7 +2499,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Ttulo do Card
+                        Título do Card
                       </label>
                       <input
                         type="text"
@@ -2277,12 +2527,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               </div>
             </div>
 
-            {/* Seo 2: Dicas para Sade Financeira */}
+            {/* Seção 2: Dicas para Saúde Financeira */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  Cards de Dicas para Sade Financeira
+                  Cards de Dicas para Saúde Financeira
                 </h4>
               </div>
 
@@ -2298,7 +2548,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Ttulo do Card
+                        Título do Card
                       </label>
                       <input
                         type="text"
@@ -2335,7 +2585,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                        Ttulo do Card
+                        Título do Card
                       </label>
                       <input
                         type="text"
@@ -2380,10 +2630,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-6">
           <div>
             <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
-              Relatrio de Distribuio de Usuários
+              Relatório de Distribuição de Usuários
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Visualize a distribuio demogrfica dos usurios cadastrados por Estado e Cidade.
+              Visualize a distribuição demográfica dos usuários cadastrados por Estado e Cidade.
             </p>
           </div>
 
@@ -2414,7 +2664,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       setReportCityFilter('all');
                     }}
                     className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 hover:underline"
-                    title="Limpar filtros relatrios"
+                    title="Limpar filtros relatórios"
                   >
                     <Trash2 className="h-3 w-3" />
                     <span>Limpar</span>
@@ -2436,7 +2686,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <div className="flex flex-col justify-end bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-3 rounded-lg">
               <span className="text-[10px] font-bold uppercase text-blue-500">Total de Usuários</span>
               <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">
-                {filteredReportUsers.length} {filteredReportUsers.length === 1 ? 'usurio' : 'usurios'}
+                {filteredReportUsers.length} {filteredReportUsers.length === 1 ? 'usuário' : 'usuários'}
               </div>
             </div>
           </div>
@@ -2457,7 +2707,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 {filteredReportUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                      Nenhum usurio cadastrado corresponde aos filtros selecionados.
+                      Nenhum usuário cadastrado corresponde aos filtros selecionados.
                     </td>
                   </tr>
                 ) : (
@@ -2495,7 +2745,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </div>
       )}
 
-      {/* Tab: Conexo (Auditoria e Sincronizao Segura do Supabase e Catlogo de Tabelas) */}
+      {/* Tab: Conexão (Auditoria e Sincronização Segura do Supabase e Catálogo de Tabelas) */}
       {activeTab === 'conexao' && (
         <div className="space-y-6 animate-fade-in">
           {/* Supabase Connection Verification & Real-time Database Audit Card */}
@@ -2514,7 +2764,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-base font-bold text-slate-800 dark:text-white tracking-wide">
-                  Auditoria e Sincronizao Segura do Supabase
+                  Auditoria e Sincronização Segura do Supabase
                 </span>
                 {supabaseStatus.loading ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-500/20">
@@ -2539,7 +2789,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300 px-2 py-0.5 text-[10px] font-semibold border border-blue-200 dark:border-blue-900/40">
-                   100% No-Destrutivo (Zero perda de dados)
+                   100% Não-Destrutivo (Zero perda de dados)
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-snug">
@@ -2573,7 +2823,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 space-y-1.5">
                 <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>{supabaseStatus.missingCount} tabela(s) pendente(s) de criao no Supabase:</span>
+                  <span>{supabaseStatus.missingCount} tabela(s) pendente(s) de criação no Supabase:</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   {supabaseStatus.missingTables?.map(t => (
@@ -2583,14 +2833,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   ))}
                 </div>
                 <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed pt-1">
-                  O script diferencial abaixo cria <strong>apenas</strong> essas tabelas e adiciona colunas faltantes. Ele <strong>no usa DROP TABLE</strong> e preserva intactos todos os usurios e dados j existentes.
+                  O script diferencial abaixo cria <strong>apenas</strong> essas tabelas e adiciona colunas faltantes. Ele <strong>não usa DROP TABLE</strong> e preserva intactos todos os usuários e dados já existentes.
                 </p>
               </div>
             ) : (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>
-                  <strong>Perfeito!</strong> Todas as 21 tabelas do sistema esto presentes no Supabase e os dados dos usurios continuam 100% seguros e preservados.
+                  <strong>Perfeito!</strong> Todas as 21 tabelas do sistema estão presentes no Supabase e os dados dos usuários continuam 100% seguros e preservados.
                 </span>
               </div>
             )}
@@ -2643,13 +2893,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 text-xs font-semibold transition-all shadow-sm active:scale-95"
               >
                 {copiedSchema ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copiedSchema ? 'Copiado para rea de Transferncia!' : 'Copiar Script SQL'}</span>
+                <span>{copiedSchema ? 'Copiado para Área de Transferência!' : 'Copiar Script SQL'}</span>
               </button>
             </div>
           </div>
 
           <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
-             <strong>Instruo:</strong> Abra o console do seu <strong>Supabase</strong>, v no menu <strong>SQL Editor</strong>, cole o cdigo abaixo e clique em <strong>RUN</strong>. Ele aplicar as alterações com total segurana sem resetar ou apagar dados de usurios j existentes.
+             <strong>Instrução:</strong> Abra o console do seu <strong>Supabase</strong>, vá no menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>RUN</strong>. Ele aplicará as alterações com total segurança sem resetar ou apagar dados de usuários já existentes.
           </p>
 
           <div className="relative">
@@ -2667,7 +2917,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               onClick={() => setShowTableDetails(!showTableDetails)}
               className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
             >
-              <span>{showTableDetails ? ' Ocultar detalhes das 21 tabelas do sistema' : ' Ver catlogo e contagem de registros das 21 tabelas'}</span>
+              <span>{showTableDetails ? ' Ocultar detalhes das 21 tabelas do sistema' : ' Ver catálogo e contagem de registros das 21 tabelas'}</span>
             </button>
 
             {showTableDetails && (
@@ -2682,6 +2932,33 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <th className="px-3 py-2 text-right">Registros</th>
                     </tr>
                   </thead>
+                  <tbody className="divide-y divide-slate-150 dark:divide-slate-800/60 font-mono text-[11px]">
+                    {(!supabaseStatus.tables || supabaseStatus.tables.length === 0) ? (
+                      <tr>
+                        <td colSpan={5} className="py-4 text-center text-slate-400 font-sans">
+                          {supabaseStatus.loading ? 'Carregando catálogo de tabelas...' : 'Nenhuma tabela encontrada.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      supabaseStatus.tables.map((t) => (
+                        <tr key={t.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">{t.name}</td>
+                          <td className="px-3 py-2 font-sans text-slate-500 uppercase text-[10px]">{t.category}</td>
+                          <td className="px-3 py-2 font-sans text-slate-600 dark:text-slate-400">{t.description}</td>
+                          <td className="px-3 py-2 text-center">
+                            {t.exists ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">Ativa</span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">Pendente</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300 font-bold">
+                            {t.recordCount !== null && t.recordCount !== undefined ? t.recordCount : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
                 </table>
               </div>
             )}
@@ -2802,10 +3079,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Endereo Completo</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Endereço Completo</label>
                   <input
                     type="text"
-                    placeholder="Ex: Av. Paulista, 1000 - Bela Vista, So Paulo - SP"
+                    placeholder="Ex: Av. Paulista, 1000 - Bela Vista, São Paulo - SP"
                     value={editAddress}
                     onChange={(e) => setEditAddress(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -2818,7 +3095,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <label className="block text-[10px] font-bold uppercase text-slate-400">Cidade</label>
                   <input
                     type="text"
-                    placeholder="Ex: So Paulo"
+                    placeholder="Ex: São Paulo"
                     value={editCity}
                     onChange={(e) => setEditCity(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -2839,7 +3116,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nvel / Perfil</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400">Nível / Perfil</label>
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as 'user' | 'admin')}
@@ -2858,11 +3135,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                   >
                     <option value="none">Nenhum (Acessa e escolhe plano)</option>
-                    <option value="inativo">Inativo  (Bloqueia acesso)</option>
-                    <option value="gratis">Grtis (60d)</option>
+                    <option value="inativo">Inativo (Bloqueia acesso)</option>
+                    <option value="gratis">Grátis (60d)</option>
                     <option value="mensal">Mensal</option>
-                    <option value="anual">Anual </option>
-                    <option value="livre">Plano Livre  (Sem cobrana / Vitalcio)</option>
+                    <option value="anual">Anual</option>
+                    <option value="livre">Plano Livre (Sem cobrança / Vitalício)</option>
                   </select>
                 </div>
               </div>
@@ -2873,7 +3150,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Escreva a mensagem personalizada para o usurio..."
+                  placeholder="Escreva a mensagem personalizada para o usuário..."
                   value={editUserMessage}
                   onChange={(e) => setEditUserMessage(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-white"
@@ -3022,13 +3299,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   <span className="text-[10px] text-slate-400 font-medium">Dados Pessoais</span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
-                  Este texto fica registrado no campo <strong>mensagem usurio</strong> dos dados pessoais e  exibido como o <strong>Motivo</strong> na tela de login.
+                  Este texto fica registrado no campo <strong>mensagem usuário</strong> dos dados pessoais e é exibido como o <strong>Motivo</strong> na tela de login.
                 </p>
                 <textarea
                   rows={3}
                   value={blockModalMessage}
                   onChange={(e) => setBlockModalMessage(e.target.value)}
-                  placeholder="Ex: Entre em contato com a administrao para regularizar o acesso..."
+                  placeholder="Ex: Entre em contato com a administração para regularizar o acesso..."
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white text-xs focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-none placeholder-slate-400 font-medium"
                 />
               </div>
@@ -3037,7 +3314,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               {blockModalIsBlocked && (
                 <div className="rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 p-3 space-y-1.5 animate-fade-in">
                   <span className="text-[10px] font-bold uppercase text-rose-700 dark:text-rose-400 flex items-center gap-1">
-                    <Eye className="h-3 w-3" /> Visualizao do aviso na tela de Login:
+                    <Eye className="h-3 w-3" /> Visualização do aviso na tela de Login:
                   </span>
                   <div className="rounded-xl bg-slate-950 p-3 text-xs text-red-200 border border-red-900/60 shadow-inner">
                     <div className="flex items-start gap-2.5">
@@ -3078,6 +3355,314 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   type="button"
                   onClick={() => setSelectedUserForBlock(null)}
                   disabled={blockSaving}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Popup para Estender Prazo de Assinatura */}
+      {showExtendModal && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in cursor-pointer overflow-y-auto"
+          onClick={() => {
+            if (!savingExtend) {
+              setShowExtendModal(false);
+              setExtendError('');
+              setExtendSuccess('');
+            }
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-xl w-full shadow-2xl space-y-4 cursor-default max-h-[92vh] overflow-y-auto custom-scrollbar my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    Estender Prazo de Assinatura
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Selecione o usuário cadastrado, visualize o plano e defina a nova data de validade.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingExtend) {
+                    setShowExtendModal(false);
+                    setExtendError('');
+                    setExtendSuccess('');
+                  }
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                title="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {extendSuccess && (
+              <div className="p-3 text-xs font-semibold text-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 dark:text-emerald-300 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2 animate-fade-in">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>{extendSuccess}</span>
+              </div>
+            )}
+
+            {extendError && (
+              <div className="p-3 text-xs font-semibold text-rose-800 bg-rose-50 dark:bg-rose-950/20 dark:text-rose-300 rounded-xl border border-rose-100 dark:border-rose-900/30 flex items-center gap-2 animate-fade-in">
+                <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{extendError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveExtendSubscription} className="space-y-4 text-xs">
+              {/* 1. Filtro / Seleção de Usuário */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  1. Selecionar Usuário Cadastrado no Banco
+                </label>
+                
+                {/* Campo de busca rápida */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Filtrar por nome ou e-mail..."
+                    value={extendUserSearch}
+                    onChange={(e) => setExtendUserSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <Users className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
+                  {extendUserSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setExtendUserSearch('')}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown com os usuários */}
+                <select
+                  value={extendTargetEmail}
+                  onChange={(e) => handleSelectUserForExtend(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs"
+                >
+                  <option value="">-- Selecione o usuário cadastrado no banco ({filteredUsersForExtend.length} disponíveis) --</option>
+                  {filteredUsersForExtend.map((u) => {
+                    const planName = u.subscription?.plan || 'none';
+                    const expDate = u.subscription?.validUntil 
+                      ? new Date(u.subscription.validUntil).toLocaleDateString('pt-BR') 
+                      : (planName === 'livre' ? 'Vitalício' : 'Sem expiração');
+                    return (
+                      <option key={u.email} value={u.email}>
+                        {u.name || 'Sem nome'} ({u.email}) — Plano: {planName.toUpperCase()} — Expira: {expDate}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Informações do usuário selecionado */}
+              {selectedUserForExtend && (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                        {getUserInitials(selectedUserForExtend.name, selectedUserForExtend.email)}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-800 dark:text-white">
+                          {selectedUserForExtend.name || 'Usuário'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {selectedUserForExtend.email}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        selectedUserForExtend.isBlocked || selectedUserForExtend.subscription?.plan === 'inativo'
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                          : selectedUserForExtend.subscription?.plan === 'livre'
+                          ? 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                      }`}>
+                        {selectedUserForExtend.isBlocked ? 'Bloqueado' : `Plano: ${selectedUserForExtend.subscription?.plan || 'none'}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2. Tipo de Assinatura e 3. Data de Expiração Atual */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                        Tipo de Assinatura
+                      </label>
+                      <select
+                        value={extendPlan}
+                        onChange={(e) => setExtendPlan(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      >
+                        <option value="mensal">Plano Mensal</option>
+                        <option value="anual">Plano Anual</option>
+                        <option value="gratis">Plano Grátis (Trial)</option>
+                        <option value="livre">Plano Livre (Vitalício / Sem cobrança)</option>
+                        <option value="inativo">Inativo (Bloqueado)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                        Data de Expiração Atual
+                      </label>
+                      <div className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono">
+                        {selectedUserForExtend.subscription?.plan === 'livre' ? (
+                          <span className="text-purple-600 dark:text-purple-400 font-bold">Acesso Vitalício</span>
+                        ) : selectedUserForExtend.subscription?.validUntil ? (
+                          (() => {
+                            const d = new Date(selectedUserForExtend.subscription.validUntil);
+                            const now = new Date();
+                            const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                            const isExpired = diffDays <= 0;
+                            return (
+                              <div className="flex items-center justify-between">
+                                <span className={isExpired ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300 font-bold'}>
+                                  {d.toLocaleDateString('pt-BR')}
+                                </span>
+                                <span className={`text-[10px] font-sans ${isExpired ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                  {isExpired ? `(Expirado há ${Math.abs(diffDays)}d)` : `(Restam ${diffDays}d)`}
+                                </span>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-slate-400">Sem data definida</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Campo para digitar o prazo novo para estender a data */}
+              <div className="space-y-3 pt-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  2. Digitar o Novo Prazo / Data de Validade
+                </label>
+
+                {/* Botões de atalho rápido */}
+                <div>
+                  <span className="block text-[10px] text-slate-400 font-bold uppercase mb-1.5">
+                    Atalhos Rápidos de Extensão:
+                  </span>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {[
+                      { label: '+15 dias', days: 15 },
+                      { label: '+30 dias', days: 30 },
+                      { label: '+60 dias', days: 60 },
+                      { label: '+90 dias', days: 90 },
+                      { label: '+180 dias', days: 180 },
+                      { label: '+1 ano', days: 365 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.days}
+                        type="button"
+                        onClick={() => handleApplyPresetDays(preset.days)}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold border transition-all text-center ${
+                          extendDaysToAdd === preset.days
+                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 hover:border-emerald-300 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                      Digitar Dias Adicionais
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Ex: 30, 45, 90..."
+                        value={extendDaysToAdd}
+                        onChange={(e) => handleDaysInputChange(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 pointer-events-none">
+                        dias
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                      Nova Data de Expiração (Vencimento)
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={extendNewDate}
+                      onChange={(e) => {
+                        setExtendNewDate(e.target.value);
+                        setExtendDaysToAdd('');
+                      }}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Resumo da nova validade */}
+                {extendNewDate && (
+                  <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                    <div className="text-[11px] leading-relaxed">
+                      <span>Ao confirmar, a assinatura de <strong>{selectedUserForExtend?.name || extendTargetEmail}</strong> será válida até <strong>{new Date(extendNewDate + 'T23:59:59.999Z').toLocaleDateString('pt-BR')}</strong> com plano <strong>{extendPlan.toUpperCase()}</strong>. O acesso à plataforma ficará 100% ativo e liberado no banco de dados.</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="submit"
+                  disabled={savingExtend || !extendTargetEmail || !extendNewDate}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Calendar className="h-4 w-4" />
+                  {savingExtend ? 'Estendendo Prazo...' : 'Confirmar e Estender Prazo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!savingExtend) {
+                      setShowExtendModal(false);
+                      setExtendError('');
+                      setExtendSuccess('');
+                    }
+                  }}
+                  disabled={savingExtend}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
                 >
                   Cancelar

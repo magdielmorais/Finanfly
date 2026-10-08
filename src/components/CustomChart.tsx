@@ -102,10 +102,10 @@ export const MonthlyExpenseTrendChart: React.FC<{
     };
   }, [expenses, selectedYear, selectedMonth, daysInMonth]);
 
-  // Dimensões do gráfico (pequeno e compacto)
-  const chartHeight = 165;
+  // Dimensões do gráfico (compacto com eixo horizontal para os dias em vertical)
+  const chartHeight = 185;
   const topPadding = 16;
-  const bottomPadding = 16;
+  const bottomPadding = 36;
   const plotHeight = chartHeight - topPadding - bottomPadding;
 
   // Largura reduzida do eixo Y (apenas 38px) para maximizar a área útil dos dados na tela
@@ -260,7 +260,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
         <div className="flex-1 min-w-0">
           <div className="relative border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/30 dark:bg-slate-950/20">
             {/* Eixo Y fixo na esquerda */}
-            <div className="absolute left-0 top-0 bottom-0 z-10 bg-white/90 dark:bg-slate-900/90 border-r border-slate-100 dark:border-slate-800 flex flex-col justify-between" style={{ width: `${yAxisWidth}px`, padding: `${topPadding}px 4px ${bottomPadding}px 2px` }}>
+            <div className="absolute left-0 top-0 bottom-0 z-10 bg-white/90 dark:bg-slate-900/90 border-r border-slate-100 dark:border-slate-800 flex flex-col justify-between pointer-events-none" style={{ width: `${yAxisWidth}px`, padding: `${topPadding}px 4px ${bottomPadding}px 2px` }}>
               {yTicks.map((tick) => (
                 <span key={`y-tick-${tick.val}`} className="text-[9px] font-bold font-mono text-slate-400 dark:text-slate-500 text-right pr-0.5 leading-none" style={{ height: '0', display: 'flex', alignItems: 'center', justifyContent: 'end' }}>
                   {formatYTickCompact(tick.val)}
@@ -299,6 +299,61 @@ export const MonthlyExpenseTrendChart: React.FC<{
                   {pointsWithCoords.map((p) => (
                     <rect key={`bar-${p.day}`} x={p.x - p.colWidth * 0.3} y={p.barY} width={p.colWidth * 0.6} height={p.barHeight} fill={hoveredDay === p.day ? '#f59e0b' : '#fbbf24'} opacity={hoveredDay === p.day ? 0.9 : 0.4} rx={1} />
                   ))}
+
+                  {/* Eixo X - Linha horizontal base */}
+                  <line
+                    x1={0}
+                    y1={getY(0)}
+                    x2={chartWidth}
+                    y2={getY(0)}
+                    stroke="currentColor"
+                    className="text-slate-200 dark:text-slate-700"
+                    strokeWidth={1}
+                  />
+
+                  {/* Eixo X - Ticks e Rótulos verticais dos Dias */}
+                  {pointsWithCoords.map((p) => {
+                    const isHovered = hoveredDay === p.day;
+                    return (
+                      <g
+                        key={`x-axis-day-${p.day}`}
+                        className="cursor-pointer group"
+                        onMouseEnter={() => setHoveredDay(p.day)}
+                        onMouseLeave={() => setHoveredDay(null)}
+                        onClick={() => setHoveredDay(hoveredDay === p.day ? null : p.day)}
+                      >
+                        {/* Linha vertical de tick no eixo */}
+                        <line
+                          x1={p.x}
+                          y1={getY(0)}
+                          x2={p.x}
+                          y2={getY(0) + (isHovered ? 6 : 4)}
+                          stroke="currentColor"
+                          className={isHovered ? "text-rose-500 dark:text-rose-400 stroke-[1.5]" : "text-slate-300 dark:text-slate-700"}
+                        />
+                        {/* Rótulo do dia na vertical (90 graus) */}
+                        <text
+                          x={p.x}
+                          y={getY(0) + 7}
+                          transform={`rotate(90, ${p.x}, ${getY(0) + 7})`}
+                          textAnchor="start"
+                          dominantBaseline="central"
+                          style={{ fontSize: '9px', userSelect: 'none' }}
+                          className={`font-mono transition-colors duration-150 ${
+                            isHovered
+                              ? "fill-rose-600 dark:fill-rose-400 font-bold"
+                              : p.dayTotal > 0
+                              ? "fill-slate-800 dark:fill-slate-200 font-semibold"
+                              : p.isWeekend
+                              ? "fill-slate-400 dark:fill-slate-500 font-normal opacity-70"
+                              : "fill-slate-500 dark:fill-slate-400 font-medium"
+                          }`}
+                        >
+                          {String(p.day).padStart(2, '0')}
+                        </text>
+                      </g>
+                    );
+                  })}
 
                   {/* Pontos de Interação */}
                   {pointsWithCoords.map((p) => (

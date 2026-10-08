@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart, Download, Layers } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MonthlyExpenseTrendChart } from './CustomChart';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
@@ -1634,16 +1634,29 @@ export const DespesasPage: React.FC<PageProps> = ({
   const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null);
   const [editPaymentStatusValue, setEditPaymentStatusValue] = useState('');
 
-  // Travar rolagem do body e fechar com ESC quando o formulário de despesa estiver aberto
+  // Estados para Alterar em massa
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkEditMonth, setBulkEditMonth] = useState<string>(''); // YYYY-MM
+  const [bulkEditField, setBulkEditField] = useState<'classification' | 'paymentType' | 'status'>('classification');
+  const [bulkEditCurrentVal, setBulkEditCurrentVal] = useState<string>('');
+  const [bulkEditTargetVal, setBulkEditTargetVal] = useState<string>('');
+  const [bulkEditSuccessMessage, setBulkEditSuccessMessage] = useState<string | null>(null);
+  const [showBulkEditConfirm, setShowBulkEditConfirm] = useState(false);
+
+  // Travar rolagem do body e fechar com ESC quando o formulário de despesa ou modal de alteração em massa estiver aberto
   useEffect(() => {
-    if (showAddForm) {
+    if (showAddForm || showBulkEditModal) {
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
 
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-          setShowAddForm(false);
-          setEditingExpenseId(null);
+          if (showBulkEditModal) {
+            setShowBulkEditModal(false);
+          } else if (showAddForm) {
+            setShowAddForm(false);
+            setEditingExpenseId(null);
+          }
         }
       };
       window.addEventListener('keydown', handleKeyDown);
@@ -1653,7 +1666,7 @@ export const DespesasPage: React.FC<PageProps> = ({
         window.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [showAddForm]);
+  }, [showAddForm, showBulkEditModal]);
 
   const currentMonthYearStr = useMemo(() => {
     const today = new Date();
@@ -1732,6 +1745,119 @@ export const DespesasPage: React.FC<PageProps> = ({
     ];
     const monthIdx = parseInt(month, 10) - 1;
     return `${monthNames[monthIdx]} / ${year}`;
+  };
+
+  // Todas as opções de mês/ano disponíveis nas despesas para o seletor da alteração em massa
+  const allAvailableMonthsForBulk = useMemo(() => {
+    const set = new Set<string>();
+    set.add(currentMonthYearStr);
+    userData.expenses.forEach(e => {
+      if (e.date && e.date.length >= 7) {
+        set.add(e.date.substring(0, 7));
+      }
+    });
+    return Array.from(set).sort().reverse();
+  }, [userData.expenses, currentMonthYearStr]);
+
+  // Opções possíveis de valor atual dependendo do campo selecionado
+  const currentValOptions = useMemo(() => {
+    if (bulkEditField === 'classification') {
+      return ['Fixo', 'Variável', 'Eventual'];
+    }
+    if (bulkEditField === 'paymentType') {
+      return sortedPaymentTypes;
+    }
+    if (bulkEditField === 'status') {
+      return sortedPaymentStatuses;
+    }
+    return [];
+  }, [bulkEditField, sortedPaymentTypes, sortedPaymentStatuses]);
+
+  // Opções possíveis de valor desejado dependendo do campo selecionado
+  const targetValOptions = useMemo(() => {
+    if (bulkEditField === 'classification') {
+      return ['Fixo', 'Variável', 'Eventual'];
+    }
+    if (bulkEditField === 'paymentType') {
+      return sortedPaymentTypes;
+    }
+    if (bulkEditField === 'status') {
+      return sortedPaymentStatuses;
+    }
+    return [];
+  }, [bulkEditField, sortedPaymentTypes, sortedPaymentStatuses]);
+
+  // Contagem de itens que serão impactados pela alteração em massa
+  const matchingBulkExpensesCount = useMemo(() => {
+    if (!bulkEditMonth || !bulkEditCurrentVal) return 0;
+    return userData.expenses.filter(exp => {
+      if (!exp.date.startsWith(bulkEditMonth)) return false;
+      if (bulkEditField === 'classification') {
+        return (exp.classification || '') === bulkEditCurrentVal;
+      }
+      if (bulkEditField === 'paymentType') {
+        return exp.paymentType === bulkEditCurrentVal;
+      }
+      if (bulkEditField === 'status') {
+        return exp.status === bulkEditCurrentVal;
+      }
+      return false;
+    }).length;
+  }, [userData.expenses, bulkEditMonth, bulkEditField, bulkEditCurrentVal]);
+
+  const handleOpenBulkEdit = () => {
+    // Definir mês padrão: o mês filtrado atualmente na tela se houver, ou mês corrente
+    const initialMonth = (selectedMonth !== 'all' ? selectedMonth : currentMonthYearStr);
+    setBulkEditMonth(initialMonth);
+    setBulkEditField('classification');
+    setBulkEditCurrentVal('Variável');
+    setBulkEditTargetVal('Fixo');
+    setBulkEditSuccessMessage(null);
+    setShowBulkEditConfirm(false);
+    setShowBulkEditModal(true);
+  };
+
+  const handleExecuteBulkEdit = () => {
+    if (!bulkEditMonth || !bulkEditCurrentVal || !bulkEditTargetVal) return;
+    if (bulkEditCurrentVal === bulkEditTargetVal) {
+      alert('O valor desejado deve ser diferente do valor atual.');
+      return;
+    }
+
+    let changedCount = 0;
+    const updatedExpenses = userData.expenses.map(exp => {
+      if (!exp.date.startsWith(bulkEditMonth)) return exp;
+
+      if (bulkEditField === 'classification' && (exp.classification || '') === bulkEditCurrentVal) {
+        changedCount++;
+        return { ...exp, classification: bulkEditTargetVal };
+      }
+      if (bulkEditField === 'paymentType' && exp.paymentType === bulkEditCurrentVal) {
+        changedCount++;
+        return { ...exp, paymentType: bulkEditTargetVal };
+      }
+      if (bulkEditField === 'status' && exp.status === bulkEditCurrentVal) {
+        changedCount++;
+        return { ...exp, status: bulkEditTargetVal };
+      }
+      return exp;
+    });
+
+    if (changedCount === 0) {
+      alert('Nenhum registro encontrado correspondente aos critérios selecionados.');
+      return;
+    }
+
+    onUpdateUserData({
+      expenses: updatedExpenses
+    });
+
+    const fieldLabel = bulkEditField === 'classification' ? 'Classificação' : bulkEditField === 'paymentType' ? 'Tipo' : 'Situação';
+    setBulkEditSuccessMessage(`Sucesso! ${changedCount} ${changedCount === 1 ? 'despesa foi atualizada' : 'despesas foram atualizadas'} (${fieldLabel}: "${bulkEditCurrentVal}" ➔ "${bulkEditTargetVal}").`);
+    setTimeout(() => {
+      setBulkEditSuccessMessage(null);
+      setShowBulkEditModal(false);
+    }, 1800);
   };
 
   const handleAdd = (e: React.FormEvent) => {
@@ -2790,11 +2916,272 @@ export const DespesasPage: React.FC<PageProps> = ({
             )}
           </div>
 
-          <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300">
-            Soma Filtrada: <span className="font-mono text-rose-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
+            <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 w-full sm:w-auto text-right">
+              Soma Filtrada: <span className="font-mono text-rose-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+
+            {/* Botão Alterar em massa abaixo de Soma Filtrada */}
+            <button
+              type="button"
+              onClick={handleOpenBulkEdit}
+              className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 font-semibold text-xs transition-all shadow-sm shadow-slate-900/10 cursor-pointer w-full sm:w-auto"
+              title="Alterar múltiplos registros em lote neste mês/ano"
+            >
+              <Layers className="h-3.5 w-3.5 text-slate-300" />
+              <span>Alterar em massa</span>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Popup / Modal de Alteração em Massa (Centralizado onde estiver o scroll da página via fixed overlay) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showBulkEditModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm cursor-pointer"
+              onClick={() => setShowBulkEditModal(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[90vh] overflow-hidden cursor-default"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header do Popup */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-slate-700 text-white dark:bg-slate-800 flex items-center justify-center font-bold shadow-sm">
+                      <Layers className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">
+                        Alteração em Massa de Despesas
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Atualize simultaneamente a classificação, tipo ou situação no mês escolhido
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkEditModal(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Fechar"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Corpo do formulário de Alteração em massa */}
+                <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+                  {bulkEditSuccessMessage ? (
+                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 flex items-center gap-3">
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <p className="text-xs sm:text-sm font-semibold">{bulkEditSuccessMessage}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* 1. Filtro de Mês/Ano */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                          <span>Mês / Ano para aplicação</span>
+                        </label>
+                        <select
+                          value={bulkEditMonth}
+                          onChange={(e) => setBulkEditMonth(e.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                        >
+                          {allAvailableMonthsForBulk.map((m) => (
+                            <option key={m} value={m}>
+                              {formatMonthYearStr(m)} {m === currentMonthYearStr ? ' (Mês Corrente)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* 2. Campo a escolher: Classificação, Tipo ou Situação */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                          Campo a alterar
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBulkEditField('classification');
+                              setBulkEditCurrentVal('Variável');
+                              setBulkEditTargetVal('Fixo');
+                            }}
+                            className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all text-center cursor-pointer ${
+                              bulkEditField === 'classification'
+                                ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 shadow-sm'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300'
+                            }`}
+                          >
+                            Classificação
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBulkEditField('paymentType');
+                              setBulkEditCurrentVal(sortedPaymentTypes[0] || '');
+                              setBulkEditTargetVal(sortedPaymentTypes[1] || sortedPaymentTypes[0] || '');
+                            }}
+                            className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all text-center cursor-pointer ${
+                              bulkEditField === 'paymentType'
+                                ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 shadow-sm'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300'
+                            }`}
+                          >
+                            Tipo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBulkEditField('status');
+                              setBulkEditCurrentVal(sortedPaymentStatuses[0] || 'Pendente');
+                              setBulkEditTargetVal(sortedPaymentStatuses[1] || sortedPaymentStatuses[0] || 'Pago');
+                            }}
+                            className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all text-center cursor-pointer ${
+                              bulkEditField === 'status'
+                                ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 shadow-sm'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300'
+                            }`}
+                          >
+                            Situação
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 3. Valor Atual e Valor Desejado */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                            Valor Atual (De)
+                          </label>
+                          <select
+                            value={bulkEditCurrentVal}
+                            onChange={(e) => setBulkEditCurrentVal(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                          >
+                            {currentValOptions.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                            Valor Desejado (Para)
+                          </label>
+                          <select
+                            value={bulkEditTargetVal}
+                            onChange={(e) => setBulkEditTargetVal(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                          >
+                            {targetValOptions.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Informação do impacto / Preview */}
+                      <div className="rounded-xl p-3 bg-slate-50 border border-slate-100 dark:bg-slate-950/60 dark:border-slate-800/80 flex items-center justify-between">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          Itens que serão alterados:
+                        </span>
+                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                          matchingBulkExpensesCount > 0
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                            : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {matchingBulkExpensesCount} {matchingBulkExpensesCount === 1 ? 'lançamento' : 'lançamentos'}
+                        </span>
+                      </div>
+
+                      {bulkEditCurrentVal === bulkEditTargetVal && (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                          * Selecione um valor desejado diferente do valor atual.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Footer de Ações do Popup */}
+                {!bulkEditSuccessMessage && (
+                  <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
+                    {showBulkEditConfirm ? (
+                      <div className="space-y-3 animate-fade-in">
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 flex items-start gap-2.5">
+                          <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                          <div className="text-xs space-y-1">
+                            <p className="font-bold">Confirmar alteração em massa?</p>
+                            <p className="text-slate-600 dark:text-slate-300">
+                              Esta ação alterará o campo <span className="font-semibold text-slate-800 dark:text-slate-100">{bulkEditField === 'classification' ? 'Classificação' : bulkEditField === 'paymentType' ? 'Tipo' : 'Situação'}</span> de <span className="font-bold text-rose-600 dark:text-rose-400">"{bulkEditCurrentVal}"</span> para <span className="font-bold text-emerald-600 dark:text-emerald-400">"{bulkEditTargetVal}"</span> em <span className="font-bold">{matchingBulkExpensesCount} {matchingBulkExpensesCount === 1 ? 'registro' : 'registros'}</span> de <span className="font-semibold">{formatMonthYearStr(bulkEditMonth)}</span>.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setShowBulkEditConfirm(false)}
+                            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                          >
+                            Voltar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleExecuteBulkEdit}
+                            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 px-4 py-2 text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
+                          >
+                            <Check className="h-4 w-4" />
+                            Sim, confirmar e aplicar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowBulkEditModal(false)}
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={matchingBulkExpensesCount === 0 || bulkEditCurrentVal === bulkEditTargetVal}
+                          onClick={() => setShowBulkEditConfirm(true)}
+                          className="rounded-xl bg-slate-800 dark:bg-slate-700 px-4 py-2 text-xs font-bold text-white hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Check className="h-4 w-4" />
+                          Aplicar Alteração em Massa
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Lançamentos Card Separado */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-3">
@@ -3403,6 +3790,43 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
     };
   }, [userData.expenses, userData.annualPlanning, selectedCategoryModal, selectedYear, selectedMonth]);
 
+  const handleExportToExcel = () => {
+    // Columns: Categoria; Orçado; Realizado; Saldo
+    const headers = ['Categoria', 'Orçado (R$)', 'Realizado (R$)', 'Saldo (R$)'];
+    
+    const rows = monthData.categoriesTableData.map(item => [
+      item.category,
+      item.budgetedValue.toFixed(2).replace('.', ','),
+      item.realizedValue.toFixed(2).replace('.', ','),
+      item.balanceValue.toFixed(2).replace('.', ',')
+    ]);
+
+    // Total Row
+    const totalRow = [
+      'TOTAL',
+      monthData.sumBudget.toFixed(2).replace('.', ','),
+      monthData.sumExpense.toFixed(2).replace('.', ','),
+      monthData.balance.toFixed(2).replace('.', ',')
+    ];
+
+    const allRows = [headers, ...rows, totalRow];
+    
+    // Convert to CSV string with semicolons and a UTF-8 BOM so Excel opens it with correct accents
+    const csvContent = '\uFEFF' + allRows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(';')).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    
+    const monthName = monthsList[selectedMonth].toLowerCase();
+    link.setAttribute('download', `resumo_categoria_${monthName}_${selectedYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800 gap-3">
@@ -3540,6 +3964,20 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
             </tbody>
           </table>
         </div>
+
+        {/* Botão de Exportar para Excel */}
+        {monthData.categoriesTableData.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/60 flex justify-center">
+            <button
+              onClick={handleExportToExcel}
+              className="flex items-center gap-2.5 px-4.5 py-2.5 bg-slate-600 hover:bg-slate-500 active:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:active:bg-slate-800 text-xs font-bold text-white rounded-xl shadow-md shadow-slate-600/10 hover:shadow-lg hover:shadow-slate-600/15 active:shadow-xs transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+              title="Exportar dados de categorias para planilha Excel"
+            >
+              <Download className="h-4 w-4 shrink-0" />
+              Exportar para Excel
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Gráfico de Tendência de Gastos (Evolução Acumulada Dia a Dia) */}

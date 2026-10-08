@@ -3387,6 +3387,59 @@ app.post("/api/admin/edit-user", async (req, res) => {
   }
 });
 
+// Admin extends user subscription expiration date (Estender Prazo)
+app.post("/api/admin/extend-subscription", async (req, res) => {
+  const email = req.headers["x-user-email"] as string;
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email);
+    if (!adminUser || adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    }
+
+    const { targetEmail, newValidUntil, plan } = req.body;
+    if (!targetEmail) {
+      return res.status(400).json({ error: "E-mail do usuário obrigatório." });
+    }
+
+    const lowerTargetEmail = targetEmail.toLowerCase().trim();
+    const user = await getUserByEmail(lowerTargetEmail);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    if (!user.subscription) {
+      user.subscription = {
+        plan: plan || "mensal",
+        validUntil: newValidUntil ? new Date(newValidUntil).toISOString() : null,
+        selectedAt: new Date().toISOString(),
+        freePlanUsed: false,
+        approved: true
+      };
+    } else {
+      if (plan && plan !== "unchanged") {
+        user.subscription.plan = plan;
+      }
+      user.subscription.validUntil = newValidUntil ? new Date(newValidUntil).toISOString() : null;
+      user.subscription.approved = true;
+    }
+
+    // Unblock and activate account if valid date set
+    if (user.subscription.plan !== "inativo") {
+      user.isBlocked = false;
+    }
+
+    await saveUser(user);
+    res.json({ success: true, user });
+  } catch (err: any) {
+    console.error("Admin extend-subscription error:", err);
+    res.status(500).json({ error: err.message || "Erro interno ao estender prazo da assinatura." });
+  }
+});
+
 // Admin saves user custom message directly and persistently
 app.post("/api/admin/save-user-message", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
