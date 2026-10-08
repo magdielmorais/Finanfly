@@ -549,8 +549,8 @@ export const ExpenseBudgetComparisonChart: React.FC<{
   data: { month: string; budgeted: number; realized: number; balance: number }[];
 }> = ({ data }) => {
   return (
-    <div className="w-full h-[240px]">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full h-[240px] min-w-0">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-800" />
           <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
@@ -583,9 +583,9 @@ export const ExpenseClassificationPieChart: React.FC<{
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 h-[240px]">
-      <div className="w-1/2 h-full min-h-[160px] relative flex items-center justify-center">
-        <ResponsiveContainer width="100%" height="100%">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 h-[240px] min-w-0">
+      <div className="w-full sm:w-1/2 h-[160px] sm:h-full relative flex items-center justify-center min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <PieChart>
             <Pie
               data={chartData}
@@ -612,16 +612,16 @@ export const ExpenseClassificationPieChart: React.FC<{
           </span>
         </div>
       </div>
-      <div className="flex-1 w-full space-y-2.5">
+      <div className="flex-1 w-full space-y-2.5 min-w-0">
         {data.map((item, index) => {
           const percent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
           return (
             <div key={index} className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className={`w-3 h-3 rounded-full ${item.bgClass}`} />
-                <span className="font-semibold text-slate-700 dark:text-slate-300">{item.name}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`w-3 h-3 rounded-full shrink-0 ${item.bgClass}`} />
+                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
               </div>
-              <div className="text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+              <div className="text-right font-mono font-bold text-slate-800 dark:text-slate-200 shrink-0">
                 <span>R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 <span className="text-[10px] text-slate-400 ml-1.5 font-normal">({percent.toFixed(1)}%)</span>
               </div>
@@ -638,8 +638,8 @@ export const Investment5YearTotalChart: React.FC<{
   data: { year: number; total: number }[];
 }> = ({ data }) => {
   return (
-    <div className="w-full h-[200px]">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full h-[200px] min-w-0">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
@@ -678,8 +678,8 @@ export const Investment5YearStackedChart: React.FC<{
   }, [data, categories]);
 
   return (
-    <div className="w-full h-[200px]">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full h-[200px] min-w-0">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-800" />
           <XAxis dataKey="year" stroke="#94a3b8" fontSize={11} tickLine={false} />
@@ -727,9 +727,9 @@ export const InvestmentMonthlyDonutChart: React.FC<{
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 h-[200px]">
-      <div className="w-1/2 h-full min-h-[140px] relative flex items-center justify-center">
-        <ResponsiveContainer width="100%" height="100%">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 h-[200px] min-w-0">
+      <div className="w-full sm:w-1/2 h-[140px] sm:h-full relative flex items-center justify-center min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <PieChart>
             <Pie
               data={chartData}
@@ -756,16 +756,16 @@ export const InvestmentMonthlyDonutChart: React.FC<{
           </span>
         </div>
       </div>
-      <div className="flex-1 w-full space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+      <div className="flex-1 w-full space-y-1.5 max-h-[180px] overflow-y-auto pr-1 min-w-0">
         {data.map((item, index) => {
           const percent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
           return (
             <div key={index} className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className={`w-2.5 h-2.5 rounded-full ${item.bgClass}`} />
-                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[90px]" title={item.name}>{item.name}</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.bgClass}`} />
+                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title={item.name}>{item.name}</span>
               </div>
-              <div className="text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+              <div className="text-right font-mono font-bold text-slate-800 dark:text-slate-200 shrink-0">
                 <span>R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 <span className="text-[9px] text-slate-400 ml-1 font-normal">({percent.toFixed(1)}%)</span>
               </div>

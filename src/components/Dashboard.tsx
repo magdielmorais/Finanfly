@@ -217,17 +217,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
 
   const fiveYears = useMemo(() => {
     const current = new Date().getFullYear();
-    return [current, current - 1, current - 2, current - 3, current - 4];
+    return [current - 4, current - 3, current - 2, current - 1, current];
   }, []);
 
   // Investments list from userData
   const investments = useMemo(() => userData.investments || [], [userData.investments]);
 
+  // Helper to extract year and month reliably across YYYY-MM-DD, DD/MM/YYYY or ISO formats
+  const getYearAndMonth = (d?: string): { year: number; month: number } => {
+    if (!d) return { year: -1, month: -1 };
+    if (d.includes('/')) {
+      const parts = d.split('/');
+      if (parts.length === 3) {
+        return { year: parseInt(parts[2], 10), month: parseInt(parts[1], 10) - 1 };
+      }
+    } else if (d.includes('-')) {
+      const parts = d.split('-');
+      if (parts.length >= 2) {
+        return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) - 1 };
+      }
+    }
+    const parsed = new Date(d);
+    if (!isNaN(parsed.getTime())) {
+      return { year: parsed.getFullYear(), month: parsed.getMonth() };
+    }
+    return { year: -1, month: -1 };
+  };
+
   // 5-Year total investments data
   const investment5YearTotals = useMemo(() => {
     return fiveYears.map(year => {
       const total = investments
-        .filter(inv => inv.date && new Date(inv.date).getFullYear() === year)
+        .filter(inv => getYearAndMonth(inv.date).year === year)
         .reduce((sum, inv) => sum + (inv.value || 0), 0);
       return { year, total };
     });
@@ -249,7 +270,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   // 5-Year investment breakdown by type
   const investment5YearTypesData = useMemo(() => {
     return fiveYears.map(year => {
-      const yearInvs = investments.filter(inv => inv.date && new Date(inv.date).getFullYear() === year);
+      const yearInvs = investments.filter(inv => getYearAndMonth(inv.date).year === year);
       const totalsMap: Record<string, number> = {};
       let grandTotal = 0;
       yearInvs.forEach(inv => {
@@ -277,7 +298,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   // 5-Year investment breakdown by status
   const investment5YearStatusesData = useMemo(() => {
     return fiveYears.map(year => {
-      const yearInvs = investments.filter(inv => inv.date && new Date(inv.date).getFullYear() === year);
+      const yearInvs = investments.filter(inv => getYearAndMonth(inv.date).year === year);
       const totalsMap: Record<string, number> = {};
       let grandTotal = 0;
       yearInvs.forEach(inv => {
@@ -292,14 +313,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   // Selected month/year investment breakdown by Type
   const monthlyInvestmentTypesData = useMemo(() => {
     const filtered = investments.filter(inv => {
-      if (!inv.date) return false;
-      const parts = inv.date.split('-');
-      if (parts.length >= 2) {
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10) - 1;
-        return y === investmentYear && m === investmentMonth;
-      }
-      return false;
+      const parsed = getYearAndMonth(inv.date);
+      return parsed.year === investmentYear && parsed.month === investmentMonth;
     });
 
     const totalsMap: Record<string, number> = {};
@@ -326,14 +341,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
   // Selected month/year investment breakdown by Status
   const monthlyInvestmentStatusesData = useMemo(() => {
     const filtered = investments.filter(inv => {
-      if (!inv.date) return false;
-      const parts = inv.date.split('-');
-      if (parts.length >= 2) {
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10) - 1;
-        return y === investmentYear && m === investmentMonth;
-      }
-      return false;
+      const parsed = getYearAndMonth(inv.date);
+      return parsed.year === investmentYear && parsed.month === investmentMonth;
     });
 
     const totalsMap: Record<string, number> = {};
@@ -485,18 +494,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
     
     return months.map((monthName, idx) => {
       const monthBudget = yearPlan?.monthlyBudgets.find(b => b.month === idx);
-      const budgeted = monthBudget?.expenseBudget || 0;
+      let budgeted = 0;
+      if (monthBudget) {
+        if (monthBudget.categoryBudgets && monthBudget.categoryBudgets.length > 0) {
+          budgeted = monthBudget.categoryBudgets.reduce((s, cb) => s + (cb.budgetedValue || 0), 0);
+        } else {
+          budgeted = monthBudget.expenseBudget || 0;
+        }
+      }
       
       const realized = userData.expenses
         .filter(exp => {
           if (!exp.date) return false;
-          const parts = exp.date.split('-');
-          if (parts.length >= 2) {
-            const y = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10) - 1;
-            return y === budgetComparisonYear && m === idx;
+          let y = -1;
+          let m = -1;
+          if (exp.date.includes('/')) {
+            const parts = exp.date.split('/');
+            if (parts.length === 3) {
+              y = parseInt(parts[2], 10);
+              m = parseInt(parts[1], 10) - 1;
+            }
+          } else if (exp.date.includes('-')) {
+            const parts = exp.date.split('-');
+            if (parts.length >= 2) {
+              y = parseInt(parts[0], 10);
+              m = parseInt(parts[1], 10) - 1;
+            }
           }
-          return false;
+          return y === budgetComparisonYear && m === idx;
         })
         .reduce((sum, item) => sum + item.value, 0);
 
@@ -519,19 +544,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
 
     userData.expenses.forEach(exp => {
       if (!exp.date) return;
-      const parts = exp.date.split('-');
-      if (parts.length >= 2) {
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10) - 1;
-        if (y === classificationYear && m === classificationMonth) {
-          const classif = (exp.classification || 'Fixo').trim().toLowerCase();
-          if (classif.includes('variáv') || classif.includes('variavel')) {
-            variavel += exp.value;
-          } else if (classif.includes('eventual')) {
-            eventual += exp.value;
-          } else {
-            fixo += exp.value;
-          }
+      let y = -1;
+      let m = -1;
+      if (exp.date.includes('/')) {
+        const parts = exp.date.split('/');
+        if (parts.length === 3) {
+          y = parseInt(parts[2], 10);
+          m = parseInt(parts[1], 10) - 1;
+        }
+      } else if (exp.date.includes('-')) {
+        const parts = exp.date.split('-');
+        if (parts.length >= 2) {
+          y = parseInt(parts[0], 10);
+          m = parseInt(parts[1], 10) - 1;
+        }
+      }
+
+      if (y === classificationYear && m === classificationMonth) {
+        const classif = (exp.classification || 'Fixo').trim().toLowerCase();
+        if (classif.includes('variáv') || classif.includes('variavel')) {
+          variavel += exp.value;
+        } else if (classif.includes('eventual')) {
+          eventual += exp.value;
+        } else {
+          fixo += exp.value;
         }
       }
     });
@@ -920,103 +956,100 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
 
               {/* Main Charts Area */}
               <div className="grid gap-6 lg:grid-cols-2 min-w-0">
-                {/* Left Column: Annual comparison, budget vs realized, and classification */}
-                <div className="space-y-6 min-w-0">
-                  {/* Annual Chart Card */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
-                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-blue-500" />
-                        Gráfico Comparativo Anual (Últimos 5 Anos)
-                      </h3>
-                      <span className="text-xs md:text-sm font-bold text-slate-900 dark:text-slate-100">{fiveYears[0]} - {fiveYears[fiveYears.length - 1]}</span>
-                    </div>
-                    <AnnualComparisonChart data={annualData} />
+                {/* 1. Annual Chart Card */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                      Gráfico Comparativo Anual (Últimos 5 Anos)
+                    </h3>
+                    <span className="text-xs md:text-sm font-bold text-slate-900 dark:text-slate-100">{fiveYears[0]} - {fiveYears[fiveYears.length - 1]}</span>
                   </div>
-
-                  {/* Budget vs Realized Expense Comparison Chart Card */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
-                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Activity className="h-4 w-4 text-blue-500" />
-                        Despesas: Orçado vs Realizado
-                      </h3>
-                      
-                      {/* Year Filter Select */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs md:text-sm font-bold text-slate-900 dark:text-slate-100">Ano:</span>
-                        <select
-                          value={budgetComparisonYear}
-                          onChange={(e) => setBudgetComparisonYear(parseInt(e.target.value, 10))}
-                          className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
-                        >
-                          {availableYears.map(y => (
-                            <option key={y} value={y}>{y}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => setBudgetComparisonYear(new Date().getFullYear())}
-                          className="p-1 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                          title="Limpar filtro de ano"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                    <ExpenseBudgetComparisonChart data={monthlyExpenseComparisonData} />
-                  </div>
-
-                  {/* Expense Classification Pie Chart Card */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
-                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <PieChart className="h-4 w-4 text-blue-500" />
-                        Classificação das Despesas ({MONTH_NAMES[classificationMonth]}/{classificationYear})
-                      </h3>
-
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {/* Month Selector */}
-                        <select
-                          value={classificationMonth}
-                          onChange={(e) => setClassificationMonth(parseInt(e.target.value, 10))}
-                          className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
-                        >
-                          {MONTH_NAMES.map((mName, idx) => (
-                            <option key={idx} value={idx}>{mName}</option>
-                          ))}
-                        </select>
-
-                        {/* Year Selector */}
-                        <select
-                          value={classificationYear}
-                          onChange={(e) => setClassificationYear(parseInt(e.target.value, 10))}
-                          className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
-                        >
-                          {availableYears.map(y => (
-                            <option key={y} value={y}>{y}</option>
-                          ))}
-                        </select>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setClassificationMonth(new Date().getMonth());
-                            setClassificationYear(new Date().getFullYear());
-                          }}
-                          className="p-1 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                          title="Limpar filtros (voltar ao mês/ano atual)"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <ExpenseClassificationPieChart data={classificationData} totalValue={classificationTotal} />
-                  </div>
+                  <AnnualComparisonChart data={annualData} />
                 </div>
 
-                {/* Top 10 Items Card */}
+                {/* 2. Budget vs Realized Expense Comparison Chart Card */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-blue-500" />
+                      Despesas: Orçado vs Realizado
+                    </h3>
+                    
+                    {/* Year Filter Select */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs md:text-sm font-bold text-slate-900 dark:text-slate-100">Ano:</span>
+                      <select
+                        value={budgetComparisonYear}
+                        onChange={(e) => setBudgetComparisonYear(parseInt(e.target.value, 10))}
+                        className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
+                      >
+                        {availableYears.map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setBudgetComparisonYear(new Date().getFullYear())}
+                        className="p-1 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                        title="Limpar filtro de ano"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <ExpenseBudgetComparisonChart data={monthlyExpenseComparisonData} />
+                </div>
+
+                {/* 3. Expense Classification Pie Chart Card */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                      <PieChart className="h-4 w-4 text-blue-500" />
+                      Classificação das Despesas ({MONTH_NAMES[classificationMonth]}/{classificationYear})
+                    </h3>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Month Selector */}
+                      <select
+                        value={classificationMonth}
+                        onChange={(e) => setClassificationMonth(parseInt(e.target.value, 10))}
+                        className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
+                      >
+                        {MONTH_NAMES.map((mName, idx) => (
+                          <option key={idx} value={idx}>{mName}</option>
+                        ))}
+                      </select>
+
+                      {/* Year Selector */}
+                      <select
+                        value={classificationYear}
+                        onChange={(e) => setClassificationYear(parseInt(e.target.value, 10))}
+                        className="rounded-lg border border-slate-200/50 bg-white px-2 py-1 text-xs md:text-sm font-semibold text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-900 dark:text-white"
+                      >
+                        {availableYears.map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClassificationMonth(new Date().getMonth());
+                          setClassificationYear(new Date().getFullYear());
+                        }}
+                        className="p-1 rounded-md border border-slate-200/50 hover:border-red-300 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors dark:border-slate-800/50 dark:bg-slate-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                        title="Limpar filtros (voltar ao mês/ano atual)"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <ExpenseClassificationPieChart data={classificationData} totalValue={classificationTotal} />
+                </div>
+
+                {/* 4. Top 10 Items Card */}
                 <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden w-full">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4 dark:border-slate-800/60">
                     <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -1226,7 +1259,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                         onChange={(e) => setInvestmentYear(parseInt(e.target.value, 10))}
                         className="rounded-lg border border-purple-200 bg-white px-3 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-purple-800 dark:bg-slate-950 dark:text-white text-xs"
                       >
-                        {fiveYears.map(y => (
+                        {[...fiveYears].reverse().map(y => (
                           <option key={y} value={y}>{y}</option>
                         ))}
                       </select>
