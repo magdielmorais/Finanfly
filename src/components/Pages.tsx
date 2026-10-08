@@ -6217,7 +6217,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
               {deficitActions.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-sm">
-                    Nenhuma ação de inconsistência financeira cadastrada.
+                    Nenhuma ação do plano de ajuste cadastrada.
                   </td>
                 </tr>
               ) : (
@@ -6290,7 +6290,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
-        title="Como Lançar Ações de Inconsistência Financeira"
+        title="Como Lançar Ações do Plano de Ajuste"
         accentColor="emerald"
         icon={<Sliders className="h-4 w-4 text-emerald-500" />}
       >

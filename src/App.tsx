@@ -698,6 +698,7 @@ export default function App() {
             onUpdateUserProfile={handleUpdateUserProfileInState}
           />
         );
+      case 'Plano de Ajuste':
       case 'Inconsistência financeira':
       case 'Plano de Ação para Déficit Orçamentário':
       case 'Plano de Ação para Inconsistência financeira':
@@ -993,7 +994,7 @@ export default function App() {
     { name: 'Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
     { name: 'Despesas (Gastos)', icon: TrendingDown, type: 'link' },
     { name: 'Orçamento anual', icon: FileText, type: 'link' },
-    { name: 'Inconsistência financeira', icon: AlertTriangle, type: 'link' },
+    { name: 'Plano de Ajuste', icon: AlertTriangle, type: 'link' },
     { name: 'Investimentos', icon: PiggyBank, type: 'link' },
     { name: 'Objetivos', icon: Target, type: 'link' },
     { name: 'Viagens', icon: Plane, type: 'link' },
@@ -1080,7 +1081,7 @@ export default function App() {
               (item.name === 'Receitas (Ganhos)' && currentPage === 'Receitas') ||
               (item.name === 'Despesas (Gastos)' && currentPage === 'Despesas') ||
               (item.name === 'Orçamento anual' && (currentPage === 'Orçamento anual' || currentPage === 'Orçamento Anual' || currentPage === 'Planejamento anual' || currentPage === 'Plano anual' || currentPage === 'Planejamento Anual')) ||
-              (item.name === 'Inconsistência financeira' && (currentPage === 'P. A. desvio financeiro' || currentPage === 'Melhoria financeira' || currentPage === 'Ação de melhoria' || currentPage === 'Plano de Ação para Inconsistência financeira'));
+              (item.name === 'Plano de Ajuste' && (currentPage === 'Inconsistência financeira' || currentPage === 'P. A. desvio financeiro' || currentPage === 'Melhoria financeira' || currentPage === 'Ação de melhoria' || currentPage === 'Plano de Ação para Inconsistência financeira'));
             return (
               <div key={item.name}>
                 <button
@@ -1098,8 +1099,8 @@ export default function App() {
                   <span className="truncate">{item.name}</span>
                 </button>
 
-                {/* Highlighted divider line below Inconsistência financeira */}
-                {(item.name === 'Inconsistência financeira' || item.name === 'P. A. desvio financeiro' || item.name === 'Melhoria financeira') && (
+                {/* Highlighted divider line below Plano de Ajuste */}
+                {(item.name === 'Plano de Ajuste' || item.name === 'Inconsistência financeira' || item.name === 'P. A. desvio financeiro' || item.name === 'Melhoria financeira') && (
                   <div className="my-2 border-b-2 border-slate-700/80 shadow-xs mx-1" />
                 )}
               </div>
