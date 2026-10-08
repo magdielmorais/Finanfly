@@ -3338,11 +3338,30 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
   const [newExpClassification, setNewExpClassification] = useState<'Fixo' | 'Variável' | 'Eventual'>('Variável');
   const [newExpInstallments, setNewExpInstallments] = useState(1);
 
+  // Estados para o popup de Editar Lançamento acionado no Card "Lançamentos do Mês"
+  const [editingLaunchItem, setEditingLaunchItem] = useState<{
+    id: string;
+    type: 'despesa' | 'receita';
+  } | null>(null);
+  const [editLaunchDate, setEditLaunchDate] = useState('');
+  const [editLaunchDescription, setEditLaunchDescription] = useState('');
+  const [editLaunchValue, setEditLaunchValue] = useState('');
+  const [editLaunchCategory, setEditLaunchCategory] = useState('');
+  const [editLaunchPaymentType, setEditLaunchPaymentType] = useState('');
+  const [editLaunchStatus, setEditLaunchStatus] = useState('');
+  const [editLaunchClassification, setEditLaunchClassification] = useState<'Fixo' | 'Variável' | 'Eventual'>('Variável');
+
   const sortedExpenseCategories = useMemo(() => {
     return [...(userData.expenseCategories || [])].sort((a, b) =>
       a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
     );
   }, [userData.expenseCategories]);
+
+  const sortedIncomeCategories = useMemo(() => {
+    return [...(userData.incomeCategories || [])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
+  }, [userData.incomeCategories]);
 
   const sortedPaymentTypes = useMemo(() => {
     return [...(userData.paymentTypes || [])].sort((a, b) =>
@@ -3427,14 +3446,108 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
   const handleListaDespesas = () => {
     setSelectedCategoryModal(null);
     setShowNewExpenseModal(false);
+    setEditingLaunchItem(null);
     if (onNavigate) {
       onNavigate('Despesas (Gastos)');
     }
   };
 
+  const handleOpenEditLaunch = (item: { id: string; type: 'despesa' | 'receita' }) => {
+    if (item.type === 'despesa') {
+      const exp = userData.expenses.find(e => e.id === item.id);
+      if (exp) {
+        setEditingLaunchItem({ id: exp.id, type: 'despesa' });
+        setEditLaunchDate(exp.date || '');
+        setEditLaunchDescription(exp.description || '');
+        setEditLaunchValue(formatPtBrCurrency(exp.value || 0));
+        setEditLaunchCategory(exp.category || selectedCategoryModal || sortedExpenseCategories[0] || 'Outros');
+        setEditLaunchPaymentType(exp.paymentType || sortedPaymentTypes[0] || 'Pix');
+        setEditLaunchStatus(exp.status || sortedPaymentStatuses[0] || 'Pago');
+        setEditLaunchClassification((exp.classification as any) || 'Variável');
+      }
+    } else {
+      const inc = userData.incomes.find(i => i.id === item.id);
+      if (inc) {
+        setEditingLaunchItem({ id: inc.id, type: 'receita' });
+        setEditLaunchDate(inc.date || '');
+        setEditLaunchDescription(inc.description || '');
+        setEditLaunchValue(formatPtBrCurrency(inc.value || 0));
+        setEditLaunchCategory(inc.category || selectedCategoryModal || sortedIncomeCategories[0] || 'Outros');
+        setEditLaunchPaymentType(inc.paymentType || sortedPaymentTypes[0] || 'Pix');
+        setEditLaunchStatus(inc.status || sortedPaymentStatuses[0] || 'Recebido');
+      }
+    }
+  };
+
+  const handleSaveEditedLaunch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLaunchItem) return;
+    if (!editLaunchDate || !editLaunchDescription || !editLaunchValue || !editLaunchCategory) return;
+    const parsedVal = parsePtBrNumber(editLaunchValue);
+    if (parsedVal <= 0) return;
+
+    if (editingLaunchItem.type === 'despesa') {
+      const updatedExpenses = userData.expenses.map(exp => {
+        if (exp.id === editingLaunchItem.id) {
+          return {
+            ...exp,
+            date: editLaunchDate,
+            description: editLaunchDescription,
+            value: parsedVal,
+            category: editLaunchCategory,
+            paymentType: editLaunchPaymentType,
+            status: editLaunchStatus,
+            classification: editLaunchClassification
+          };
+        }
+        return exp;
+      });
+
+      onUpdateUserData({
+        expenses: updatedExpenses
+      });
+    } else {
+      const updatedIncomes = userData.incomes.map(inc => {
+        if (inc.id === editingLaunchItem.id) {
+          return {
+            ...inc,
+            date: editLaunchDate,
+            description: editLaunchDescription,
+            value: parsedVal,
+            category: editLaunchCategory,
+            paymentType: editLaunchPaymentType,
+            status: editLaunchStatus
+          };
+        }
+        return inc;
+      });
+
+      onUpdateUserData({
+        incomes: updatedIncomes
+      });
+    }
+
+    // Fecha apenas o modal de edição do lançamento e retorna para a janela aberta dos lançamentos da categoria
+    setEditingLaunchItem(null);
+  };
+
+  const handleCancelEditLaunch = () => {
+    setEditingLaunchItem(null);
+  };
+
   // Travar a rolagem da página e adicionar suporte a tecla ESC enquanto o pop-up estiver aberto
   useEffect(() => {
-    if (showNewExpenseModal) {
+    if (editingLaunchItem) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setEditingLaunchItem(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else if (showNewExpenseModal) {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           setShowNewExpenseModal(false);
@@ -3460,7 +3573,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
         window.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [showNewExpenseModal, selectedCategoryModal]);
+  }, [editingLaunchItem, showNewExpenseModal, selectedCategoryModal]);
 
   const formatShortDate = (dateStr: string) => {
     if (!dateStr) return '-';
@@ -4389,16 +4502,21 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                 <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-3.5 md:p-4 custom-scrollbar space-y-3.5">
                   {/* CARD 1: LANÇAMENTOS DA CATEGORIA */}
                   <div className="w-full bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-4 space-y-2 shadow-xs">
-                    <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-2 gap-1.5">
                       <div className="flex items-center gap-2">
                         <Tag className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                         <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
                           Lançamentos do Mês
                         </h4>
                       </div>
-                      <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400">
-                        {categoryModalLaunches.length} {categoryModalLaunches.length === 1 ? 'registro' : 'registros'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md font-medium border border-blue-200/60 dark:border-blue-900/50">
+                          Clique no lançamento para editar
+                        </span>
+                        <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400">
+                          {categoryModalLaunches.length} {categoryModalLaunches.length === 1 ? 'registro' : 'registros'}
+                        </span>
+                      </div>
                     </div>
 
                     {categoryModalLaunches.length === 0 ? (
@@ -4414,23 +4532,28 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                             <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                               <th className="py-1.5 pl-3 w-20 sm:w-24">Data</th>
                               <th className="py-1.5 px-2">Descrição</th>
-                              <th className="py-1.5 pr-3 text-right w-24 sm:w-28">Valor</th>
+                              <th className="py-1.5 pr-2 text-right w-24 sm:w-28">Valor</th>
+                              <th className="py-1.5 pr-3 text-center w-12 sm:w-14">Ação</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white/50 dark:bg-slate-900/40">
                             {categoryModalLaunches.map((item) => (
                               <tr
                                 key={item.id}
-                                className="hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors"
+                                onClick={() => handleOpenEditLaunch(item)}
+                                className="group hover:bg-blue-50/80 dark:hover:bg-slate-800/70 transition-colors cursor-pointer"
+                                title="Clique para editar este lançamento"
                               >
-                                <td className="py-1.5 pl-3 pr-2 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                <td className="py-2 pl-3 pr-2 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                                   {formatShortDate(item.date)}
                                 </td>
-                                <td className="py-1.5 px-2 font-medium text-slate-800 dark:text-slate-200 text-xs break-words whitespace-normal leading-snug">
-                                  {item.description || 'Sem descrição'}
+                                <td className="py-2 px-2 font-medium text-slate-800 dark:text-slate-200 text-xs break-words whitespace-normal leading-snug">
+                                  <span className="group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                    {item.description || 'Sem descrição'}
+                                  </span>
                                 </td>
                                 <td
-                                  className={`py-1.5 pr-3 text-right font-mono font-bold text-xs whitespace-nowrap ${
+                                  className={`py-2 pr-2 text-right font-mono font-bold text-xs whitespace-nowrap ${
                                     item.type === 'despesa'
                                       ? 'text-rose-600 dark:text-rose-400'
                                       : 'text-emerald-600 dark:text-emerald-400'
@@ -4440,6 +4563,19 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                                     style: 'currency',
                                     currency: 'BRL',
                                   })}
+                                </td>
+                                <td className="py-2 pr-3 text-center whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenEditLaunch(item);
+                                    }}
+                                    className="p-1 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-100 dark:hover:bg-slate-700 transition-colors inline-flex items-center justify-center cursor-pointer"
+                                    title="Editar lançamento"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
                                 </td>
                               </tr>
                             ))}
@@ -4920,6 +5056,184 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                     className="rounded-lg bg-rose-600 px-5 py-2 font-bold text-white hover:bg-rose-500 transition-colors shadow-sm shadow-rose-600/20 cursor-pointer text-xs sm:text-sm"
                   >
                     Salvar Registro
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Modal / Popup de Editar Lançamento (Abre por cima do popup de lançamentos da categoria sem sair do mesmo) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {editingLaunchItem && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[10010] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm cursor-pointer"
+              onClick={handleCancelEditLaunch}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh] overflow-hidden cursor-default m-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header fixo no topo do popup */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+                      <Pencil className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">
+                        Editar {editingLaunchItem.type === 'despesa' ? 'Lançamento de Despesa' : 'Lançamento de Receita'}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Edite os dados do lançamento. Ao salvar ou cancelar, você retorna à listagem da categoria.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelEditLaunch}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Fechar e voltar aos lançamentos"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Corpo do formulário com scroll customizado */}
+                <form id="form-editar-lancamento-resumo" onSubmit={handleSaveEditedLaunch} className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Data</label>
+                      <input
+                        type="date"
+                        required
+                        value={editLaunchDate}
+                        onChange={(e) => setEditLaunchDate(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Descrição</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ex: Supermercado, Aluguel, etc."
+                        value={editLaunchDescription}
+                        onChange={(e) => setEditLaunchDescription(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Valor (R$)</label>
+                      <div className="relative mt-1">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                          R$
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          placeholder="0,00"
+                          value={editLaunchValue}
+                          onChange={(e) => setEditLaunchValue(formatPtBrLiveInput(e.target.value))}
+                          onBlur={() => {
+                            if (editLaunchValue && editLaunchValue.trim()) {
+                              const num = parsePtBrNumber(editLaunchValue);
+                              if (num > 0) {
+                                setEditLaunchValue(formatPtBrCurrency(num));
+                              }
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Categoria</label>
+                      <select
+                        required
+                        value={editLaunchCategory}
+                        onChange={(e) => setEditLaunchCategory(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione a categoria...</option>
+                        {(editingLaunchItem.type === 'despesa' ? sortedExpenseCategories : sortedIncomeCategories).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo de Pagamento</label>
+                      <select
+                        required
+                        value={editLaunchPaymentType}
+                        onChange={(e) => setEditLaunchPaymentType(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione o tipo de pagamento...</option>
+                        {sortedPaymentTypes.map(pt => (
+                          <option key={pt} value={pt}>{pt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400">Situação</label>
+                      <select
+                        required
+                        value={editLaunchStatus}
+                        onChange={(e) => setEditLaunchStatus(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                      >
+                        <option value="" disabled>Selecione a situação...</option>
+                        {sortedPaymentStatuses.map(ps => (
+                          <option key={ps} value={ps}>{ps}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {editingLaunchItem.type === 'despesa' && (
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-slate-400">Classificação</label>
+                        <select
+                          required
+                          value={editLaunchClassification}
+                          onChange={(e) => setEditLaunchClassification(e.target.value as 'Fixo' | 'Variável' | 'Eventual')}
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                        >
+                          <option value="Fixo">Fixo</option>
+                          <option value="Variável">Variável</option>
+                          <option value="Eventual">Eventual</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </form>
+
+                {/* Rodapé com botões de ação */}
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
+                  <button
+                    type="button"
+                    onClick={handleCancelEditLaunch}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer font-medium text-xs sm:text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    form="form-editar-lancamento-resumo"
+                    className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-sm shadow-blue-600/20 cursor-pointer text-xs sm:text-sm"
+                  >
+                    Salvar Alterações
                   </button>
                 </div>
               </motion.div>
