@@ -3,6 +3,7 @@ import { UserProfile, UserData } from './types';
 import { Login } from './components/Login';
 import { FinanFlyLogo } from './components/FinanFlyLogo';
 import { getUserInitials } from './utils/userUtils';
+import { renameExpenseCategoryInUserData } from './utils/categoryUtils';
 import { FloatingMenuButton } from './components/FloatingMenuButton';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
@@ -874,27 +875,8 @@ export default function App() {
             placeholder="Ex: Serviços de Streaming"
             onUpdateItems={(items) => handleUpdateUserData({ expenseCategories: items })}
             onRenameItem={(oldVal, newVal) => {
-              const currentList = userData.expenseCategories && userData.expenseCategories.length > 0 ? userData.expenseCategories : [
-                'Alimentação',
-                'Limpeza',
-                'Frutas/Verduras',
-                'Açougue',
-                'Aluguel',
-                'Combustível',
-                'Educação',
-                'Lazer',
-                'Impostos',
-                'Manutenção casa',
-                'Ajuda pessoas',
-                'Reserva de emergência',
-                'Investimentos'
-              ];
-              const updatedCategories = currentList.map(c => c === oldVal ? newVal : c);
-              const updatedExpenses = userData.expenses.map(e => e.category === oldVal ? { ...e, category: newVal } : e);
-              handleUpdateUserData({
-                expenseCategories: updatedCategories,
-                expenses: updatedExpenses
-              });
+              const updates = renameExpenseCategoryInUserData(userData, oldVal, newVal);
+              handleUpdateUserData(updates);
             }}
           />
         );

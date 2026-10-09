@@ -6,6 +6,7 @@ import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, 
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MonthlyExpenseTrendChart } from './CustomChart';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
+import { renameExpenseCategoryInUserData, migrateLocalBudgetsCategory } from '../utils/categoryUtils';
 
 export interface PageProps {
   userData: UserData;
@@ -1984,13 +1985,8 @@ export const DespesasPage: React.FC<PageProps> = ({
     if (!trimmed) return;
     if (userData.expenseCategories.includes(trimmed) && trimmed !== oldCat) return;
 
-    const updatedCategories = userData.expenseCategories.map(cat => cat === oldCat ? trimmed : cat);
-    const updatedExpenses = userData.expenses.map(exp => exp.category === oldCat ? { ...exp, category: trimmed } : exp);
-
-    onUpdateUserData({
-      expenseCategories: updatedCategories,
-      expenses: updatedExpenses
-    });
+    const updates = renameExpenseCategoryInUserData(userData, oldCat, trimmed);
+    onUpdateUserData(updates);
 
     if (category === oldCat) {
       setCategory(trimmed);
@@ -7403,6 +7399,55 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
     );
   }, [userData.expenseCategories]);
 
+  // Estado e mecanismo para renomear categoria alterando apenas o nome e mantendo os valores da matriz orçamentária intactos
+  const [categoryToRename, setCategoryToRename] = useState<string | null>(null);
+  const [renameCategoryInput, setRenameCategoryInput] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSuccessMessage, setRenameSuccessMessage] = useState<string | null>(null);
+
+  const handleOpenRenameModal = (cat: string) => {
+    setCategoryToRename(cat);
+    setRenameCategoryInput(cat);
+    setRenameError(null);
+  };
+
+  const handleConfirmRename = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!categoryToRename) return;
+    const trimmed = renameCategoryInput.trim();
+    if (!trimmed) {
+      setRenameError('O nome da categoria não pode ser vazio.');
+      return;
+    }
+    if (trimmed === categoryToRename) {
+      setCategoryToRename(null);
+      return;
+    }
+    if (categories.some(c => c.toLowerCase() === trimmed.toLowerCase() && c.toLowerCase() !== categoryToRename.toLowerCase())) {
+      setRenameError('Já existe uma categoria cadastrada com este nome.');
+      return;
+    }
+
+    // 1. Migra imediatamente o estado local de orçamentos para a nova chave,
+    // garantindo que NENHUM valor dos 12 meses seja alterado ou perdido!
+    const updatedLocal = migrateLocalBudgetsCategory(localBudgets, categoryToRename, trimmed);
+    setLocalBudgets(updatedLocal);
+
+    // 2. Renomeia de forma segura no userData:
+    // Atualiza apenas o nome em annualPlanning (para todos os anos e meses),
+    // mantendo rigorosamente todos os valores orçados (budgetedValue) intactos!
+    const updates = renameExpenseCategoryInUserData(userData, categoryToRename, trimmed);
+    onUpdateUserData(updates);
+
+    setCategoryToRename(null);
+    setRenameCategoryInput('');
+    setRenameError(null);
+    setRenameSuccessMessage(`Categoria "${categoryToRename}" alterada para "${trimmed}". Valores orçados mantidos!`);
+    setTimeout(() => {
+      setRenameSuccessMessage(null);
+    }, 4000);
+  };
+
   // Load existing budgets into local state when selectedYear or userData.annualPlanning changes
   useEffect(() => {
     const yearPlan = userData.annualPlanning?.find(p => p.year === selectedYear);
@@ -7421,7 +7466,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
     }
 
     setLocalBudgets(newBudgets);
-  }, [selectedYear, userData.annualPlanning]);
+  }, [selectedYear, userData.annualPlanning, userData.expenseCategories]);
 
   // Handle cell value change (updates local state immediately with auto thousands and commas)
   const handleCellChange = (category: string, monthIdx: number, val: string) => {
@@ -7467,6 +7512,16 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
           monthSum += val;
         }
       });
+
+      // Preserva orçamentos de categorias que porventura existam no registro mas não estejam na lista ativa
+      if (existingMb?.categoryBudgets) {
+        existingMb.categoryBudgets.forEach(oldCb => {
+          if (!categories.includes(oldCb.category) && oldCb.budgetedValue > 0) {
+            categoryBudgetsList.push(oldCb);
+            monthSum += oldCb.budgetedValue;
+          }
+        });
+      }
 
       return {
         month: monthIdx,
@@ -7670,7 +7725,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       </div>
 
       {/* Botão Salvar Orçamento acima do card Matriz Orçamentária no lado esquerdo */}
-      <div className="flex items-center justify-start">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => commitBudgets()}
@@ -7695,6 +7750,13 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
             </>
           )}
         </button>
+
+        {renameSuccessMessage && (
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold animate-fade-in shadow-xs">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{renameSuccessMessage}</span>
+          </div>
+        )}
       </div>
 
       {/* Main Table Container with Fixed Category Column & Horizontal Scroll */}
@@ -7804,15 +7866,25 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                         style={{ verticalAlign: 'middle' }}
                       >
                         <div className="flex flex-col justify-center items-start min-w-0 py-0.5 w-full">
-                          <div className="flex items-start gap-1.5 min-w-0 w-full">
-                            <div className="h-2 w-2 rounded-full bg-blue-500 shrink-0 mt-1" />
-                            <span
-                              className="break-words [overflow-wrap:anywhere] [word-break:break-word] hyphens-auto whitespace-normal leading-snug font-bold text-sm sm:text-[15px] text-slate-900 dark:text-white min-w-0 flex-1"
-                              title={cat}
-                              lang="pt-BR"
+                          <div className="flex items-start justify-between gap-1 min-w-0 w-full">
+                            <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                              <div className="h-2 w-2 rounded-full bg-blue-500 shrink-0 mt-1" />
+                              <span
+                                className="break-words [overflow-wrap:anywhere] [word-break:break-word] hyphens-auto whitespace-normal leading-snug font-bold text-sm sm:text-[15px] text-slate-900 dark:text-white min-w-0 flex-1"
+                                title={cat}
+                                lang="pt-BR"
+                              >
+                                {cat}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRenameModal(cat)}
+                              className="opacity-70 group-hover:opacity-100 hover:text-blue-600 dark:hover:text-blue-400 p-0.5 rounded text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-all shrink-0 cursor-pointer"
+                              title={`Editar nome da categoria "${cat}" (mantém os valores orçados)`}
                             >
-                              {cat}
-                            </span>
+                              <Pencil className="h-3 w-3" />
+                            </button>
                           </div>
                           <button
                             type="button"
@@ -7942,6 +8014,101 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                 Sim
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Renomear Categoria de Despesa Mantendo Rigorosamente os Valores Orçados */}
+      {typeof document !== 'undefined' && categoryToRename !== null && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setCategoryToRename(null);
+            }
+          }}
+        >
+          <div
+            className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xl overflow-hidden p-6 space-y-5 animate-scale-up cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                  <Tag className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Editar Categoria de Despesa
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Matriz Orçamentária • {selectedYear}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCategoryToRename(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleConfirmRename} className="space-y-4">
+              {/* Informative Banner Guaranteeing Budget Values Are Kept Intact */}
+              <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 flex items-start gap-2.5">
+                <CheckCircle2 className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
+                  <strong>Valores preservados:</strong> Apenas o nome da categoria será alterado. Todos os valores orçados na matriz para os 12 meses do ano serão rigorosamente mantidos intactos sob o novo nome!
+                </div>
+              </div>
+
+              {/* Input Field */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Novo Nome da Categoria
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={renameCategoryInput}
+                  onChange={(e) => {
+                    setRenameCategoryInput(e.target.value);
+                    if (renameError) setRenameError(null);
+                  }}
+                  placeholder="Ex: Alimentação & Supermercado"
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+                />
+                {renameError && (
+                  <p className="text-xs text-red-500 font-medium mt-1">
+                    {renameError}
+                  </p>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCategoryToRename(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01] cursor-pointer"
+                >
+                  <Check className="h-4 w-4" />
+                  Salvar Nome
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body
