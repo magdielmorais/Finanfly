@@ -206,7 +206,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <div className="h-4 w-1 rounded-full bg-rose-600 dark:bg-rose-400" />
+            <div className="h-4 w-1 rounded-full bg-purple-600 dark:bg-purple-400" />
             <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
               Tendência de Gastos
             </h3>
@@ -223,11 +223,11 @@ export const MonthlyExpenseTrendChart: React.FC<{
         <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
           <div className="hidden md:flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 mr-2">
             <span className="flex items-center gap-1.5 font-medium">
-              <span className="w-2.5 h-0.5 bg-rose-600 dark:bg-rose-400 rounded-full" />
+              <span className="w-2.5 h-0.5 bg-purple-600 dark:bg-purple-400 rounded-full" />
               Soma Acumulada
             </span>
             <span className="flex items-center gap-1.5 font-medium">
-              <span className="w-2.5 h-2.5 rounded bg-amber-400/85 dark:bg-amber-400/60" />
+              <span className="w-2.5 h-2.5 rounded bg-orange-500 dark:bg-orange-400" />
               Gasto do Dia
             </span>
           </div>
@@ -284,20 +284,29 @@ export const MonthlyExpenseTrendChart: React.FC<{
 
                   {/* SVG Line Path */}
                   {linePath && (
-                    <path d={linePath} fill="none" stroke="currentColor" className="text-rose-500 dark:text-rose-400" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={linePath} fill="none" stroke="currentColor" className="text-purple-600 dark:text-purple-400" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
                   )}
 
                   {/* Defs para gradiente */}
                   <defs>
                     <linearGradient id="trend-area-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8" />
-                      <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                      <stop offset="0%" stopColor="#9333ea" stopOpacity="0.8" />
+                      <stop offset="100%" stopColor="#9333ea" stopOpacity="0.0" />
                     </linearGradient>
                   </defs>
 
-                  {/* Barras de Gasto do Dia (fundo) */}
+                  {/* Barras de Gasto do Dia (fundo) em laranjado */}
                   {pointsWithCoords.map((p) => (
-                    <rect key={`bar-${p.day}`} x={p.x - p.colWidth * 0.3} y={p.barY} width={p.colWidth * 0.6} height={p.barHeight} fill={hoveredDay === p.day ? '#f59e0b' : '#fbbf24'} opacity={hoveredDay === p.day ? 0.9 : 0.4} rx={1} />
+                    <rect
+                      key={`bar-${p.day}`}
+                      x={p.x - p.colWidth * 0.3}
+                      y={p.barY}
+                      width={p.colWidth * 0.6}
+                      height={p.barHeight}
+                      fill={hoveredDay === p.day ? '#ea580c' : '#f97316'}
+                      opacity={hoveredDay === p.day ? 0.95 : 0.75}
+                      rx={1}
+                    />
                   ))}
 
                   {/* Eixo X - Linha horizontal base */}
@@ -329,7 +338,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
                           x2={p.x}
                           y2={getY(0) + (isHovered ? 6 : 4)}
                           stroke="currentColor"
-                          className={isHovered ? "text-rose-500 dark:text-rose-400 stroke-[1.5]" : "text-slate-300 dark:text-slate-700"}
+                          className={isHovered ? "text-purple-600 dark:text-purple-400 stroke-[1.5]" : "text-slate-300 dark:text-slate-700"}
                         />
                         {/* Rótulo do dia na vertical (90 graus) */}
                         <text
@@ -341,7 +350,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
                           style={{ fontSize: '9px', userSelect: 'none' }}
                           className={`font-mono transition-colors duration-150 ${
                             isHovered
-                              ? "fill-rose-600 dark:fill-rose-400 font-bold"
+                              ? "fill-purple-600 dark:fill-purple-400 font-bold"
                               : p.dayTotal > 0
                               ? "fill-slate-800 dark:fill-slate-200 font-semibold"
                               : p.isWeekend
@@ -358,7 +367,16 @@ export const MonthlyExpenseTrendChart: React.FC<{
                   {/* Pontos de Interação */}
                   {pointsWithCoords.map((p) => (
                     <g key={`point-g-${p.day}`}>
-                      <circle cx={p.x} cy={p.y} r={hoveredDay === p.day ? 6 : p.dayTotal > 0 ? 3.5 : 2} fill={hoveredDay === p.day ? '#f43f5e' : p.dayTotal > 0 ? '#ef4444' : '#cbd5e1'} className="transition-all duration-150" style={{ cursor: 'pointer' }} onMouseEnter={() => setHoveredDay(p.day)} onMouseLeave={() => setHoveredDay(null)} />
+                      <circle
+                        cx={p.x}
+                        cy={p.y}
+                        r={hoveredDay === p.day ? 6 : p.dayTotal > 0 ? 3.5 : 2}
+                        fill={hoveredDay === p.day ? '#7e22ce' : p.dayTotal > 0 ? '#9333ea' : '#cbd5e1'}
+                        className="transition-all duration-150"
+                        style={{ cursor: 'pointer' }}
+                        onMouseEnter={() => setHoveredDay(p.day)}
+                        onMouseLeave={() => setHoveredDay(null)}
+                      />
                     </g>
                   ))}
                 </svg>
@@ -374,14 +392,14 @@ export const MonthlyExpenseTrendChart: React.FC<{
           <div>
             <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 break-words whitespace-normal leading-tight pb-1">Total Acumulado Gastos</span>
           </div>
-          <span className="text-xs sm:text-sm font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums mt-auto">
+          <span className="text-xs sm:text-sm font-bold font-mono text-purple-600 dark:text-purple-400 tabular-nums mt-auto">
             R$ {totalMonthExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </span>
         </div>
         <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 flex flex-col justify-between min-h-[92px]">
           <div>
             <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 break-words whitespace-normal leading-tight pb-0.5">Média Gastos Previsto</span>
-            <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 normal-case leading-tight break-words whitespace-normal pb-1">(orçado do mês dividido por número de dias no mês)</span>
+            <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 normal-case leading-tight break-words whitespace-normal pb-1">(total orçado dividido por {daysInMonth} dias do mês)</span>
           </div>
           <span className="text-xs sm:text-sm font-bold font-mono text-slate-700 dark:text-slate-200 tabular-nums mt-auto">
             R$ {avgBudgetPerDay.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
@@ -392,7 +410,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
             <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 break-words whitespace-normal leading-tight pb-0.5">Média Gastos Real</span>
             <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 normal-case leading-tight break-words whitespace-normal pb-1">(total gasto até o momento dividido pelos dias com gastos)</span>
           </div>
-          <span className="text-xs sm:text-sm font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums mt-auto">
+          <span className="text-xs sm:text-sm font-bold font-mono text-purple-600 dark:text-purple-400 tabular-nums mt-auto">
             R$ {avgRealSpentPerDay.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
           </span>
         </div>
@@ -408,7 +426,7 @@ export const MonthlyExpenseTrendChart: React.FC<{
           <div>
             <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 break-words whitespace-normal leading-tight pb-1">Pico de Gasto</span>
           </div>
-          <span className="text-xs sm:text-sm font-bold font-mono text-amber-600 dark:text-amber-400 tabular-nums mt-auto">
+          <span className="text-xs sm:text-sm font-bold font-mono text-orange-600 dark:text-orange-400 tabular-nums mt-auto">
             {peakAmount > 0 ? `Dia ${peakDay} (R$ ${peakAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})` : 'R$ 0,00'}
           </span>
         </div>
@@ -424,21 +442,21 @@ export const MonthlyExpenseTrendChart: React.FC<{
 
       {/* Caixa de inspeção interativa ativa ao passar o mouse / tocar */}
       {hoveredItem ? (
-        <div className="mb-2 p-2 px-3 rounded-lg bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/40 flex flex-wrap items-center justify-between text-xs text-rose-950 dark:text-rose-200 animate-fade-in gap-2">
+        <div className="mb-2 p-2 px-3 rounded-lg bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-900/40 flex flex-wrap items-center justify-between text-xs text-purple-950 dark:text-purple-200 animate-fade-in gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-bold bg-rose-200/80 dark:bg-rose-900/60 text-rose-900 dark:text-rose-200 px-2 py-0.5 rounded text-[11px]">
+            <span className="font-bold bg-purple-200/80 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 px-2 py-0.5 rounded text-[11px]">
               Dia {hoveredItem.day} ({hoveredItem.weekday})
             </span>
             <span className="font-medium text-slate-600 dark:text-slate-300">
-              Gasto no dia: <strong className="font-mono text-slate-900 dark:text-white">R$ {hoveredItem.dayTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+              Gasto no dia: <strong className="font-mono text-orange-600 dark:text-orange-400">R$ {hoveredItem.dayTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
               {hoveredItem.count > 0 && <span className="text-[10px] text-slate-500 ml-1">({hoveredItem.count} lanç.)</span>}
             </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-600 dark:text-slate-300">
-              Acumulado até o dia: <strong className="font-mono text-rose-600 dark:text-rose-400 font-bold">R$ {hoveredItem.accumulated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+              Acumulado até o dia: <strong className="font-mono text-purple-600 dark:text-purple-400 font-bold">R$ {hoveredItem.accumulated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
             </span>
-            <span className="font-bold text-[11px] text-rose-700 dark:text-rose-300 bg-white/70 dark:bg-slate-900/70 px-1.5 py-0.5 rounded border border-rose-200/50 dark:border-rose-800/40 font-mono">
+            <span className="font-bold text-[11px] text-purple-700 dark:text-purple-300 bg-white/70 dark:bg-slate-900/70 px-1.5 py-0.5 rounded border border-purple-200/50 dark:border-purple-800/40 font-mono">
               {totalMonthExpense > 0 ? ((hoveredItem.accumulated / totalMonthExpense) * 100).toFixed(1) : '0'}%
             </span>
           </div>

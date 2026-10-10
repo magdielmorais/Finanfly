@@ -6,7 +6,14 @@ import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, 
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MonthlyExpenseTrendChart } from './CustomChart';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { renameExpenseCategoryInUserData, migrateLocalBudgetsCategory } from '../utils/categoryUtils';
+import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek';
+import { getMonthWeeksCount } from '../utils/dateUtils';
+
+dayjs.extend(isoWeek);
+// dayjs('2026-09-01').isoWeek(); // Retorna 36
 
 export interface PageProps {
   userData: UserData;
@@ -527,10 +534,17 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     }, 50);
   };
 
+  const [itemToDelete, setItemToDelete] = useState<Income | null>(null);
+
   const handleDelete = (id: string) => {
     onUpdateUserData({
       incomes: userData.incomes.filter(i => i.id !== id)
     });
+    setItemToDelete(null);
+  };
+
+  const handleRequestDelete = (inc: Income) => {
+    setItemToDelete(inc);
   };
 
   const handleAddCategory = () => {
@@ -1504,7 +1518,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(inc.id);
+                            handleRequestDelete(inc);
                           }}
                           className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-slate-800"
                           title="Excluir Registro"
@@ -1520,6 +1534,27 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal for Deleting Income */}
+      <ConfirmDeleteModal
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            handleDelete(itemToDelete.id);
+          }
+        }}
+        title="Confirmar Exclusão de Receita"
+        description="Tem certeza de que deseja excluir este lançamento de receita? O registro será removido permanentemente dos seus relatórios e saldo."
+        itemName={itemToDelete?.description}
+        itemDetails={itemToDelete ? [
+          { label: 'Valor', value: `R$ ${itemToDelete.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+          { label: 'Data', value: formatShortDate(itemToDelete.date) },
+          { label: 'Categoria', value: itemToDelete.category || 'Outros' },
+          { label: 'Situação', value: itemToDelete.status || 'Pendente' },
+        ] : []}
+        confirmLabel="Excluir Receita"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
@@ -1952,10 +1987,17 @@ export const DespesasPage: React.FC<PageProps> = ({
     setShowAddForm(true);
   };
 
+  const [itemToDelete, setItemToDelete] = useState<Expense | null>(null);
+
   const handleDelete = (id: string) => {
     onUpdateUserData({
       expenses: userData.expenses.filter(i => i.id !== id)
     });
+    setItemToDelete(null);
+  };
+
+  const handleRequestDelete = (exp: Expense) => {
+    setItemToDelete(exp);
   };
 
   const handleAddCategory = () => {
@@ -3275,7 +3317,7 @@ export const DespesasPage: React.FC<PageProps> = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(exp.id);
+                            handleRequestDelete(exp);
                           }}
                           className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-slate-800"
                           title="Excluir Despesa"
@@ -3291,6 +3333,27 @@ export const DespesasPage: React.FC<PageProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal for Deleting Expense */}
+      <ConfirmDeleteModal
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            handleDelete(itemToDelete.id);
+          }
+        }}
+        title="Confirmar Exclusão de Despesa"
+        description="Tem certeza de que deseja excluir este lançamento de despesa? O registro será removido permanentemente dos seus relatórios e orçamento."
+        itemName={itemToDelete?.description}
+        itemDetails={itemToDelete ? [
+          { label: 'Valor', value: `R$ ${itemToDelete.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+          { label: 'Data', value: formatShortDate(itemToDelete.date) },
+          { label: 'Categoria', value: itemToDelete.category || 'Outros' },
+          { label: 'Situação', value: itemToDelete.status || 'Pendente' },
+        ] : []}
+        confirmLabel="Excluir Despesa"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
@@ -3641,9 +3704,18 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
       categoryColorMap[cat] = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
     });
 
-    const categoriesTableData = userData.expenseCategories.map(cat => {
+    // Categorias ativas cadastradas em userData.expenseCategories
+    // Além disso, inclui qualquer categoria que porventura possua valor orçado no mês para não deixar nada de fora
+    const allCategoryNames = Array.from(
+      new Set([
+        ...userData.expenseCategories,
+        ...(budget?.categoryBudgets?.map(cb => cb.category) || [])
+      ])
+    ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    const categoriesTableData = allCategoryNames.map(cat => {
       const catBudget = budget?.categoryBudgets?.find(cb => cb.category === cat);
-      const budgetedValue = catBudget?.budgetedValue || 0;
+      const budgetedValue = Number(catBudget?.budgetedValue || 0);
 
       const realizedValue = expenses
         .filter(exp => exp.category === cat)
@@ -3658,9 +3730,14 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
         balanceValue,
         color: categoryColorMap[cat] || '#94A3B8'
       };
-    }).sort((a, b) => a.category.localeCompare(b.category, 'pt-BR'));
+    });
 
-    const sumBudget = categoriesTableData.reduce((sum, item) => sum + item.budgetedValue, 0);
+    // Total Orçado do Mês: exatamente a soma dos valores orçados de todas as categorias na matriz orçamentária do mês
+    // ou o expenseBudget cadastrado no planejamento anual daquele mês
+    const calculatedSumBudget = categoriesTableData.reduce((sum, item) => sum + item.budgetedValue, 0);
+    const sumBudget = (budget?.expenseBudget !== undefined && budget.expenseBudget > 0 && Math.abs(budget.expenseBudget - calculatedSumBudget) > 0.005)
+      ? budget.expenseBudget
+      : calculatedSumBudget;
 
     const budgetedCategoriesList = categoriesTableData
       .map(item => ({
@@ -3762,7 +3839,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
     
     // 2. Valor orçado da respectiva categoria
     const currentYearPlan = userData.annualPlanning?.find(p => p.year === selectedYear);
-    const currentMonthBudget = currentYearPlan?.monthlyBudgets?.[selectedMonth];
+    const currentMonthBudget = currentYearPlan?.monthlyBudgets?.find(b => b.month === selectedMonth) || currentYearPlan?.monthlyBudgets?.[selectedMonth];
     const catBudgetObj = currentMonthBudget?.categoryBudgets?.find(cb => cb.category === selectedCategoryModal);
     const categoryBudget = Number(catBudgetObj?.budgetedValue || 0);
 
@@ -3797,7 +3874,8 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
       }
     }
 
-    const numWeeks = weeksIntervals.length;
+    // Quantidade de semanas do respectivo mês sincronizada com o Orçamento Anual (regra ISO com dayjs)
+    const numWeeks = getMonthWeeksCount(selectedYear, selectedMonth);
 
     // 3. Valor médio disponível por semana (planejado)
     const avgWeeklyBudget = numWeeks > 0 ? (categoryBudget / numWeeks) : 0;
@@ -4071,6 +4149,33 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                 </tr>
               )}
             </tbody>
+            {monthData.categoriesTableData.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-bold">
+                  <td className="py-3 font-black text-slate-900 dark:text-white uppercase tracking-wider text-xs">
+                    Total
+                  </td>
+                  <td className="py-3 text-right font-mono font-black text-xs sm:text-sm text-blue-900 dark:text-sky-400">
+                    <span className="text-[10px] mr-0.5 opacity-60 font-sans font-normal">R$</span>
+                    <span>{monthData.sumBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </td>
+                  <td className="py-3 text-right font-mono font-black text-xs sm:text-sm text-red-500">
+                    <span className="text-[10px] mr-0.5 opacity-60 font-sans font-normal">R$</span>
+                    <span>{monthData.sumExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </td>
+                  <td className={`py-3 text-right font-mono font-black text-xs sm:text-sm ${
+                    Math.abs(monthData.balance) < 0.005
+                      ? 'text-slate-400 dark:text-slate-500 font-normal'
+                      : monthData.balance > 0
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    <span className="text-[10px] mr-0.5 opacity-60 font-sans font-normal">R$</span>
+                    <span>{monthData.balance < 0 ? `-${Math.abs(monthData.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : monthData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 
@@ -4095,6 +4200,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
         selectedYear={selectedYear}
         selectedMonth={selectedMonth}
         monthName={monthsList[selectedMonth]}
+        sumBudget={monthData.sumBudget}
       />
 
       {/* Seção com Separadores e Gráficos Tipo Pizza: Orçado e Realizado */}
@@ -5881,6 +5987,8 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
     setShowAdd(false);
   };
 
+  const [itemToDelete, setItemToDelete] = useState<ActionPlan | null>(null);
+
   const handleDelete = (id: string) => {
     onUpdateUserData({
       actionPlans: userData.actionPlans.filter(p => p.id !== id)
@@ -5888,6 +5996,11 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
     if (editingPlanId === id) {
       handleCancelEdit();
     }
+    setItemToDelete(null);
+  };
+
+  const handleRequestDelete = (plan: ActionPlan) => {
+    setItemToDelete(plan);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Pendente' | 'Em Andamento' | 'Concluído') => {
@@ -6175,7 +6288,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(plan.id)}
+                      onClick={() => handleRequestDelete(plan)}
                       className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
                       title="Excluir Meta"
                     >
@@ -6221,6 +6334,26 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
           ))
         )}
       </div>
+
+      {/* Confirmation Modal for Deleting ActionPlan / Goal */}
+      <ConfirmDeleteModal
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            handleDelete(itemToDelete.id);
+          }
+        }}
+        title="Confirmar Exclusão de Meta"
+        description="Tem certeza de que deseja excluir este objetivo? O planejamento da meta será removido do seu painel financeiro."
+        itemName={itemToDelete?.title}
+        itemDetails={itemToDelete ? [
+          { label: 'Valor Alvo', value: `R$ ${itemToDelete.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+          { label: 'Prazo', value: itemToDelete.targetDate ? itemToDelete.targetDate.split('-').reverse().join('/') : '-' },
+          { label: 'Status', value: itemToDelete.status },
+        ] : []}
+        confirmLabel="Excluir Meta"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
@@ -6313,6 +6446,8 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
     setShowAdd(false);
   };
 
+  const [itemToDelete, setItemToDelete] = useState<Wish | null>(null);
+
   const handleDelete = (id: string) => {
     onUpdateUserData({
       wishes: wishesList.filter(w => w.id !== id)
@@ -6320,6 +6455,11 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
     if (editingWishId === id) {
       handleCancelEdit();
     }
+    setItemToDelete(null);
+  };
+
+  const handleRequestDelete = (wish: Wish) => {
+    setItemToDelete(wish);
   };
 
   const handleStatusChange = (id: string, newStatus: 'Pendente' | 'Concluído') => {
@@ -6603,7 +6743,7 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(wish.id)}
+                      onClick={() => handleRequestDelete(wish)}
                       className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
                       title="Excluir Desejo"
                     >
@@ -6649,6 +6789,26 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
           ))
         )}
       </div>
+
+      {/* Confirmation Modal for Deleting Wish */}
+      <ConfirmDeleteModal
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            handleDelete(itemToDelete.id);
+          }
+        }}
+        title="Confirmar Exclusão de Desejo"
+        description="Tem certeza de que deseja excluir este item da sua lista de desejos? O registro será removido permanentemente."
+        itemName={itemToDelete?.title}
+        itemDetails={itemToDelete ? [
+          { label: 'Valor Estimado', value: `R$ ${itemToDelete.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+          { label: 'Prazo', value: itemToDelete.targetDate ? itemToDelete.targetDate.split('-').reverse().join('/') : '-' },
+          { label: 'Status', value: itemToDelete.status },
+        ] : []}
+        confirmLabel="Excluir Desejo"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
@@ -6758,6 +6918,8 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     setShowAdd(false);
   };
 
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+
   const handleDelete = (id: string) => {
     onUpdateUserData({
       deficitActions: deficitActions.filter(a => a.id !== id)
@@ -6765,6 +6927,11 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     if (editingActionId === id) {
       handleCancelEdit();
     }
+    setItemToDelete(null);
+  };
+
+  const handleRequestDelete = (action: any) => {
+    setItemToDelete(action);
   };
 
   return (
@@ -7019,7 +7186,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(action.id);
+                            handleRequestDelete(action);
                           }}
                           className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-slate-800"
                           title="Excluir Ação"
@@ -7035,6 +7202,27 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal for Deleting Deficit Action */}
+      <ConfirmDeleteModal
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            handleDelete(itemToDelete.id);
+          }
+        }}
+        title="Confirmar Exclusão de Ação"
+        description="Tem certeza de que deseja excluir este plano de ajuste/ação corretiva?"
+        itemName={itemToDelete?.reason || itemToDelete?.costCenter}
+        itemDetails={itemToDelete ? [
+          { label: 'Centro de Custo', value: itemToDelete.costCenter },
+          { label: 'Responsável', value: itemToDelete.responsible || '-' },
+          { label: 'Prazo', value: itemToDelete.date ? itemToDelete.date.split('-').reverse().join('/') : '-' },
+          { label: 'Status', value: itemToDelete.status },
+        ] : []}
+        confirmLabel="Excluir Ação"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
@@ -7109,10 +7297,17 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
     });
   };
 
+  const [itemToDelete, setItemToDelete] = useState<ShoppingItem | null>(null);
+
   const handleDelete = (id: string) => {
     onUpdateUserData({
       shoppingList: userData.shoppingList.filter(item => item.id !== id)
     });
+    setItemToDelete(null);
+  };
+
+  const handleRequestDelete = (item: ShoppingItem) => {
+    setItemToDelete(item);
   };
 
   const handleClearCompleted = () => {
@@ -7347,7 +7542,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
                       <td className="py-3 text-right font-mono">R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="py-3 text-right font-mono font-bold text-slate-800 dark:text-white">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="py-3 text-right">
-                        <button onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <button onClick={() => handleRequestDelete(item)} className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800" title="Excluir item">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </td>
@@ -7359,6 +7554,27 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal for Deleting ShoppingItem */}
+      <ConfirmDeleteModal
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            handleDelete(itemToDelete.id);
+          }
+        }}
+        title="Confirmar Exclusão de Item"
+        description="Tem certeza de que deseja remover este item da sua lista de compras?"
+        itemName={itemToDelete?.name}
+        itemDetails={itemToDelete ? [
+          { label: 'Qtd x Preço', value: `${itemToDelete.quantity}x R$ ${itemToDelete.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+          { label: 'Subtotal', value: `R$ ${(itemToDelete.quantity * itemToDelete.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+          { label: 'Categoria', value: itemToDelete.category },
+          { label: 'Data Planej.', value: itemToDelete.date ? itemToDelete.date.split('-').reverse().join('/') : '-' },
+        ] : []}
+        confirmLabel="Excluir Item"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
@@ -7554,25 +7770,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
     }, 2500);
   };
 
-  // Replicate first non-empty value of a category across all 12 months
-  const copyCategoryToAllMonths = (cat: string) => {
-    let sourceVal = '';
-    for (let m = 0; m < 12; m++) {
-      if (localBudgets[`${cat}__${m}`]) {
-        sourceVal = localBudgets[`${cat}__${m}`];
-        break;
-      }
-    }
-    if (!sourceVal) return;
-
-    const next = { ...localBudgets };
-    for (let m = 0; m < 12; m++) {
-      next[`${cat}__${m}`] = sourceVal;
-    }
-    setLocalBudgets(next);
-    commitBudgets(next);
-  };
-
   // Copy values from previous month
   const copyFromPreviousMonth = (targetMonthIdx: number) => {
     const sourceMonthIdx = targetMonthIdx === 0 ? 11 : targetMonthIdx - 1;
@@ -7630,17 +7827,11 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
   }, [grandAnnualTotal]);
 
   const monthsWeeks = useMemo(() => {
-    return Array.from({ length: 12 }, (_, mIdx) => {
-      // Quantidade de semanas completas no mês (quintas-feiras segundo a norma ISO-8601: entre 4 e 5)
-      const lastDay = new Date(selectedYear, mIdx + 1, 0).getDate();
-      let thursdays = 0;
-      for (let d = 1; d <= lastDay; d++) {
-        if (new Date(selectedYear, mIdx, d).getDay() === 4) {
-          thursdays++;
-        }
-      }
-      return thursdays;
-    });
+    // Regra para calcular semanas do mês em orçamento anual:
+    // - Se na primeira semana do mês tiver 3 dias ou menos, essa semana faz parte do mês anterior; se >= 4 dias, faz parte do mês atual.
+    // - Se a última semana do mês tiver 3 dias ou menos, ela fará parte da semana do mês seguinte; se >= 4 dias, fará parte do mês atual.
+    // Utiliza dayjs e isoWeek (ex: dayjs('2026-09-01').isoWeek() retorna 36)
+    return Array.from({ length: 12 }, (_, mIdx) => getMonthWeeksCount(selectedYear, mIdx));
   }, [selectedYear]);
 
   const totalYearWeeks = useMemo(() => {
@@ -7886,14 +8077,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                               <Pencil className="h-3 w-3" />
                             </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => copyCategoryToAllMonths(cat)}
-                            className="max-h-0 opacity-0 overflow-hidden group-hover:max-h-6 group-hover:opacity-100 text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded border border-blue-200/60 dark:border-blue-800/40 transition-all duration-150 self-start cursor-pointer group-hover:mt-1 ml-3.5"
-                            title="Replicar o valor do primeiro mês preenchido para todos os 12 meses"
-                          >
-                            Replicar ano
-                          </button>
                         </div>
                       </td>
 
@@ -8137,7 +8320,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
             <li>
               <strong className="text-slate-800 dark:text-white">Atalhos Práticos:</strong>
               <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                <li>Clique em <em>Replicar ano</em> ao passar o mouse sobre a categoria para preencher todos os 12 meses com o mesmo valor.</li>
                 <li>Clique em <em>Copiar ant.</em> no cabeçalho do mês para clonar os valores do mês anterior com apenas 1 clique.</li>
               </ul>
             </li>

@@ -296,6 +296,17 @@ export default function App() {
         skipNextFetchUserDataRef.current = false;
         return;
       }
+      try {
+        const cachedStr = localStorage.getItem(`finanfly_data_${currentUser.email.toLowerCase().trim()}`);
+        if (cachedStr) {
+          const parsed = JSON.parse(cachedStr);
+          if (parsed && typeof parsed === 'object') {
+            setUserData(parsed);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
       fetchUserData(currentUser.email);
     } else {
       setUserData(null);
@@ -370,6 +381,9 @@ export default function App() {
 
       if (res.ok && data) {
         setUserData(data);
+        try {
+          localStorage.setItem(`finanfly_data_${email.toLowerCase().trim()}`, JSON.stringify(data));
+        } catch (e) {}
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
@@ -381,6 +395,9 @@ export default function App() {
 
     const merged = { ...userData, ...newData };
     setUserData(merged); // Optimistic UI update
+    try {
+      localStorage.setItem(`finanfly_data_${currentUser.email.toLowerCase().trim()}`, JSON.stringify(merged));
+    } catch (e) {}
 
     try {
       const token = localStorage.getItem('finanfly_token') || '';

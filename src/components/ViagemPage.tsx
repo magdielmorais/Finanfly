@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { UserData, Trip, TripExpense } from '../types';
 import { HelpCard } from './Pages';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface ViagemPageProps {
   userData: UserData;
@@ -182,16 +183,23 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
     setShowTripForm(true);
   };
 
+  // Confirmation modal states
+  const [tripToDelete, setTripToDelete] = useState<Trip | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<{ tripId: string; expense: TripExpense } | null>(null);
+
   // Delete trip handler
-  const handleDeleteTrip = (tripId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (window.confirm('Tem certeza de que deseja excluir esta viagem e todas as suas despesas?')) {
-      const updatedTrips = trips.filter(t => t.id !== tripId);
-      onUpdateUserData({ trips: updatedTrips });
-      if (activeTripId === tripId) {
-        setActiveTripId(null);
-      }
+  const handleDeleteTrip = (tripId: string) => {
+    const updatedTrips = trips.filter(t => t.id !== tripId);
+    onUpdateUserData({ trips: updatedTrips });
+    if (activeTripId === tripId) {
+      setActiveTripId(null);
     }
+    setTripToDelete(null);
+  };
+
+  const handleRequestDeleteTrip = (trip: Trip, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setTripToDelete(trip);
   };
 
   // Create / Edit Expense handler
@@ -277,15 +285,18 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
 
   // Delete expense handler
   const handleDeleteExpense = (tripId: string, expenseId: string) => {
-    if (window.confirm('Excluir este lançamento de despesa?')) {
-      const updatedTrips = trips.map(t => {
-        if (t.id === tripId) {
-          return { ...t, expenses: t.expenses.filter(exp => exp.id !== expenseId) };
-        }
-        return t;
-      });
-      onUpdateUserData({ trips: updatedTrips });
-    }
+    const updatedTrips = trips.map(t => {
+      if (t.id === tripId) {
+        return { ...t, expenses: t.expenses.filter(exp => exp.id !== expenseId) };
+      }
+      return t;
+    });
+    onUpdateUserData({ trips: updatedTrips });
+    setExpenseToDelete(null);
+  };
+
+  const handleRequestDeleteExpense = (tripId: string, expense: TripExpense) => {
+    setExpenseToDelete({ tripId, expense });
   };
 
   // Quick toggle status between "Pago" and "Não pago"
@@ -476,7 +487,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                         <Edit3 className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={(e) => handleDeleteTrip(trip.id, e)}
+                        onClick={(e) => handleRequestDeleteTrip(trip, e)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         title="Excluir viagem"
                       >
@@ -875,7 +886,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                                     <Edit3 className="h-3.5 w-3.5" />
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteExpense(activeTrip.id, exp.id)}
+                                    onClick={() => handleRequestDeleteExpense(activeTrip.id, exp)}
                                     className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                     title="Excluir despesa"
                                   >
@@ -1197,6 +1208,46 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
           </div>
         )}
       </AnimatePresence>
+
+      {/* Confirmation Modal for Deleting Trip */}
+      <ConfirmDeleteModal
+        isOpen={tripToDelete !== null}
+        onClose={() => setTripToDelete(null)}
+        onConfirm={() => {
+          if (tripToDelete) {
+            handleDeleteTrip(tripToDelete.id);
+          }
+        }}
+        title="Confirmar Exclusão de Viagem"
+        description="Tem certeza de que deseja excluir esta viagem? Todos os lançamentos e despesas vinculados a esta viagem também serão permanentemente apagados."
+        itemName={tripToDelete?.name}
+        itemDetails={tripToDelete ? [
+          { label: 'Qtd Despesas', value: `${tripToDelete.expenses.length} item(s)` },
+          { label: 'Total Acumulado', value: tripToDelete.expenses.reduce((s, e) => s + e.value, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+        ] : []}
+        confirmLabel="Excluir Viagem"
+      />
+
+      {/* Confirmation Modal for Deleting Trip Expense */}
+      <ConfirmDeleteModal
+        isOpen={expenseToDelete !== null}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={() => {
+          if (expenseToDelete) {
+            handleDeleteExpense(expenseToDelete.tripId, expenseToDelete.expense.id);
+          }
+        }}
+        title="Confirmar Exclusão de Despesa da Viagem"
+        description="Tem certeza de que deseja excluir este lançamento de despesa da viagem?"
+        itemName={expenseToDelete?.expense.description}
+        itemDetails={expenseToDelete ? [
+          { label: 'Valor', value: expenseToDelete.expense.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+          { label: 'Data', value: expenseToDelete.expense.date.split('-').reverse().join('/') },
+          { label: 'Tipo Pagamento', value: expenseToDelete.expense.paymentType || 'Outro' },
+          { label: 'Situação', value: expenseToDelete.expense.status || 'Pago' },
+        ] : []}
+        confirmLabel="Excluir Lançamento"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Investment } from '../types';
 import { HelpCard } from './Pages';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import {
   TrendingUp,
   DollarSign,
@@ -190,11 +191,17 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
     setShowModal(true);
   };
 
-  const handleDeleteClick = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este investimento?')) {
-      const updated = investments.filter((inv) => inv.id !== id);
-      onUpdateUserData({ investments: updated });
-    }
+  const [itemToDelete, setItemToDelete] = useState<Investment | null>(null);
+
+  const handleDeleteClick = (inv: Investment) => {
+    setItemToDelete(inv);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!itemToDelete) return;
+    const updated = investments.filter((inv) => inv.id !== itemToDelete.id);
+    onUpdateUserData({ investments: updated });
+    setItemToDelete(null);
   };
 
   const closeModal = () => {
@@ -599,7 +606,7 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteClick(inv.id)}
+                          onClick={() => handleDeleteClick(inv)}
                           className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-400 transition-colors"
                           title="Excluir"
                         >
@@ -900,6 +907,23 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal for Deleting Investment */}
+      <ConfirmDeleteModal
+        isOpen={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Confirmar Exclusão de Investimento"
+        description="Tem certeza de que deseja excluir este ativo investido? O lançamento será removido da sua carteira e o valor total recalculado."
+        itemName={itemToDelete?.name}
+        itemDetails={itemToDelete ? [
+          { label: 'Valor', value: `R$ ${itemToDelete.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+          { label: 'Tipo', value: itemToDelete.type || 'Ações' },
+          { label: 'Data', value: itemToDelete.date.split('-').reverse().join('/') },
+          { label: 'Status', value: itemToDelete.status || 'Ativo' },
+        ] : []}
+        confirmLabel="Excluir Ativo"
+      />
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard

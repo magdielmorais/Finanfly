@@ -1036,7 +1036,7 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
         supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
         supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
       ]);
-      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 2500));
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000));
       const [userRes, profileRes, subRes] = await Promise.race([queryPromise, timeoutPromise]);
       
       if (userRes.error) {
@@ -1453,9 +1453,15 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
   const db = getDb();
   const localData = db.userData ? db.userData[lowerEmail] : undefined;
 
+  // Se houver cache recente em memória (< 30s), retorne imediatamente sem bloquear
+  const cached = userDataCache.get(lowerEmail);
+  if (!bypassCache && cached && cached.data && (Date.now() - cached.timestamp < 30000)) {
+    return cached.data;
+  }
+
   if (supabase) {
     try {
-      // Fetch relational tables in parallel for existing tables with 2.5s timeout protection
+      // Fetch relational tables in parallel for existing tables with resilient 15s timeout protection
       const queryPromise = Promise.all([
         supabase.from('payment_types').select('name').eq('email', lowerEmail),
         supabase.from('payment_statuses').select('name').eq('email', lowerEmail),
@@ -1474,7 +1480,7 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         supabase.from('investment_statuses').select('name').eq('email', lowerEmail),
         supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle()
       ]);
-      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 2500));
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 15000));
       const [
         pTypesRes,
         pStatusesRes,
@@ -1623,14 +1629,50 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
 
       const finalResponse = ensureUserHasDefaults(responseData);
       userDataCache.set(lowerEmail, { data: finalResponse, timestamp: Date.now() });
+      try {
+        const dbLocal = getDb();
+        if (!dbLocal.userData) dbLocal.userData = {};
+        dbLocal.userData[lowerEmail] = finalResponse;
+        saveDb(dbLocal);
+      } catch (e) {
+        // ignore
+      }
       return finalResponse;
-    } catch (err) {
-      console.error("Falha ao ler dados relacionais no Supabase:", err);
+    } catch (err: any) {
+      console.warn("Aviso ao ler dados relacionais no Supabase (acionando fallback seguro):", err?.message || err);
+
+      // 1. Fallback: Usar cache de memória recente se disponível
+      if (cached && cached.data) {
+        console.log(`[getUserDataByEmail] Retornando dados em cache de memória para ${lowerEmail}`);
+        return cached.data;
+      }
+
+      // 2. Fallback: Tentar ler da tabela monolítica user_data no Supabase com timeout de 4s
+      try {
+        const backupRowPromise = supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
+        const backupTimeout = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_BACKUP')), 4000));
+        const { data: backupRow, error: backupErr } = await Promise.race([backupRowPromise, backupTimeout]);
+        if (!backupErr && backupRow && backupRow.data) {
+          const completedData = ensureUserHasDefaults(backupRow.data);
+          userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
+          return completedData;
+        }
+      } catch (backupErr) {
+        // ignora erro do fallback secundário
+      }
+
+      // 3. Fallback: Usar dados locais salvos em db.json se disponíveis
+      if (localData) {
+        console.log(`[getUserDataByEmail] Retornando dados locais de backup em db.json para ${lowerEmail}`);
+        const finalLocal = ensureUserHasDefaults(localData);
+        userDataCache.set(lowerEmail, { data: finalLocal, timestamp: Date.now() });
+        return finalLocal;
+      }
     }
   }
 
-  // Fallback to local DB file ONLY if Supabase is NOT active/configured
-  if (!supabase && localData) {
+  // Fallback to local DB file se disponível
+  if (localData) {
     const finalLocal = ensureUserHasDefaults(localData);
     userDataCache.set(lowerEmail, { data: finalLocal, timestamp: Date.now() });
     return finalLocal;
@@ -1649,12 +1691,14 @@ async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
   // Update in-memory cache immediately
   userDataCache.set(lowerEmail, { data: { ...data }, timestamp: Date.now() });
 
-  // Only update local fallback file if Supabase is NOT active
-  if (!supabase) {
+  // Mantém sempre uma cópia local atualizada em db.json como rede de segurança offline
+  try {
     const db = getDb();
     if (!db.userData) db.userData = {};
     db.userData[lowerEmail] = data;
     saveDb(db);
+  } catch (e) {
+    // ignore
   }
 
   if (supabase) {
@@ -1956,7 +2000,7 @@ async function getAllUsersList(): Promise<any[]> {
         return { usersData, profilesRes, subsRes };
       };
 
-      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_ADMIN_USERS')), 3000));
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_ADMIN_USERS')), 10000));
       const result = await Promise.race([fetchSupabaseUsers(), timeoutPromise]);
 
       if (result && result.usersData) {
