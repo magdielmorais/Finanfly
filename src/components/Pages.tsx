@@ -391,6 +391,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [isRevenueFiltersOpen, setIsRevenueFiltersOpen] = useState<boolean>(false);
 
   const yearOptions = useMemo(() => {
     const yearsSet = new Set<string>();
@@ -1307,138 +1308,174 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       </div>
     )}
 
-      {/* Filter and Summary Card */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[180px]">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                <Search className="h-4 w-4 text-slate-400" />
-              </span>
-              <input
-                type="text"
-                placeholder="Pesquisar por descrição ou categoria..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-slate-200/50 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
-              />
+      {/* Filtro de Receitas Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <div
+          onClick={() => setIsRevenueFiltersOpen(!isRevenueFiltersOpen)}
+          className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center justify-center font-bold">
+              <Filter className="h-4 w-4" />
             </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                Filtro de Receitas
+                {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedStatus !== 'all') && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                    Ativo
+                  </span>
+                )}
+              </h3>
+            </div>
+          </div>
+          <div>
+            {isRevenueFiltersOpen ? (
+              <ChevronUp className="h-5 w-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-slate-400" />
+            )}
+          </div>
+        </div>
 
-            {/* Year Filter Dropdown */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={selectedYear}
-                  onChange={(e) => handleYearChange(e.target.value)}
-                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                >
-                  <option value="all">Todos os Anos</option>
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      Ano {y}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                  <Calendar className="h-4 w-4 text-slate-400" />
+        {isRevenueFiltersOpen && (
+          <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 space-y-4 animate-slide-down bg-slate-50/50 dark:bg-slate-950/30">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              {/* Search Input */}
+              <div className="relative flex-1 min-w-[180px]">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Search className="h-4 w-4 text-slate-400" />
                 </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                  ▼
-                </span>
+                <input
+                  type="text"
+                  placeholder="Pesquisar por descrição ou categoria..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200/50 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
+                />
               </div>
-            </div>
 
-            {/* Month Filter Dropdown */}
-            <div className="flex flex-col items-start gap-1">
-              <div className="relative w-full">
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => handleMonthChange(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                >
-                  <option value="all">Todos os Meses</option>
-                  {monthOptions.map((m) => {
-                    const isCurrent = m === currentMonthYearStr;
-                    return (
-                      <option key={m} value={m}>
-                        {formatMonthYearStr(m)} {isCurrent ? ' (Mês Corrente)' : ''}
+              {/* Year Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => handleYearChange(e.target.value)}
+                    className="rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  >
+                    <option value="all">Todos os Anos</option>
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        Ano {y}
                       </option>
-                    );
-                  })}
-                </select>
-                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                  <Calendar className="h-4 w-4 text-slate-400" />
-                </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                  ▼
-                </span>
+                    ))}
+                  </select>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                  </span>
+                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                    ▼
+                  </span>
+                </div>
               </div>
 
-              {/* Quick back to Current Month shortcut placed under the month selector */}
-              {selectedMonth !== currentMonthYearStr && (
+              {/* Month Filter Dropdown */}
+              <div className="flex flex-col items-start gap-1">
+                <div className="relative w-full">
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => handleMonthChange(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  >
+                    <option value="all">Todos os Meses</option>
+                    {monthOptions.map((m) => {
+                      const isCurrent = m === currentMonthYearStr;
+                      return (
+                        <option key={m} value={m}>
+                          {formatMonthYearStr(m)} {isCurrent ? ' (Mês Corrente)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                  </span>
+                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                    ▼
+                  </span>
+                </div>
+
+                {/* Quick back to Current Month shortcut placed under the month selector */}
+                {selectedMonth !== currentMonthYearStr && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonth(currentMonthYearStr);
+                      const currentYear = currentMonthYearStr.substring(0, 4);
+                      setSelectedYear(currentYear);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-[0.98] px-2.5 py-1.5 text-xs font-bold text-white transition-all shadow-md shadow-slate-900/15 cursor-pointer animate-fade-in"
+                    title="Mudar para o Mês Corrente"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                    <span>Ir para o mês corrente</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  >
+                    <option value="all">Todas as Situações</option>
+                    {receiptStatusesList.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                    <Filter className="h-3.5 w-3.5 text-slate-400" />
+                  </span>
+                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                    ▼
+                  </span>
+                </div>
+              </div>
+
+              {/* Clear Filters Button */}
+              {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedStatus !== 'all') && (
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedMonth(currentMonthYearStr);
-                    const currentYear = currentMonthYearStr.substring(0, 4);
-                    setSelectedYear(currentYear);
+                    setSearch('');
+                    setSelectedYear('all');
+                    setSelectedMonth('all');
+                    setSelectedStatus('all');
                   }}
-                  className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-[0.98] px-2.5 py-1.5 text-xs font-bold text-white transition-all shadow-md shadow-slate-900/15 cursor-pointer animate-fade-in"
-                  title="Mudar para o Mês Corrente"
+                  className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 cursor-pointer"
+                  title="Limpar todos os filtros"
                 >
-                  <Calendar className="h-3.5 w-3.5 text-slate-200 shrink-0" />
-                  <span>Ir para o mês corrente</span>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Limpar Filtros
                 </button>
               )}
             </div>
-
-            {/* Status Filter Dropdown */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                >
-                  <option value="all">Todas as Situações</option>
-                  {receiptStatusesList.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                  <Filter className="h-3.5 w-3.5 text-slate-400" />
-                </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                  ▼
-                </span>
-              </div>
-            </div>
-
-            {/* Clear Filters Button */}
-            {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedStatus !== 'all') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch('');
-                  setSelectedYear('all');
-                  setSelectedMonth('all');
-                  setSelectedStatus('all');
-                }}
-                className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40"
-                title="Limpar todos os filtros"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Limpar Filtros
-              </button>
-            )}
           </div>
+        )}
+      </div>
 
-          <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300">
-            Soma Filtrada: <span className="font-mono text-blue-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-          </div>
+      {/* Summary Card */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
+          Exibindo receitas filtradas
+        </div>
+        <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300">
+          Soma Filtrada: <span className="font-mono text-blue-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>
       </div>
 
@@ -1715,6 +1752,7 @@ export const DespesasPage: React.FC<PageProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [isExpenseFiltersOpen, setIsExpenseFiltersOpen] = useState<boolean>(false);
 
   const yearOptions = useMemo(() => {
     const yearsSet = new Set<string>();
@@ -2148,6 +2186,12 @@ export const DespesasPage: React.FC<PageProps> = ({
     return filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
   }, [filteredExpenses]);
 
+  const totalAll = useMemo(() => {
+    return userData.expenses.reduce((acc, curr) => acc + curr.value, 0);
+  }, [userData.expenses]);
+
+  const hasActiveFilter = (search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all');
+
   const formatShortDate = (dateStr: string) => {
     if (!dateStr) return '-';
     const parts = dateStr.split('-');
@@ -2203,6 +2247,15 @@ export const DespesasPage: React.FC<PageProps> = ({
           >
             <Plus className="h-4 w-4" />
             Nova Despesa
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenBulkEdit}
+            className="flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 font-semibold text-xs transition-all shadow-sm shadow-slate-900/10 cursor-pointer"
+            title="Alterar múltiplos registros em lote neste mês/ano"
+          >
+            <Layers className="h-3.5 w-3.5 text-slate-300" />
+            <span>Alterar em massa</span>
           </button>
         </div>
       </div>
@@ -2799,179 +2852,213 @@ export const DespesasPage: React.FC<PageProps> = ({
       </div>
     )}
 
-      {/* Filter and Summary Card */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[180px]">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                <Search className="h-4 w-4 text-slate-400" />
-              </span>
-              <input
-                type="text"
-                placeholder="Pesquisar por descrição ou categoria da despesa..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-slate-200/50 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
-              />
+      {/* Filtro de Despesas Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <div
+          onClick={() => setIsExpenseFiltersOpen(!isExpenseFiltersOpen)}
+          className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center justify-center font-bold">
+              <Filter className="h-4 w-4" />
             </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                Filtro de Despesas
+                {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all') && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                    Ativo
+                  </span>
+                )}
+              </h3>
+            </div>
+          </div>
+          <div>
+            {isExpenseFiltersOpen ? (
+              <ChevronUp className="h-5 w-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-slate-400" />
+            )}
+          </div>
+        </div>
 
-            {/* Year Filter Dropdown */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={selectedYear}
-                  onChange={(e) => handleYearChange(e.target.value)}
-                  className="rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                >
-                  <option value="all">Todos os Anos</option>
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      Ano {y}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                  <Calendar className="h-4 w-4 text-slate-400" />
+        {isExpenseFiltersOpen && (
+          <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 space-y-4 animate-slide-down bg-slate-50/50 dark:bg-slate-950/30">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              {/* Search Input */}
+              <div className="relative flex-1 min-w-[180px]">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Search className="h-4 w-4 text-slate-400" />
                 </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                  ▼
-                </span>
+                <input
+                  type="text"
+                  placeholder="Pesquisar por descrição ou categoria da despesa..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200/50 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
+                />
               </div>
-            </div>
 
-            {/* Month Filter Dropdown */}
-            <div className="flex flex-col items-start gap-1">
-              <div className="relative w-full">
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => handleMonthChange(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                >
-                  <option value="all">Todos os Meses</option>
-                  {monthOptions.map((m) => {
-                    const isCurrent = m === currentMonthYearStr;
-                    return (
-                      <option key={m} value={m}>
-                        {formatMonthYearStr(m)} {isCurrent ? ' (Mês Corrente)' : ''}
+              {/* Year Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => handleYearChange(e.target.value)}
+                    className="rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  >
+                    <option value="all">Todos os Anos</option>
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        Ano {y}
                       </option>
-                    );
-                  })}
-                </select>
-                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                  <Calendar className="h-4 w-4 text-slate-400" />
-                </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                  ▼
-                </span>
+                    ))}
+                  </select>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                  </span>
+                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                    ▼
+                  </span>
+                </div>
               </div>
 
-              {/* Quick back to Current Month shortcut placed under the month selector */}
-              {selectedMonth !== currentMonthYearStr && (
+              {/* Month Filter Dropdown */}
+              <div className="flex flex-col items-start gap-1">
+                <div className="relative w-full">
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => handleMonthChange(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                  >
+                    <option value="all">Todos os Meses</option>
+                    {monthOptions.map((m) => {
+                      const isCurrent = m === currentMonthYearStr;
+                      return (
+                        <option key={m} value={m}>
+                          {formatMonthYearStr(m)} {isCurrent ? ' (Mês Corrente)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                  </span>
+                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                    ▼
+                  </span>
+                </div>
+
+                {selectedMonth !== currentMonthYearStr && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonth(currentMonthYearStr);
+                      const currentYear = currentMonthYearStr.substring(0, 4);
+                      setSelectedYear(currentYear);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-[0.98] px-2.5 py-1.5 text-xs font-bold text-white transition-all shadow-md shadow-slate-900/15 cursor-pointer animate-fade-in"
+                    title="Mudar para o Mês Corrente"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                    <span>Ir para o mês corrente</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Category and Status Filters Column */}
+              <div className="flex flex-col items-start gap-1.5">
+                <div className="relative w-full">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                    title="Filtrar por Categoria"
+                  >
+                    <option value="all">Todas as Categorias</option>
+                    {sortedExpenseCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                    <Tag className="h-3.5 w-3.5 text-slate-400" />
+                  </span>
+                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                    ▼
+                  </span>
+                </div>
+
+                <div className="relative w-full">
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                    title="Filtrar por Situação"
+                  >
+                    <option value="all">Todas as Situações</option>
+                    {sortedPaymentStatuses.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                    <Filter className="h-3.5 w-3.5 text-slate-400" />
+                  </span>
+                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                    ▼
+                  </span>
+                </div>
+              </div>
+
+              {/* Clear Filters Button */}
+              {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all') && (
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedMonth(currentMonthYearStr);
-                    const currentYear = currentMonthYearStr.substring(0, 4);
-                    setSelectedYear(currentYear);
+                    setSearch('');
+                    setSelectedYear('all');
+                    setSelectedMonth('all');
+                    setSelectedCategory('all');
+                    setSelectedStatus('all');
                   }}
-                  className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-[0.98] px-2.5 py-1.5 text-xs font-bold text-white transition-all shadow-md shadow-slate-900/15 cursor-pointer animate-fade-in"
-                  title="Mudar para o Mês Corrente"
+                  className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 cursor-pointer"
+                  title="Limpar todos os filtros"
                 >
-                  <Calendar className="h-3.5 w-3.5 text-slate-200 shrink-0" />
-                  <span>Ir para o mês corrente</span>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Limpar Filtros
                 </button>
               )}
             </div>
+          </div>
+        )}
+      </div>
 
-            {/* Category and Status Filters Column (Categoria acima do filtro de Situação) */}
-            <div className="flex flex-col items-start gap-1.5">
-              {/* Category Filter Dropdown */}
-              <div className="relative w-full">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                  title="Filtrar por Categoria"
-                >
-                  <option value="all">Todas as Categorias</option>
-                  {sortedExpenseCategories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                  <Tag className="h-3.5 w-3.5 text-slate-400" />
-                </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                  ▼
-                </span>
+      {/* Summary and Bulk Action Card */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
+          {hasActiveFilter ? 'Total de Despesas com filtro' : 'Total de Despesas'}
+        </div>
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          {!hasActiveFilter ? (
+            <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 text-right">
+              Soma total: <span className="font-mono text-rose-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{totalAll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 text-right">
+                Soma total: <span className="font-mono text-slate-700 dark:text-slate-300"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{totalAll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
-
-              {/* Status Filter Dropdown (Situação abaixo do filtro de Categoria) */}
-              <div className="relative w-full">
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200/50 bg-slate-50 pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                  title="Filtrar por Situação"
-                >
-                  <option value="all">Todas as Situações</option>
-                  {sortedPaymentStatuses.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                  <Filter className="h-3.5 w-3.5 text-slate-400" />
-                </span>
-                <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                  ▼
-                </span>
+              <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 text-right">
+                Soma Filtrada: <span className="font-mono text-rose-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
-
-            {/* Clear Filters Button */}
-            {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch('');
-                  setSelectedYear('all');
-                  setSelectedMonth('all');
-                  setSelectedCategory('all');
-                  setSelectedStatus('all');
-                }}
-                className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 cursor-pointer"
-                title="Limpar todos os filtros"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Limpar Filtros
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
-            <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 w-full sm:w-auto text-right">
-              Soma Filtrada: <span className="font-mono text-rose-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
-
-            {/* Botão Alterar em massa abaixo de Soma Filtrada */}
-            <button
-              type="button"
-              onClick={handleOpenBulkEdit}
-              className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 font-semibold text-xs transition-all shadow-sm shadow-slate-900/10 cursor-pointer w-full sm:w-auto"
-              title="Alterar múltiplos registros em lote neste mês/ano"
-            >
-              <Layers className="h-3.5 w-3.5 text-slate-300" />
-              <span>Alterar em massa</span>
-            </button>
-          </div>
+          )}
         </div>
       </div>
+
 
       {/* Popup / Modal de Alteração em Massa (Centralizado onde estiver o scroll da página via fixed overlay) */}
       {typeof document !== 'undefined' && createPortal(
@@ -6844,6 +6931,56 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
 
   const deficitActions = userData.deficitActions || [];
 
+  // Filters State
+  const [filterYear, setFilterYear] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterResponsible, setFilterResponsible] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [isActionFiltersOpen, setIsActionFiltersOpen] = useState<boolean>(false);
+
+  // Extract years dynamically
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    deficitActions.forEach(a => {
+      if (a.date) {
+        const y = a.date.split('-')[0];
+        if (y) years.add(y);
+      }
+    });
+    return Array.from(years).sort().reverse();
+  }, [deficitActions]);
+
+  // Extract categories dynamically
+  const availableCategories = useMemo(() => {
+    const cats = new Set<string>();
+    userData.expenseCategories?.forEach(c => cats.add(c));
+    deficitActions.forEach(a => {
+      if (a.costCenter) cats.add(a.costCenter);
+    });
+    return Array.from(cats).sort();
+  }, [deficitActions, userData.expenseCategories]);
+
+  // Extract responsibles dynamically
+  const availableResponsibles = useMemo(() => {
+    const resps = new Set<string>();
+    deficitActions.forEach(a => {
+      if (a.responsible) resps.add(a.responsible);
+    });
+    return Array.from(resps).sort();
+  }, [deficitActions]);
+
+  // Filtered actions
+  const filteredActions = useMemo(() => {
+    return deficitActions.filter(a => {
+      const actionYear = a.date ? a.date.split('-')[0] : '';
+      const matchesYear = filterYear === 'all' || actionYear === filterYear;
+      const matchesCategory = filterCategory === 'all' || a.costCenter === filterCategory;
+      const matchesResponsible = filterResponsible === 'all' || a.responsible === filterResponsible;
+      const matchesStatus = filterStatus === 'all' || a.status === filterStatus;
+      return matchesYear && matchesCategory && matchesResponsible && matchesStatus;
+    });
+  }, [deficitActions, filterYear, filterCategory, filterResponsible, filterStatus]);
+
   React.useEffect(() => {
     if (userData.expenseCategories && userData.expenseCategories.length > 0 && !costCenter) {
       setCostCenter(userData.expenseCategories[0]);
@@ -6939,9 +7076,9 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
       <div className="flex flex-col items-start gap-3.5 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Plano de Ajuste <span className="font-normal text-slate-600 dark:text-slate-400">(Ações de aprendizado e correção de desvios)</span>
+            Plano de Ajuste
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Crie ações de aprendizados para as categorias de custos extrapolados, melhore os hábitos e comportamentos e tenha melhor controle sobre os gastos.</p>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-medium mt-1.5">Crie ações para custos extrapolados, melhore hábitos e controle melhor os gastos.</p>
         </div>
         <button
           onClick={() => {
@@ -6960,6 +7097,118 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
           <Plus className="h-4 w-4" />
           Nova Ação
         </button>
+      </div>
+
+      {/* Filtro de ações Accordion Card */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <div
+          onClick={() => setIsActionFiltersOpen(!isActionFiltersOpen)}
+          className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center justify-center font-bold">
+              <Filter className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                Filtro de ações
+                {(filterYear !== 'all' || filterCategory !== 'all' || filterResponsible !== 'all' || filterStatus !== 'all') && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                    Ativo
+                  </span>
+                )}
+              </h3>
+            </div>
+          </div>
+          <div>
+            {isActionFiltersOpen ? (
+              <ChevronUp className="h-5 w-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-slate-400" />
+            )}
+          </div>
+        </div>
+
+        {isActionFiltersOpen && (
+          <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 space-y-4 animate-slide-down bg-slate-50/50 dark:bg-slate-950/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">Ano:</span>
+                <select
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white font-medium"
+                >
+                  <option value="all">Todos os Anos</option>
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">Categoria:</span>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white font-medium"
+                >
+                  <option value="all">Todas as Categorias</option>
+                  {availableCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">Responsável:</span>
+                <select
+                  value={filterResponsible}
+                  onChange={(e) => setFilterResponsible(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white font-medium"
+                >
+                  <option value="all">Todos</option>
+                  {availableResponsibles.map(resp => (
+                    <option key={resp} value={resp}>{resp}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">Status:</span>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200/50 bg-white px-3 py-2 text-slate-800 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-white font-medium"
+                >
+                  <option value="all">Todos os Status</option>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Em Andamento">Em Andamento</option>
+                  <option value="Concluído">Concluído</option>
+                </select>
+              </div>
+            </div>
+
+            {(filterYear !== 'all' || filterCategory !== 'all' || filterResponsible !== 'all' || filterStatus !== 'all') && (
+              <div className="flex justify-end pt-3 border-t border-slate-200/60 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterYear('all');
+                    setFilterCategory('all');
+                    setFilterResponsible('all');
+                    setFilterStatus('all');
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition-colors dark:border-red-950 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400 cursor-pointer"
+                  title="Limpar filtros"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Limpar Filtros
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
 
@@ -7058,7 +7307,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-400">Execução</label>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Data Fim</label>
                     <input
                       type="date"
                       required
@@ -7110,7 +7359,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-slate-800 dark:text-white text-base">Ações de aprendizado</h3>
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
-              {deficitActions.length} {deficitActions.length === 1 ? 'ação' : 'ações'}
+              {filteredActions.length} {filteredActions.length === 1 ? 'ação' : 'ações'} {filteredActions.length !== deficitActions.length ? `(de ${deficitActions.length})` : ''}
             </span>
           </div>
         </div>
@@ -7123,20 +7372,20 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
                 <th scope="col" className="px-3.5 py-3 text-left min-w-[180px]">Motivo</th>
                 <th scope="col" className="px-3.5 py-3 text-left min-w-[200px]">Ação de Correção</th>
                 <th scope="col" className="px-3.5 py-3 text-left whitespace-nowrap">Responsável</th>
-                <th scope="col" className="px-3 py-3 text-left whitespace-nowrap w-[90px]">Execução</th>
+                <th scope="col" className="px-3 py-3 text-left whitespace-nowrap w-[90px]">Data Fim</th>
                 <th scope="col" className="px-3 py-3 text-left whitespace-nowrap w-[110px]">Status</th>
                 <th scope="col" className="px-3 py-3 text-center whitespace-nowrap w-[80px]">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 bg-white dark:bg-slate-900">
-              {deficitActions.length === 0 ? (
+              {filteredActions.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-sm">
-                    Nenhuma ação do plano de ajuste cadastrada.
+                    {deficitActions.length === 0 ? 'Nenhuma ação do plano de ajuste cadastrada.' : 'Nenhuma ação encontrada com os filtros selecionados.'}
                   </td>
                 </tr>
               ) : (
-                deficitActions.map((action) => (
+                filteredActions.map((action) => (
                   <tr
                     key={action.id}
                     onClick={() => handleStartEdit(action)}
@@ -7236,7 +7485,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
             <li>Clique no botão <strong className="text-slate-800 dark:text-white">Nova Ação</strong> abaixo do título para abrir a janela.</li>
             <li>Selecione a <strong className="text-slate-800 dark:text-white">Categoria</strong> e digite o <strong className="text-slate-800 dark:text-white">Motivo do Desvio</strong> (por que o gasto ultrapassou o planejado).</li>
             <li>Descreva a <strong className="text-slate-800 dark:text-white">Ação Corretiva</strong> (o que será executado para conter ou corrigir isso).</li>
-            <li>Defina o <strong className="text-slate-800 dark:text-white">Responsável</strong> pela ação, a data de <strong className="text-slate-800 dark:text-white">Execução</strong> e a <strong className="text-slate-800 dark:text-white">Situação da Ação</strong>.</li>
+            <li>Defina o <strong className="text-slate-800 dark:text-white">Responsável</strong> pela ação, a <strong className="text-slate-800 dark:text-white">Data Fim</strong> e a <strong className="text-slate-800 dark:text-white">Situação da Ação</strong>.</li>
             <li>Clique em <strong className="text-emerald-600 dark:text-emerald-400">Salvar Ação</strong> para concluir.</li>
           </ul>
           <p className="mt-2 text-[11px] bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 p-2.5 rounded-lg">
@@ -7600,7 +7849,13 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
   const [localBudgets, setLocalBudgets] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [confirmCopyMonthIdx, setConfirmCopyMonthIdx] = useState<number | null>(null);
+  const [showMassAdjustModal, setShowMassAdjustModal] = useState(false);
+  const [massSourceMonth, setMassSourceMonth] = useState<number>(0);
+  const [massTargetMonth, setMassTargetMonth] = useState<number>(1);
+  const [showMassConfirmModal, setShowMassConfirmModal] = useState(false);
+  const [clearMonthIdx, setClearMonthIdx] = useState<number>(0);
+  const [showClearMonthConfirmModal, setShowClearMonthConfirmModal] = useState<boolean>(false);
+  const [massSuccessMessage, setMassSuccessMessage] = useState<string>('');
 
   const monthsShort = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const monthsFull = [
@@ -7770,29 +8025,27 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
     }, 2500);
   };
 
-  // Copy values from previous month
-  const copyFromPreviousMonth = (targetMonthIdx: number) => {
-    const sourceMonthIdx = targetMonthIdx === 0 ? 11 : targetMonthIdx - 1;
-    const sourceYear = targetMonthIdx === 0 ? selectedYear - 1 : selectedYear;
-
+  const copyValuesBetweenMonths = (sourceIdx: number, targetIdx: number) => {
     const next = { ...localBudgets };
-
-    if (sourceYear === selectedYear) {
-      categories.forEach(cat => {
-        const val = localBudgets[`${cat}__${sourceMonthIdx}`] || '';
-        next[`${cat}__${targetMonthIdx}`] = val;
-      });
-    } else {
-      const prevYearPlan = userData.annualPlanning.find(p => p.year === sourceYear);
-      const decBudget = prevYearPlan?.monthlyBudgets.find(b => b.month === 11);
-      categories.forEach(cat => {
-        const found = decBudget?.categoryBudgets?.find(cb => cb.category === cat);
-        next[`${cat}__${targetMonthIdx}`] = found && found.budgetedValue > 0 ? formatPtBrCurrency(found.budgetedValue) : '';
-      });
-    }
-
+    categories.forEach(cat => {
+      const val = localBudgets[`${cat}__${sourceIdx}`] || '';
+      next[`${cat}__${targetIdx}`] = val;
+    });
     setLocalBudgets(next);
     commitBudgets(next);
+    setMassSuccessMessage(`Valores copiados de ${monthsFull[sourceIdx]} para ${monthsFull[targetIdx]} com sucesso!`);
+    setTimeout(() => setMassSuccessMessage(''), 3500);
+  };
+
+  const clearMonthValues = (monthIdx: number) => {
+    const next = { ...localBudgets };
+    categories.forEach(cat => {
+      next[`${cat}__${monthIdx}`] = '';
+    });
+    setLocalBudgets(next);
+    commitBudgets(next);
+    setMassSuccessMessage(`Dados do mês de ${monthsFull[monthIdx]} apagados com sucesso!`);
+    setTimeout(() => setMassSuccessMessage(''), 3500);
   };
 
   // Calculations
@@ -7846,8 +8099,8 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
             Orçamento Anual
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Defina e acompanhe seu teto de gastos orçados por categoria em cada mês do ano.
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-medium mt-1">
+            Controle o teto de gastos por categoria e mês.
           </p>
         </div>
       </div>
@@ -7878,11 +8131,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
           </button>
         </div>
 
-        {/* Quick hint badge */}
-        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span>Valores orçados salvos automaticamente ao preencher</span>
-        </div>
+
       </div>
 
       {/* KPI Cards: Total Anual, Média Mensal, Categorias */}
@@ -7915,37 +8164,48 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         </div>
       </div>
 
-      {/* Botão Salvar Orçamento acima do card Matriz Orçamentária no lado esquerdo */}
+      {/* Botões Salvar Orçamento e Ajuste em Massa */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => commitBudgets()}
-          disabled={saveStatus === 'saving'}
-          className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-white rounded-xl shadow-sm transition-all cursor-pointer ${
-            saveStatus === 'saved'
-              ? 'bg-emerald-600 shadow-emerald-500/20'
-              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0'
-          }`}
-        >
-          {saveStatus === 'saved' ? (
-            <>
-              <Check className="h-4 w-4" />
-              <span>Salvo com Sucesso!</span>
-            </>
-          ) : saveStatus === 'saving' ? (
-            <span>Salvando...</span>
-          ) : (
-            <>
-              <Check className="h-4 w-4" />
-              <span>Salvar Orçamento</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => commitBudgets()}
+            disabled={saveStatus === 'saving'}
+            className={`w-fit self-start flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-white rounded-xl shadow-sm transition-all cursor-pointer ${
+              saveStatus === 'saved'
+                ? 'bg-emerald-600 shadow-emerald-500/20'
+                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0'
+            }`}
+          >
+            {saveStatus === 'saved' ? (
+              <>
+                <Check className="h-4 w-4" />
+                <span>Salvo com Sucesso!</span>
+              </>
+            ) : saveStatus === 'saving' ? (
+              <span>Salvando...</span>
+            ) : (
+              <>
+                <Check className="h-4 w-4" />
+                <span>Salvar Orçamento</span>
+              </>
+            )}
+          </button>
 
-        {renameSuccessMessage && (
+          <button
+            type="button"
+            onClick={() => setShowMassAdjustModal(true)}
+            className="w-fit self-start flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl shadow-sm transition-all cursor-pointer"
+          >
+            <Copy className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span>Ajuste em massa</span>
+          </button>
+        </div>
+
+        {(renameSuccessMessage || massSuccessMessage) && (
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold animate-fade-in shadow-xs">
             <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>{renameSuccessMessage}</span>
+            <span>{renameSuccessMessage || massSuccessMessage}</span>
           </div>
         )}
       </div>
@@ -7968,9 +8228,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
               <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
               Matriz Orçamentária Anual • {selectedYear}
             </h3>
-            <span className="text-xs text-slate-400">
-              Role horizontalmente e verticalmente para navegar entre meses e categorias
-            </span>
           </div>
 
           <div className="overflow-auto custom-scrollbar relative max-w-full max-h-[580px] sm:max-h-[640px]">
@@ -7979,7 +8236,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                 <tr className="border-b-2 border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/90">
                   {/* Sticky Category Column Header (pinned top & left) */}
                   <th
-                    className="sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-800 p-2 sm:p-2.5 font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs sm:text-sm border-r-2 border-b-2 border-slate-200 dark:border-slate-700 w-[110px] min-w-[100px] max-w-[120px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.08)] break-words [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal leading-tight align-middle"
+                    className="sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-800 p-2 sm:p-2.5 font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs sm:text-sm border-r-2 border-b-2 border-slate-200 dark:border-slate-700 w-[110px] sm:w-[180px] md:w-[220px] min-w-[100px] sm:min-w-[160px] md:min-w-[200px] max-w-[130px] sm:max-w-[200px] md:max-w-[240px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.08)] break-words [overflow-wrap:anywhere] [word-break:break-word] whitespace-normal leading-tight align-middle"
                     style={{ verticalAlign: 'middle' }}
                   >
                     <div className="flex flex-col justify-between h-full min-h-[70px]">
@@ -8010,20 +8267,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                       <div className="font-extrabold text-slate-800 dark:text-white uppercase text-xs sm:text-sm leading-tight">
                         {m}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-medium leading-tight truncate">
-                        {monthsFull[idx]}
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-center">
-                        <button
-                          type="button"
-                          onClick={() => setConfirmCopyMonthIdx(idx)}
-                          className="inline-flex items-center justify-center gap-1 text-[10px] sm:text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 px-1 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 dark:hover:bg-blue-900/90 border border-blue-200 dark:border-blue-800 shadow-xs transition-all hover:scale-[1.02] cursor-pointer w-full"
-                          title={idx === 0 ? "Copiar de Dezembro do ano anterior" : `Copiar valores de ${monthsShort[idx - 1]}`}
-                        >
-                          <Copy className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
-                          <span className="leading-tight text-center">Copiar anterior</span>
-                        </button>
-                      </div>
+
                     </th>
                   ))}
 
@@ -8053,7 +8297,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                     >
                       {/* Sticky Category Name Cell - Centered Vertically with Auto Wrap */}
                       <td
-                        className="sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-blue-50/30 dark:group-hover:bg-slate-900 p-2 sm:p-2.5 font-bold text-slate-900 dark:text-white border-r-2 border-slate-200 dark:border-slate-700 w-[110px] min-w-[100px] max-w-[120px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)] transition-colors align-middle break-words [overflow-wrap:anywhere]"
+                        className="sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-blue-50/30 dark:group-hover:bg-slate-900 p-2 sm:p-2.5 font-bold text-slate-900 dark:text-white border-r-2 border-slate-200 dark:border-slate-700 w-[110px] sm:w-[180px] md:w-[220px] min-w-[100px] sm:min-w-[160px] md:min-w-[200px] max-w-[130px] sm:max-w-[200px] md:max-w-[240px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)] transition-colors align-middle break-words [overflow-wrap:anywhere]"
                         style={{ verticalAlign: 'middle' }}
                       >
                         <div className="flex flex-col justify-center items-start min-w-0 py-0.5 w-full">
@@ -8068,14 +8312,6 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                                 {cat}
                               </span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenRenameModal(cat)}
-                              className="opacity-70 group-hover:opacity-100 hover:text-blue-600 dark:hover:text-blue-400 p-0.5 rounded text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-all shrink-0 cursor-pointer"
-                              title={`Editar nome da categoria "${cat}" (mantém os valores orçados)`}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
                           </div>
                         </div>
                       </td>
@@ -8125,7 +8361,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
               <tfoot>
                 <tr className="border-t-2 border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
                   <td
-                    className="sticky left-0 bottom-0 z-30 bg-slate-100 dark:bg-slate-800 p-2.5 font-black text-slate-900 dark:text-white uppercase tracking-wider text-xs sm:text-sm border-r-2 border-slate-300 dark:border-slate-700 w-[110px] min-w-[100px] max-w-[120px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.1)] break-words [overflow-wrap:anywhere] whitespace-normal leading-tight align-middle"
+                    className="sticky left-0 bottom-0 z-30 bg-slate-100 dark:bg-slate-800 p-2.5 font-black text-slate-900 dark:text-white uppercase tracking-wider text-xs sm:text-sm border-r-2 border-slate-300 dark:border-slate-700 w-[110px] sm:w-[180px] md:w-[220px] min-w-[100px] sm:min-w-[160px] md:min-w-[200px] max-w-[130px] sm:max-w-[200px] md:max-w-[240px] shadow-[3px_0_8px_-2px_rgba(0,0,0,0.1)] break-words [overflow-wrap:anywhere] whitespace-normal leading-tight align-middle"
                     style={{ verticalAlign: 'middle' }}
                   >
                     Total Mensal
@@ -8152,13 +8388,167 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
         </div>
       )}
 
-      {/* Confirmation Modal for Copiar do mês anterior (Portal to body so it centers in current screen viewport) */}
-      {typeof document !== 'undefined' && confirmCopyMonthIdx !== null && createPortal(
+
+
+      {/* Modal Ajuste em Massa */}
+      {typeof document !== 'undefined' && showMassAdjustModal && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in cursor-pointer"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in cursor-pointer"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
-              setConfirmCopyMonthIdx(null);
+              setShowMassAdjustModal(false);
+            }
+          }}
+        >
+          <div
+            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-5 animate-scale-up cursor-default max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3 text-blue-600 dark:text-blue-400">
+                <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl shrink-0">
+                  <Copy className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-800 dark:text-white leading-tight">
+                    Ajuste em Massa
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Copiar ou limpar valores entre meses do ano</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMassAdjustModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Card 1: Copiar em massa */}
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                    Copiar em massa
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Selecione o mês de referência (origem) e o mês desejado (destino) para copiar todos os valores orçados de uma só vez:
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                      Mês Referência
+                    </label>
+                    <select
+                      value={massSourceMonth}
+                      onChange={(e) => setMassSourceMonth(parseInt(e.target.value))}
+                      className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    >
+                      {monthsFull.map((m, idx) => (
+                        <option key={idx} value={idx}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                      Mês Desejado
+                    </label>
+                    <select
+                      value={massTargetMonth}
+                      onChange={(e) => setMassTargetMonth(parseInt(e.target.value))}
+                      className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    >
+                      {monthsFull.map((m, idx) => (
+                        <option key={idx} value={idx}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {massSourceMonth === massTargetMonth && (
+                  <p className="text-xs font-bold text-amber-600 dark:text-amber-400 text-center">
+                    ⚠️ O mês de referência e o mês desejado são iguais. Escolha meses diferentes.
+                  </p>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    disabled={massSourceMonth === massTargetMonth}
+                    onClick={() => setShowMassConfirmModal(true)}
+                    className="py-2 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Ajuste
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: Apagar em massa */}
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-600"></span>
+                    Apagar em massa
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Apagar todos os dados orçados de um determinado mês daquele ano respectivo ({selectedYear}):
+                </p>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    Selecionar Mês
+                  </label>
+                  <select
+                    value={clearMonthIdx}
+                    onChange={(e) => setClearMonthIdx(parseInt(e.target.value))}
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
+                  >
+                    {monthsFull.map((m, idx) => (
+                      <option key={idx} value={idx}>{m} de {selectedYear}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowClearMonthConfirmModal(true)}
+                    className="py-2 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-500/20 transition-all cursor-pointer"
+                  >
+                    Limpar dados do mês
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowMassAdjustModal(false)}
+                className="py-2 px-4 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Confirmation Modal para Cópia (z-[10000]) */}
+      {typeof document !== 'undefined' && showMassConfirmModal && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowMassConfirmModal(false);
             }
           }}
         >
@@ -8171,30 +8561,82 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                 <AlertTriangle className="h-6 w-6" />
               </div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Copiar orçamento do mês anterior?
+                Confirmar Ajuste?
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                Tem certeza que deseja copiar os valores do mês anterior para {monthsFull[confirmCopyMonthIdx]}? Se houver valores cadastrados, eles serão sobrescritos.
+                Tem certeza que deseja copiar todos os valores de <strong>{monthsFull[massSourceMonth]}</strong> para <strong>{monthsFull[massTargetMonth]}</strong>? Se houver valores cadastrados no mês de destino, eles serão sobrescritos.
               </p>
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-1">
               <button
                 type="button"
-                onClick={() => setConfirmCopyMonthIdx(null)}
-                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+                onClick={() => setShowMassConfirmModal(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Não
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  copyFromPreviousMonth(confirmCopyMonthIdx);
-                  setConfirmCopyMonthIdx(null);
+                  copyValuesBetweenMonths(massSourceMonth, massTargetMonth);
+                  setShowMassConfirmModal(false);
+                  setShowMassAdjustModal(false);
                 }}
-                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01]"
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01] cursor-pointer"
               >
-                Sim
+                Sim, Ajuste
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Confirmation Modal para Limpeza de Mês (z-[10000]) */}
+      {typeof document !== 'undefined' && showClearMonthConfirmModal && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in cursor-pointer"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowClearMonthConfirmModal(false);
+            }
+          }}
+        >
+          <div
+            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-300 dark:border-slate-700 shadow-2xl overflow-hidden p-6 space-y-5 animate-scale-up cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center space-y-2.5">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Confirmar Exclusão?
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                Tem certeza que deseja limpar todos os dados orçados do mês de <strong>{monthsFull[clearMonthIdx]}</strong> de <strong>{selectedYear}</strong>? Esta ação removerá os valores cadastrados neste mês.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowClearMonthConfirmModal(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearMonthValues(clearMonthIdx);
+                  setShowClearMonthConfirmModal(false);
+                  setShowMassAdjustModal(false);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-500/20 transition-all hover:scale-[1.01] cursor-pointer"
+              >
+                Sim, Apagar
               </button>
             </div>
           </div>
