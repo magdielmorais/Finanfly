@@ -224,8 +224,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   const [logoFailed, setLogoFailed] = useState(false);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-900 px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
+    <div className="min-h-screen w-full overflow-y-auto bg-slate-900 px-4 py-12 flex items-center justify-center">
+      <div className="w-full max-w-md space-y-6 my-auto">
         {/* Brand Header */}
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center">

@@ -971,7 +971,7 @@ export default function App() {
   // If user is not logged in, render Login screen immediately
   if (!currentUser) {
     return (
-      <>
+      <div className="h-full w-full overflow-y-auto bg-slate-900">
         <Suspense fallback={null}>
           <OfflineModal />
         </Suspense>
@@ -980,7 +980,7 @@ export default function App() {
           onRedirectToSubscription={handleRedirectToSubscription}
           inactivityNotice={inactivityNotice}
         />
-      </>
+      </div>
     );
   }
 
