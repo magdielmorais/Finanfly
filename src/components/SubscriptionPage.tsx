@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
+import { getSubscriptionDetails } from '../utils/subscriptionUtils';
 import { Check, AlertCircle, Sparkles, CreditCard, ShieldCheck } from 'lucide-react';
 
 interface SubscriptionPageProps {
@@ -56,8 +57,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
     };
   }, []);
 
+  const details = getSubscriptionDetails(user);
   const isFreePlanUsed = user.subscription?.freePlanUsed || false;
-  const currentPlan = user.subscription?.plan || 'none';
+  const currentPlan = details.resolvedPlan || user.subscription?.plan || 'none';
   const validUntil = user.subscription?.validUntil;
 
   const handleSelectPlan = async (plan: 'gratis' | 'mensal' | 'anual') => {
@@ -154,23 +156,21 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
         <div>
           <span className="text-xs text-slate-400 font-bold uppercase">Status Atual</span>
           <h3 className="text-lg font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2 mt-0.5">
-            {currentPlan === 'none' && 'Nenhum plano selecionado ❌'}
-            {currentPlan === 'gratis' && 'Período Grátis (60 Dias) ⏳'}
-            {currentPlan === 'mensal' && 'Plano Mensal Ativo 🔵'}
-            {currentPlan === 'anual' && 'Plano Anual Premium Ativo ✨'}
+            {!details.isActive && 'Nenhum plano ativo ou expirado ❌'}
+            {details.isActive && currentPlan === 'gratis' && 'Período Grátis (Trial Ativo) ⏳'}
+            {details.isActive && currentPlan === 'mensal' && 'Plano Mensal Ativo 🔵'}
+            {details.isActive && currentPlan === 'anual' && 'Plano Anual Premium Ativo ✨'}
+            {details.isActive && currentPlan === 'livre' && 'Acesso Livre Vitalício ✨'}
           </h3>
-          {validUntil && (
+          {details.isActive && details.formattedDate && (
             <p className="text-xs text-slate-400 mt-1">
               Válido até:{' '}
               <span className="font-semibold text-slate-600 dark:text-slate-300">
-                {new Date(validUntil).toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
+                {details.formattedDate}
               </span>
+              {details.subtitle && (
+                <span className="ml-1 text-emerald-500 font-bold">({details.subtitle})</span>
+              )}
             </p>
           )}
         </div>

@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { FinanFlyLogo } from './FinanFlyLogo';
 import loginLogo from '../assets/images/logo_oficial_finanfly.png';
 import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { isUserSubscriptionActive } from '../utils/subscriptionUtils';
 
 interface LoginProps {
   onLoginSuccess: (user: UserProfile, initialUserData?: any) => void;
@@ -132,8 +133,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           localStorage.setItem('finanfly_token', data.token);
         }
 
-        // New users default to 'none' subscription, must configure on subscription page
-        onRedirectToSubscription(data.user);
+        // If user has active trial days upon registration, log in directly
+        if (isUserSubscriptionActive(data.user)) {
+          onLoginSuccess(data.user, data?.userData);
+        } else {
+          onRedirectToSubscription(data.user);
+        }
       } else {
         setLoading(true);
         // Login flow
@@ -193,13 +198,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           // Admins go directly to admin dashboard
           onLoginSuccess(user, data?.userData);
         } else {
-          // Check subscription status
-          const plan = user.subscription?.plan || 'none';
-          const isValid = plan === 'livre' || (user.subscription?.validUntil && new Date(user.subscription.validUntil) > new Date());
-          const isApproved = user.subscription?.approved !== false;
-          const isActivePlan = plan === 'livre' || plan === 'gratis' || plan === 'mensal' || plan === 'anual';
-
-          if (isActivePlan && isValid && isApproved) {
+          // Check subscription status faithfully respecting expiration date or registration trial
+          if (isUserSubscriptionActive(user)) {
             onLoginSuccess(user, data?.userData);
           } else {
             // Subscription is 'none' or expired: redirect user to choose subscription

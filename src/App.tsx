@@ -4,6 +4,7 @@ import { Login } from './components/Login';
 import { FinanFlyLogo } from './components/FinanFlyLogo';
 import { getUserInitials } from './utils/userUtils';
 import { renameExpenseCategoryInUserData } from './utils/categoryUtils';
+import { isUserSubscriptionActive } from './utils/subscriptionUtils';
 import { FloatingMenuButton } from './components/FloatingMenuButton';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
@@ -557,23 +558,9 @@ export default function App() {
     setInactivityNotice('');
   };
 
-  // Subscription gate check for normal users
+  // Subscription gate check for normal users: faithful to expiration date and registration trial
   const isSubscriptionActive = () => {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true; // Admins bypass subscription check
-    if (currentUser.isBlocked) return false;
-
-    const plan = currentUser.subscription?.plan || 'none';
-    if (plan === 'none' || plan === 'inativo') return false;
-    if (plan === 'livre') return true;
-
-    const validUntil = currentUser.subscription?.validUntil;
-    const approved = currentUser.subscription?.approved !== false;
-
-    if (!approved) return false;
-    if (validUntil && new Date(validUntil) < new Date()) return false;
-
-    return true;
+    return isUserSubscriptionActive(currentUser);
   };
 
   // Render specific financial subpages

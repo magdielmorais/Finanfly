@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, UserData } from '../types';
 import { getUserInitials } from '../utils/userUtils';
+import { isUserSubscriptionActive, getSubscriptionDetails } from '../utils/subscriptionUtils';
 import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check, Calendar } from 'lucide-react';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
 
@@ -655,13 +656,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         expired++;
         return;
       }
-      const validUntil = u.subscription?.validUntil;
+      const hasAccess = isUserSubscriptionActive(u);
       const isApproved = u.subscription?.approved !== false;
-      const plan = u.subscription?.plan || 'none';
 
-      if (plan === 'none') {
-        expired++;
-      } else if (plan === 'livre' || (validUntil && new Date(validUntil) > new Date())) {
+      if (hasAccess) {
         if (isApproved) {
           active++;
         } else {
@@ -689,9 +687,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       if (statusFilter === 'all') return true;
 
       const isBlocked = !!user.isBlocked || user.subscription?.plan === 'inativo';
+      const hasAccess = isUserSubscriptionActive(user);
       const isApproved = user.subscription?.approved !== false;
       const plan = user.subscription?.plan || 'none';
-      const valid = plan === 'livre' || (user.subscription?.validUntil && new Date(user.subscription.validUntil) > new Date());
 
       if (statusFilter === 'admin') {
         return user.role === 'admin';
@@ -707,22 +705,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       }
 
       if (statusFilter === 'none') {
-        return !isBlocked && plan === 'none';
+        return !isBlocked && plan === 'none' && !hasAccess;
       }
 
       if (statusFilter === 'approved') {
-        // Approved and has active plan
-        return !isBlocked && isApproved && plan !== 'none' && valid;
+        // Approved and has active plan/expiration
+        return !isBlocked && isApproved && hasAccess;
       }
 
       if (statusFilter === 'pending') {
         // Pending approval (even if plan exists, but not approved)
-        return !isBlocked && !isApproved && plan !== 'none' && valid;
+        return !isBlocked && !isApproved && hasAccess;
       }
 
       if (statusFilter === 'expired') {
-        // No plan or expired plan
-        return !isBlocked && (plan === 'none' || !valid);
+        // Expired or no access
+        return !isBlocked && !hasAccess;
       }
 
       return true;
@@ -941,18 +939,30 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     );
   }, [users, extendUserSearch]);
 
-  const setupExtendFields = (user: UserProfile) => {
-    const currentPlan = user.subscription?.plan || 'mensal';
-    setExtendPlan(currentPlan === 'none' ? 'mensal' : currentPlan);
-
-    const validUntilStr = user.subscription?.validUntil;
-    let baseTime = Date.now();
-    if (validUntilStr) {
-      const parsed = new Date(validUntilStr).getTime();
-      if (!isNaN(parsed) && parsed > baseTime) {
-        baseTime = parsed;
+  const getUserBaseExpirationTime = (user?: UserProfile | null) => {
+    if (!user) return Date.now();
+    const details = getSubscriptionDetails(user);
+    if (user.subscription?.validUntil) {
+      const parsed = new Date(user.subscription.validUntil).getTime();
+      if (!isNaN(parsed) && parsed > Date.now()) {
+        return parsed;
       }
     }
+    if (details.isActive && user.createdAt) {
+      const trialEnd = new Date(new Date(user.createdAt).getTime() + 60 * 24 * 60 * 60 * 1000).getTime();
+      if (trialEnd > Date.now()) {
+        return trialEnd;
+      }
+    }
+    return Date.now();
+  };
+
+  const setupExtendFields = (user: UserProfile) => {
+    const details = getSubscriptionDetails(user);
+    const currentPlan = details.resolvedPlan || user.subscription?.plan || 'mensal';
+    setExtendPlan(currentPlan === 'none' ? 'mensal' : currentPlan);
+
+    const baseTime = getUserBaseExpirationTime(user);
     const nextDate = new Date(baseTime + 30 * 24 * 60 * 60 * 1000);
     setExtendNewDate(nextDate.toISOString().split('T')[0]);
     setExtendDaysToAdd(30);
@@ -990,14 +1000,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
   const handleApplyPresetDays = (days: number) => {
     setExtendDaysToAdd(days);
-    const validUntilStr = selectedUserForExtend?.subscription?.validUntil;
-    let baseTime = Date.now();
-    if (validUntilStr) {
-      const parsed = new Date(validUntilStr).getTime();
-      if (!isNaN(parsed) && parsed > baseTime) {
-        baseTime = parsed;
-      }
-    }
+    const baseTime = getUserBaseExpirationTime(selectedUserForExtend);
     const nextDate = new Date(baseTime + days * 24 * 60 * 60 * 1000);
     setExtendNewDate(nextDate.toISOString().split('T')[0]);
   };
@@ -1010,14 +1013,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     const num = parseInt(val, 10);
     if (!isNaN(num)) {
       setExtendDaysToAdd(num);
-      const validUntilStr = selectedUserForExtend?.subscription?.validUntil;
-      let baseTime = Date.now();
-      if (validUntilStr) {
-        const parsed = new Date(validUntilStr).getTime();
-        if (!isNaN(parsed) && parsed > baseTime) {
-          baseTime = parsed;
-        }
-      }
+      const baseTime = getUserBaseExpirationTime(selectedUserForExtend);
       const nextDate = new Date(baseTime + num * 24 * 60 * 60 * 1000);
       setExtendNewDate(nextDate.toISOString().split('T')[0]);
     }
@@ -1699,44 +1695,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   {filteredUsers.map((user) => {
                     const plan = user.subscription?.plan || 'none';
                     const isBlocked = !!user.isBlocked || plan === 'inativo';
-                    const validUntil = user.subscription?.validUntil;
-                    const isLivre = plan === 'livre' || user.role === 'admin';
                     const isApproved = user.subscription?.approved !== false;
 
-                    // Calculate subscription expiration details
-                    let isExpired = false;
-                    let expFormattedDate = '-';
-                    let expSubtitle = '';
-
-                    if (isLivre) {
-                      expFormattedDate = 'Vitalício';
-                      expSubtitle = user.role === 'admin' ? 'Acesso Admin' : 'Sem expiração';
-                    } else if (plan === 'inativo' || isBlocked) {
-                      isExpired = true;
-                      expFormattedDate = validUntil ? new Date(validUntil).toLocaleDateString('pt-BR') : 'Inativo';
-                      expSubtitle = 'Acesso bloqueado/inativo';
-                    } else if (validUntil) {
-                      const expDate = new Date(validUntil);
-                      const now = new Date();
-                      const diffTime = expDate.getTime() - now.getTime();
-                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      isExpired = diffDays <= 0;
-                      expFormattedDate = expDate.toLocaleDateString('pt-BR');
-                      if (isExpired) {
-                        expSubtitle = diffDays === 0 ? 'Expirou hoje' : `Expirada há ${Math.abs(diffDays)}d`;
-                      } else {
-                        expSubtitle = diffDays === 1 ? 'Vence amanhã' : `Restam ${diffDays}d`;
-                      }
-                    } else {
-                      if (plan === 'none') {
-                        isExpired = true;
-                        expFormattedDate = 'Pendente';
-                        expSubtitle = 'Sem assinatura';
-                      } else {
-                        expFormattedDate = 'Sem data';
-                        expSubtitle = '';
-                      }
-                    }
+                    const details = getSubscriptionDetails(user);
+                    const isExpired = details.isExpired;
+                    const expFormattedDate = details.formattedDate;
+                    const expSubtitle = details.subtitle;
+                    const isLivre = details.isLivre;
+                    const displayPlan = details.resolvedPlan;
 
                     return (
                       <tr key={user.email} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
@@ -1772,12 +1738,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                         </td>
                         <td className="px-2.5 py-2.5 whitespace-nowrap">
                           <div className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
-                            {plan === 'inativo' && <span className="text-rose-600 dark:text-rose-400">Inativo</span>}
-                            {plan === 'none' && <span className="text-amber-600 dark:text-amber-400">Pendente</span>}
-                            {plan === 'gratis' && 'Grátis (60d)'}
-                            {plan === 'mensal' && 'Mensal'}
-                            {plan === 'anual' && 'Anual'}
-                            {plan === 'livre' && 'Livre'}
+                            {isBlocked ? (
+                              <span className="text-rose-600 dark:text-rose-400">Inativo</span>
+                            ) : displayPlan === 'none' ? (
+                              <span className="text-amber-600 dark:text-amber-400">Pendente</span>
+                            ) : displayPlan === 'gratis' ? (
+                              'Grátis (60d)'
+                            ) : displayPlan === 'mensal' ? (
+                              'Mensal'
+                            ) : displayPlan === 'anual' ? (
+                              'Anual'
+                            ) : displayPlan === 'livre' ? (
+                              'Livre'
+                            ) : (
+                              displayPlan
+                            )}
                           </div>
                           {isLivre && (
                             <div className="text-[9px] text-purple-600 dark:text-purple-400 font-semibold">
@@ -3533,25 +3508,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       <div className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono">
                         {selectedUserForExtend.subscription?.plan === 'livre' ? (
                           <span className="text-purple-600 dark:text-purple-400 font-bold">Acesso Vitalício</span>
-                        ) : selectedUserForExtend.subscription?.validUntil ? (
+                        ) : (
                           (() => {
-                            const d = new Date(selectedUserForExtend.subscription.validUntil);
-                            const now = new Date();
-                            const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                            const isExpired = diffDays <= 0;
+                            const details = getSubscriptionDetails(selectedUserForExtend);
                             return (
                               <div className="flex items-center justify-between">
-                                <span className={isExpired ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300 font-bold'}>
-                                  {d.toLocaleDateString('pt-BR')}
+                                <span className={details.isExpired ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300 font-bold'}>
+                                  {details.formattedDate}
                                 </span>
-                                <span className={`text-[10px] font-sans ${isExpired ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                  {isExpired ? `(Expirado há ${Math.abs(diffDays)}d)` : `(Restam ${diffDays}d)`}
+                                <span className={`text-[10px] font-sans ${details.isExpired ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                  {details.subtitle ? `(${details.subtitle})` : ''}
                                 </span>
                               </div>
                             );
                           })()
-                        ) : (
-                          <span className="text-slate-400">Sem data definida</span>
                         )}
                       </div>
                     </div>

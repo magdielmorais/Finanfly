@@ -950,6 +950,7 @@ function refreshUserInBackground(lowerEmail: string) {
         }
       };
 
+      normalizeUserSubscription(compiledUser);
       userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
       if (localDb.users[lowerEmail]) {
         localDb.users[lowerEmail] = { ...localDb.users[lowerEmail], ...compiledUser };
@@ -957,6 +958,83 @@ function refreshUserInBackground(lowerEmail: string) {
       }
     }
   }).catch(() => {});
+}
+
+// Helper to faithfully validate and normalize user subscription status
+function normalizeUserSubscription(user: any, defaultTrialDays = 60) {
+  if (!user) return user;
+  if (!user.subscription) {
+    user.subscription = {
+      plan: 'none',
+      validUntil: null,
+      selectedAt: null,
+      freePlanUsed: false,
+      approved: false
+    };
+  }
+
+  // 1. If validUntil is present, check expiration faithfully
+  if (user.subscription.validUntil) {
+    const validUntilStr = String(user.subscription.validUntil).trim();
+    let expTime: number | null = null;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(validUntilStr)) {
+      const [year, month, day] = validUntilStr.split('-').map(Number);
+      expTime = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+    } else if (validUntilStr.includes('T00:00:00')) {
+      const base = new Date(validUntilStr);
+      if (!isNaN(base.getTime())) {
+        expTime = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999).getTime();
+      }
+    } else {
+      const base = new Date(validUntilStr);
+      if (!isNaN(base.getTime())) {
+        expTime = base.getTime();
+      }
+    }
+
+    if (expTime !== null) {
+      const now = new Date();
+      const expDate = new Date(expTime);
+      const isToday = expDate.toLocaleDateString('pt-BR') === now.toLocaleDateString('pt-BR');
+      const isValid = expTime >= now.getTime() || isToday;
+
+      if (isValid && user.subscription.plan !== 'inativo' && !user.isBlocked) {
+        // Faithful to expiration date: if expiration date is in future or today, user is approved and active
+        user.subscription.approved = true;
+        if (user.subscription.plan === 'none') {
+          user.subscription.plan = 'mensal';
+        }
+      }
+    }
+  }
+
+  // 2. Check registration trial: if validUntil is null/empty or plan is none/gratis,
+  // and the user registered within freeTrialDays and is not blocked
+  if (
+    (!user.subscription.validUntil || user.subscription.plan === 'none') &&
+    user.createdAt &&
+    user.subscription.plan !== 'inativo' &&
+    !user.isBlocked &&
+    !user.subscription.freePlanUsedReason
+  ) {
+    const createdDate = new Date(user.createdAt);
+    if (!isNaN(createdDate.getTime())) {
+      const trialEnd = new Date(createdDate.getTime() + defaultTrialDays * 24 * 60 * 60 * 1000);
+      trialEnd.setHours(23, 59, 59, 999);
+      const now = new Date();
+      const isToday = trialEnd.toLocaleDateString('pt-BR') === now.toLocaleDateString('pt-BR');
+      if (trialEnd.getTime() >= now.getTime() || isToday) {
+        // User registered with trial period still running: restore full access!
+        user.subscription.validUntil = trialEnd.toISOString();
+        user.subscription.plan = 'gratis';
+        user.subscription.approved = true;
+        user.subscription.freePlanUsed = true;
+      }
+    }
+  }
+
+  return user;
 }
 
 // Check if an email or CPF already used a free trial in history
@@ -1107,6 +1185,7 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
           }
         };
 
+        normalizeUserSubscription(compiledUser);
         userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
         return compiledUser;
       }
@@ -1125,6 +1204,7 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
 
   // Fallback to local JSON file DB ONLY if Supabase is NOT active/configured
   if (!supabase && localUser) {
+    normalizeUserSubscription(localUser);
     userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
     return localUser;
   }
@@ -2040,7 +2120,7 @@ async function getAllUsersList(): Promise<any[]> {
             localDb.users[lowerU].isBlocked = isBlockedFromDb;
           }
 
-          usersMap.set(lowerU, {
+          const uObj = {
             email: u.email,
             password: u.password || localU?.password || '',
             name: prof ? prof.name : (localU?.name || ''),
@@ -2072,7 +2152,9 @@ async function getAllUsersList(): Promise<any[]> {
             }),
             lastAccess: u.last_access || u.lastAccess || prof?.last_access || prof?.lastAccess || localU?.lastAccess || localUD?.lastUpdated || null,
             createdAt: u.created_at || u.createdAt || new Date().toISOString()
-          });
+          };
+          normalizeUserSubscription(uObj);
+          usersMap.set(lowerU, uObj);
         }
 
         // 2. Merge local-only users
@@ -2089,13 +2171,15 @@ async function getAllUsersList(): Promise<any[]> {
               ? messagesMap[lowerKey]
               : fallbackMsg;
 
-            usersMap.set(lowerKey, {
+            const localCompiled = {
               ...localU,
               userMessage: userMsg,
               mensagemUsuario: userMsg,
               isBlocked: !!(localU.isBlocked || localU.blocked || localU.subscription?.plan === 'inativo'),
               lastAccess: localU.lastAccess || localUD?.lastUpdated || null
-            });
+            };
+            normalizeUserSubscription(localCompiled);
+            usersMap.set(lowerKey, localCompiled);
           }
         }
 
@@ -2115,7 +2199,9 @@ async function getAllUsersList(): Promise<any[]> {
     const msg = (messagesMap[lower] !== undefined && messagesMap[lower] !== '')
       ? messagesMap[lower]
       : (user.userMessage || user.mensagemUsuario || '');
-    return { ...rest, userMessage: msg, mensagemUsuario: msg, lastAccess: user.lastAccess || localUD?.lastUpdated || null };
+    const uObj = { ...rest, userMessage: msg, mensagemUsuario: msg, lastAccess: user.lastAccess || localUD?.lastUpdated || null };
+    normalizeUserSubscription(uObj);
+    return uObj;
   });
 }
 
@@ -2461,6 +2547,20 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     const checkHistory = await checkIsBlacklisted(lowerEmail, cpf);
+    const trialDays = await getFreeTrialDays();
+    let validUntil: string | null = null;
+    let initialPlan: 'gratis' | 'none' = 'none';
+    let isApproved = false;
+    let isFreeUsed = checkHistory.blacklisted;
+
+    if (!checkHistory.blacklisted) {
+      const trialEndDate = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+      trialEndDate.setHours(23, 59, 59, 999);
+      validUntil = trialEndDate.toISOString();
+      initialPlan = 'gratis';
+      isApproved = true;
+      isFreeUsed = true;
+    }
 
     const newUser = {
       email: lowerEmail,
@@ -2473,15 +2573,21 @@ app.post("/api/auth/register", async (req, res) => {
       role: "user",
       password,
       subscription: {
-        plan: "none",
-        validUntil: null,
-        selectedAt: null,
-        freePlanUsed: checkHistory.blacklisted,
-        approved: false,
+        plan: initialPlan,
+        validUntil,
+        selectedAt: new Date().toISOString(),
+        freePlanUsed: isFreeUsed,
+        freePlanUsedReason: checkHistory.blacklisted ? checkHistory.reason : undefined,
+        approved: isApproved,
       },
       createdAt: new Date().toISOString(),
     };
 
+    if (!checkHistory.blacklisted) {
+      await recordTrialHistory(lowerEmail, cpf);
+    }
+
+    normalizeUserSubscription(newUser);
     await saveUser(newUser);
 
     const defaultData = getDefaultUserData();
@@ -2490,7 +2596,7 @@ app.post("/api/auth/register", async (req, res) => {
 
     const { password: _, ...userProfile } = newUser;
     const token = generateAuthToken({ email: newUser.email, role: newUser.role });
-    res.json({ user: userProfile, token });
+    res.json({ user: userProfile, token, userData: defaultData });
   } catch (err) {
     console.error("Registration error:", err);
     res.status(500).json({ error: "Erro interno no servidor." });
@@ -3226,12 +3332,21 @@ app.post("/api/admin/approve-user", async (req, res) => {
     }
 
     targetUser.subscription.approved = approve;
-    if (approve && targetUser.subscription.plan === "none") {
-      targetUser.subscription.plan = "mensal";
-      targetUser.subscription.validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    if (approve) {
+      targetUser.isBlocked = false;
+      if (targetUser.subscription.plan === "none" || targetUser.subscription.plan === "inativo") {
+        targetUser.subscription.plan = "mensal";
+      }
+      if (!targetUser.subscription.validUntil || new Date(targetUser.subscription.validUntil).getTime() < Date.now()) {
+        const nextMonth = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        nextMonth.setHours(23, 59, 59, 999);
+        targetUser.subscription.validUntil = nextMonth.toISOString();
+      }
     }
 
+    normalizeUserSubscription(targetUser);
     await saveUser(targetUser);
+    invalidateUserCache(targetEmail);
     res.json({ success: true });
   } catch (err) {
     console.error("Admin approve-user error:", err);
@@ -3423,7 +3538,9 @@ app.post("/api/admin/edit-user", async (req, res) => {
       }
     }
 
+    normalizeUserSubscription(user);
     await saveUser(user);
+    invalidateUserCache(lowerTargetEmail);
     res.json({ success: true });
   } catch (err) {
     console.error("Admin edit-user error:", err);
@@ -3457,15 +3574,17 @@ app.post("/api/admin/extend-subscription", async (req, res) => {
 
     if (!user.subscription) {
       user.subscription = {
-        plan: plan || "mensal",
+        plan: (plan && plan !== "unchanged" && plan !== "none" && plan !== "inativo") ? plan : "mensal",
         validUntil: newValidUntil ? new Date(newValidUntil).toISOString() : null,
         selectedAt: new Date().toISOString(),
         freePlanUsed: false,
         approved: true
       };
     } else {
-      if (plan && plan !== "unchanged") {
+      if (plan && plan !== "unchanged" && plan !== "none") {
         user.subscription.plan = plan;
+      } else if (user.subscription.plan === "none" || user.subscription.plan === "inativo") {
+        user.subscription.plan = "mensal";
       }
       user.subscription.validUntil = newValidUntil ? new Date(newValidUntil).toISOString() : null;
       user.subscription.approved = true;
@@ -3476,7 +3595,9 @@ app.post("/api/admin/extend-subscription", async (req, res) => {
       user.isBlocked = false;
     }
 
+    normalizeUserSubscription(user);
     await saveUser(user);
+    invalidateUserCache(lowerTargetEmail);
     res.json({ success: true, user });
   } catch (err: any) {
     console.error("Admin extend-subscription error:", err);
