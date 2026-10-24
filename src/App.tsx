@@ -622,6 +622,7 @@ export default function App() {
         );
       case 'Receitas':
       case 'Receitas (Ganhos)':
+      case 'Lançar Receitas (Ganhos)':
         if (!userData) return null;
         return (
           <ReceitasPage
@@ -633,6 +634,7 @@ export default function App() {
         );
       case 'Despesas':
       case 'Despesas (Gastos)':
+      case 'Lançar Despesas (Gastos)':
         if (!userData) return null;
         return (
           <DespesasPage
@@ -977,8 +979,8 @@ export default function App() {
     { name: 'Painel', icon: BarChart3, type: 'link' },
     { name: 'Resumo mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
-    { name: 'Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
-    { name: 'Despesas (Gastos)', icon: TrendingDown, type: 'link' },
+    { name: 'Lançar Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
+    { name: 'Lançar Despesas (Gastos)', icon: TrendingDown, type: 'link' },
     { name: 'Orçamento anual', icon: FileText, type: 'link' },
     { name: 'Plano de Ajuste', icon: AlertTriangle, type: 'link' },
     { name: 'Investimentos', icon: PiggyBank, type: 'link' },
@@ -1064,8 +1066,8 @@ export default function App() {
             const active = currentPage === item.name || 
               (item.name === 'Início' && currentPage === 'Home') || 
               (item.name === 'Painel' && currentPage === 'Dashboard') ||
-              (item.name === 'Receitas (Ganhos)' && currentPage === 'Receitas') ||
-              (item.name === 'Despesas (Gastos)' && currentPage === 'Despesas') ||
+              (item.name === 'Lançar Receitas (Ganhos)' && (currentPage === 'Receitas' || currentPage === 'Receitas (Ganhos)' || currentPage === 'Lançar Receitas (Ganhos)')) ||
+              (item.name === 'Lançar Despesas (Gastos)' && (currentPage === 'Despesas' || currentPage === 'Despesas (Gastos)' || currentPage === 'Lançar Despesas (Gastos)')) ||
               (item.name === 'Orçamento anual' && (currentPage === 'Orçamento anual' || currentPage === 'Orçamento Anual' || currentPage === 'Planejamento anual' || currentPage === 'Plano anual' || currentPage === 'Planejamento Anual')) ||
               (item.name === 'Plano de Ajuste' && (currentPage === 'Inconsistência financeira' || currentPage === 'P. A. desvio financeiro' || currentPage === 'Melhoria financeira' || currentPage === 'Ação de melhoria' || currentPage === 'Plano de Ação para Inconsistência financeira'));
             return (
