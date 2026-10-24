@@ -1034,7 +1034,73 @@ function normalizeUserSubscription(user: any, defaultTrialDays = 60) {
     }
   }
 
+  // Auto-seed initial history entry if user has an active plan but no history yet
+  if ((!user.subscriptionHistory || user.subscriptionHistory.length === 0) && user.subscription && user.subscription.plan && user.subscription.plan !== 'none') {
+    addSubscriptionHistoryEntry(user, {
+      plan: user.subscription.plan,
+      validUntil: user.subscription.validUntil || null,
+      createdAt: user.subscription.selectedAt || user.createdAt || new Date().toISOString(),
+      source: user.subscription.plan === 'gratis' ? 'cadastro' : 'assinatura',
+      status: user.subscription.plan === 'inativo' || user.isBlocked ? 'Inativo' : 'Ativo',
+      description: user.subscription.plan === 'gratis'
+        ? 'Período Grátis de Experiência (Cadastro)'
+        : user.subscription.plan === 'livre'
+        ? 'Acesso Livre Vitalício'
+        : `Plano ${user.subscription.plan === 'mensal' ? 'Mensal' : user.subscription.plan === 'anual' ? 'Anual' : user.subscription.plan} Ativo`
+    });
+  }
+
   return user;
+}
+
+// Helper to add and maintain subscription history entries
+function addSubscriptionHistoryEntry(
+  user: any,
+  entry: {
+    plan: string;
+    validUntil: string | null;
+    source?: string;
+    status?: string;
+    description?: string;
+    price?: string;
+    createdAt?: string;
+  }
+) {
+  if (!user) return;
+  if (!user.subscriptionHistory || !Array.isArray(user.subscriptionHistory)) {
+    user.subscriptionHistory = [];
+  }
+
+  const nowIso = entry.createdAt || new Date().toISOString();
+
+  // Avoid duplicate log if an identical plan, validity and source was logged in the last 15 seconds
+  const last = user.subscriptionHistory[0];
+  if (
+    last &&
+    last.plan === entry.plan &&
+    last.validUntil === entry.validUntil &&
+    last.source === entry.source &&
+    (Date.now() - new Date(last.createdAt).getTime() < 15000)
+  ) {
+    return;
+  }
+
+  const item = {
+    id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    plan: entry.plan,
+    createdAt: nowIso,
+    validUntil: entry.validUntil,
+    source: entry.source || 'sistema',
+    status: entry.status || 'Ativo',
+    description: entry.description || '',
+    price: entry.price || ''
+  };
+
+  user.subscriptionHistory.unshift(item);
+
+  if (user.subscriptionHistory.length > 50) {
+    user.subscriptionHistory = user.subscriptionHistory.slice(0, 50);
+  }
 }
 
 // Check if an email or CPF already used a free trial in history
@@ -1182,7 +1248,12 @@ async function getUserByEmail(email: string, bypassCache = false): Promise<any> 
             selectedAt: null,
             freePlanUsed: false,
             approved: false
-          }
+          },
+          subscriptionHistory: (Array.isArray(subData?.history) && subData.history.length > 0)
+            ? subData.history
+            : (Array.isArray(localUser?.subscriptionHistory) && localUser.subscriptionHistory.length > 0)
+              ? localUser.subscriptionHistory
+              : (Array.isArray(db.users[lowerEmail]?.subscriptionHistory) ? db.users[lowerEmail].subscriptionHistory : [])
         };
 
         normalizeUserSubscription(compiledUser);
@@ -1250,27 +1321,28 @@ async function saveUser(user: any): Promise<boolean> {
     cpf: mergedCpf,
     password: mergedPassword,
     userMessage: mergedUserMessage,
-    mensagemUsuario: mergedUserMessage
+    mensagemUsuario: mergedUserMessage,
+    subscriptionHistory: user.subscriptionHistory !== undefined ? user.subscriptionHistory : (existingSource.subscriptionHistory || [])
   };
 
   // Invalidate and update user cache immediately
   userCache.set(lowerEmail, { data: { ...finalUser }, timestamp: Date.now() });
 
-  if (!supabase) {
-    const db = getDb();
-    db.users[lowerEmail] = { ...finalUser };
+  // Always keep local DB synchronized as robust fallback
+  const db = getDb();
+  if (!db.users) db.users = {};
+  db.users[lowerEmail] = { ...finalUser };
 
-    if (mergedUserMessage !== undefined) {
-      db.users[lowerEmail].userMessage = mergedUserMessage;
-      db.users[lowerEmail].mensagemUsuario = mergedUserMessage;
-      if (!db.userData) db.userData = {};
-      if (db.userData[lowerEmail]) {
-        db.userData[lowerEmail].userMessage = mergedUserMessage;
-        db.userData[lowerEmail].mensagemUsuario = mergedUserMessage;
-      }
+  if (mergedUserMessage !== undefined) {
+    db.users[lowerEmail].userMessage = mergedUserMessage;
+    db.users[lowerEmail].mensagemUsuario = mergedUserMessage;
+    if (!db.userData) db.userData = {};
+    if (db.userData[lowerEmail]) {
+      db.userData[lowerEmail].userMessage = mergedUserMessage;
+      db.userData[lowerEmail].mensagemUsuario = mergedUserMessage;
     }
-    saveDb(db);
   }
+  saveDb(db);
 
   if (mergedUserMessage !== undefined) {
     saveUserMessageToDatabase(lowerEmail, mergedUserMessage).catch(err => console.error("Error persisting user message in saveUser:", err));
@@ -1348,19 +1420,31 @@ async function saveUser(user: any): Promise<boolean> {
         markSupabaseKeyAsInvalid("Invalid API key");
       }
 
-      // 3. Upsert subscriptions table (for user subscription tier)
+      // 3. Upsert subscriptions table (for user subscription tier and history)
       if (finalUser.subscription) {
-        const { error: subErr } = await supabase
+        const subPayload: any = {
+          email: lowerEmail,
+          plan: finalUser.subscription.plan || 'none',
+          valid_until: finalUser.subscription.validUntil || null,
+          selected_at: finalUser.subscription.selectedAt || null,
+          free_plan_used: !!finalUser.subscription.freePlanUsed,
+          approved: !!finalUser.subscription.approved,
+          history: finalUser.subscriptionHistory || [],
+          updated_at: new Date().toISOString()
+        };
+
+        let { error: subErr } = await supabase
           .from('subscriptions')
-          .upsert({
-            email: lowerEmail,
-            plan: finalUser.subscription.plan || 'none',
-            valid_until: finalUser.subscription.validUntil || null,
-            selected_at: finalUser.subscription.selectedAt || null,
-            free_plan_used: !!finalUser.subscription.freePlanUsed,
-            approved: !!finalUser.subscription.approved,
-            updated_at: new Date().toISOString()
-          });
+          .upsert(subPayload);
+
+        if (subErr && (subErr.code === '42703' || subErr.message?.includes('history'))) {
+          // Fallback if history column does not exist on Supabase subscriptions table yet
+          delete subPayload.history;
+          const retrySub = await supabase
+            .from('subscriptions')
+            .upsert(subPayload);
+          subErr = retrySub.error;
+        }
 
         if (subErr && (subErr.message?.includes("Invalid API key") || subErr.hint?.includes("API key"))) {
           markSupabaseKeyAsInvalid("Invalid API key");
@@ -2150,6 +2234,9 @@ async function getAllUsersList(): Promise<any[]> {
               freePlanUsed: false,
               approved: false
             }),
+            subscriptionHistory: (Array.isArray(sub?.history) && sub.history.length > 0)
+              ? sub.history
+              : (Array.isArray(localU?.subscriptionHistory) ? localU.subscriptionHistory : []),
             lastAccess: u.last_access || u.lastAccess || prof?.last_access || prof?.lastAccess || localU?.lastAccess || localUD?.lastUpdated || null,
             createdAt: u.created_at || u.createdAt || new Date().toISOString()
           };
@@ -2176,7 +2263,8 @@ async function getAllUsersList(): Promise<any[]> {
               userMessage: userMsg,
               mensagemUsuario: userMsg,
               isBlocked: !!(localU.isBlocked || localU.blocked || localU.subscription?.plan === 'inativo'),
-              lastAccess: localU.lastAccess || localUD?.lastUpdated || null
+              lastAccess: localU.lastAccess || localUD?.lastUpdated || null,
+              subscriptionHistory: Array.isArray(localU.subscriptionHistory) ? localU.subscriptionHistory : []
             };
             normalizeUserSubscription(localCompiled);
             usersMap.set(lowerKey, localCompiled);
@@ -2587,6 +2675,15 @@ app.post("/api/auth/register", async (req, res) => {
       await recordTrialHistory(lowerEmail, cpf);
     }
 
+    addSubscriptionHistoryEntry(newUser, {
+      plan: newUser.subscription.plan,
+      validUntil: newUser.subscription.validUntil,
+      source: 'cadastro',
+      status: 'Ativo',
+      description: initialPlan === 'gratis' ? 'Período Grátis de Boas-vindas (Cadastro)' : 'Cadastro de Conta',
+      createdAt: newUser.createdAt
+    });
+
     normalizeUserSubscription(newUser);
     await saveUser(newUser);
 
@@ -2820,6 +2917,30 @@ app.post("/api/user/profile", async (req, res) => {
   }
 });
 
+// Get Subscription History
+app.get("/api/user/subscription-history", async (req, res) => {
+  const email = getAuthEmailFromReq(req);
+  if (!email) {
+    return res.status(401).json({ error: "Não autorizado." });
+  }
+
+  try {
+    const user = await getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    normalizeUserSubscription(user);
+    res.json({ 
+      history: user.subscriptionHistory || [],
+      currentSubscription: user.subscription
+    });
+  } catch (err) {
+    console.error("Subscription history get error:", err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
 // Update Subscription
 app.post("/api/user/subscription", async (req, res) => {
   const email = req.headers["x-user-email"] as string;
@@ -2879,6 +3000,25 @@ app.post("/api/user/subscription", async (req, res) => {
       };
     }
 
+    const currentPrices = await getPlanPrices();
+    const priceFormatted = plan === "gratis" 
+      ? "Grátis" 
+      : plan === "mensal" 
+      ? `R$ ${currentPrices.mensal_por}/mês` 
+      : `R$ ${currentPrices.anual_por}/ano`;
+
+    addSubscriptionHistoryEntry(user, {
+      plan,
+      validUntil: user.subscription.validUntil,
+      source: plan === "gratis" ? "teste_gratis" : "assinatura",
+      status: "Ativo",
+      price: priceFormatted,
+      description: plan === "gratis"
+        ? "Período Grátis de Experiência Ativado"
+        : `Assinatura Plano ${plan === "mensal" ? "Mensal" : "Anual"}`
+    });
+
+    normalizeUserSubscription(user);
     await saveUser(user);
 
     const { password: _, ...userProfile } = user;
@@ -3023,15 +3163,30 @@ app.get("/api/payment/callback", async (req, res) => {
     try {
       const user = await getUserByEmail(targetEmail);
       if (user) {
+        const currentPrices = await getPlanPrices();
+        const priceFormatted = plan === "mensal" ? `R$ ${currentPrices.mensal_por}` : `R$ ${currentPrices.anual_por}`;
+        const newValidUntil = plan === "mensal" 
+          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
         user.subscription = {
           plan: plan as string,
-          validUntil: plan === "mensal" 
-            ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          validUntil: newValidUntil,
           selectedAt: new Date().toISOString(),
           freePlanUsed: user.subscription?.freePlanUsed || false,
           approved: true,
         };
+
+        addSubscriptionHistoryEntry(user, {
+          plan: plan as string,
+          validUntil: newValidUntil,
+          source: simulated ? 'Mercado Pago (Simulado)' : 'Mercado Pago',
+          status: 'Ativo',
+          price: priceFormatted,
+          description: `Pagamento Aprovado - Plano ${plan === 'mensal' ? 'Mensal' : 'Anual'}`
+        });
+
+        normalizeUserSubscription(user);
         await saveUser(user);
       }
     } catch (err) {
@@ -3409,6 +3564,15 @@ app.post("/api/admin/create-user", async (req, res) => {
       createdAt: new Date().toISOString(),
     };
 
+    addSubscriptionHistoryEntry(newUser, {
+      plan: newUser.subscription.plan,
+      validUntil: newUser.subscription.validUntil,
+      source: 'administrador',
+      status: isBlocked ? 'Inativo' : 'Ativo',
+      description: `Usuário cadastrado com plano "${newUser.subscription.plan}" pelo administrador`
+    });
+
+    normalizeUserSubscription(newUser);
     await saveUser(newUser);
 
     const defaultData = getDefaultUserData();
@@ -3536,6 +3700,14 @@ app.post("/api/admin/edit-user", async (req, res) => {
         user.subscription.selectedAt = new Date().toISOString();
         user.subscription.approved = true;
       }
+
+      addSubscriptionHistoryEntry(user, {
+        plan: user.subscription.plan,
+        validUntil: user.subscription.validUntil,
+        source: 'administrador',
+        status: user.isBlocked ? 'Inativo' : 'Ativo',
+        description: `Plano ajustado para "${user.subscription.plan}" pelo administrador`
+      });
     }
 
     normalizeUserSubscription(user);
@@ -3594,6 +3766,16 @@ app.post("/api/admin/extend-subscription", async (req, res) => {
     if (user.subscription.plan !== "inativo") {
       user.isBlocked = false;
     }
+
+    addSubscriptionHistoryEntry(user, {
+      plan: user.subscription.plan,
+      validUntil: user.subscription.validUntil,
+      source: 'administrador',
+      status: 'Ativo',
+      description: newValidUntil
+        ? `Prazo estendido pelo administrador até ${new Date(newValidUntil).toLocaleDateString('pt-BR')}`
+        : 'Prazo estendido pelo administrador'
+    });
 
     normalizeUserSubscription(user);
     await saveUser(user);

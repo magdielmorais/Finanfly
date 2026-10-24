@@ -646,6 +646,7 @@ export default function App() {
           />
         );
       case 'Resumo mensal':
+      case 'Resumo Mensal':
         if (!userData) return null;
         return (
           <ResumoMensalPage
@@ -977,7 +978,7 @@ export default function App() {
   const menuItems = [
     { name: 'Início', icon: HomeIcon, type: 'link' },
     { name: 'Painel', icon: BarChart3, type: 'link' },
-    { name: 'Resumo mensal', icon: Calendar, type: 'link' },
+    { name: 'Resumo Mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
     { name: 'Lançar Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
     { name: 'Lançar Despesas (Gastos)', icon: TrendingDown, type: 'link' },

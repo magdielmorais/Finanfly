@@ -1,7 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { UserProfile } from '../types';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { UserProfile, SubscriptionHistoryItem } from '../types';
 import { getSubscriptionDetails } from '../utils/subscriptionUtils';
-import { Check, AlertCircle, Sparkles, CreditCard, ShieldCheck } from 'lucide-react';
+import { 
+  Check, 
+  AlertCircle, 
+  Sparkles, 
+  CreditCard, 
+  ShieldCheck, 
+  History, 
+  Calendar, 
+  Clock, 
+  CheckCircle2, 
+  RefreshCw,
+  Zap,
+  UserCheck
+} from 'lucide-react';
 
 interface SubscriptionPageProps {
   user: UserProfile;
@@ -19,6 +32,35 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
     anual_por: string;
   } | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(true);
+
+  // Histórico de assinaturas
+  const [historyList, setHistoryList] = useState<SubscriptionHistoryItem[]>(user.subscriptionHistory || []);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      setLoadingHistory(true);
+      const res = await fetch('/api/user/subscription-history', {
+        headers: {
+          'x-user-email': user.email
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.history)) {
+          setHistoryList(data.history);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao buscar histórico de assinaturas:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [user.email]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory, user.subscription?.validUntil, user.subscription?.plan]);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,6 +103,103 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
   const isFreePlanUsed = user.subscription?.freePlanUsed || false;
   const currentPlan = details.resolvedPlan || user.subscription?.plan || 'none';
   const validUntil = user.subscription?.validUntil;
+
+  // Cálculo da parcela mensal do plano anual: valor do plano anual dividido por 12
+  const annualPerMonth = useMemo(() => {
+    if (!prices?.anual_por) return null;
+    const cleanStr = prices.anual_por.replace(/\./g, '').replace(',', '.');
+    const val = parseFloat(cleanStr);
+    if (isNaN(val) || val <= 0) return null;
+    const perMonth = val / 12;
+    return `R$ ${perMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, [prices?.anual_por]);
+
+  // Lista consolidada de histórico de assinaturas
+  const resolvedHistory: SubscriptionHistoryItem[] = useMemo(() => {
+    if (historyList && historyList.length > 0) {
+      return historyList;
+    }
+    if (user.subscriptionHistory && user.subscriptionHistory.length > 0) {
+      return user.subscriptionHistory;
+    }
+    if (user.subscription && user.subscription.plan && user.subscription.plan !== 'none') {
+      return [{
+        id: 'initial_active_plan',
+        plan: user.subscription.plan,
+        createdAt: user.subscription.selectedAt || user.createdAt || new Date().toISOString(),
+        validUntil: user.subscription.validUntil || null,
+        source: user.subscription.plan === 'gratis' ? 'cadastro' : 'assinatura',
+        status: user.subscription.plan === 'inativo' || user.isBlocked ? 'Inativo' : 'Ativo',
+        description: user.subscription.plan === 'gratis'
+          ? 'Período Grátis de Boas-vindas (Cadastro)'
+          : user.subscription.plan === 'livre'
+          ? 'Acesso Livre Vitalício'
+          : `Plano ${user.subscription.plan === 'mensal' ? 'Mensal' : user.subscription.plan === 'anual' ? 'Anual' : user.subscription.plan} Ativo`
+      }];
+    }
+    return [];
+  }, [historyList, user.subscriptionHistory, user.subscription, user.createdAt, user.isBlocked]);
+
+  const formatDateTime = (isoDate?: string | null) => {
+    if (!isoDate) return '—';
+    try {
+      const d = new Date(isoDate);
+      if (isNaN(d.getTime())) return isoDate;
+      const datePart = d.toLocaleDateString('pt-BR');
+      const timePart = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return `${datePart} às ${timePart}`;
+    } catch {
+      return isoDate;
+    }
+  };
+
+  const formatValidUntil = (validUntilIso?: string | null, planName?: string) => {
+    if (planName === 'livre' || !validUntilIso) {
+      return 'Vitalício / Sem expiração';
+    }
+    try {
+      const d = new Date(validUntilIso);
+      if (isNaN(d.getTime())) return validUntilIso;
+      return d.toLocaleDateString('pt-BR');
+    } catch {
+      return validUntilIso;
+    }
+  };
+
+  const getPlanBadge = (planKey?: string) => {
+    switch (planKey) {
+      case 'anual':
+        return {
+          label: 'Plano Anual',
+          badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+        };
+      case 'mensal':
+        return {
+          label: 'Plano Mensal',
+          badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+        };
+      case 'gratis':
+        return {
+          label: 'Período Grátis',
+          badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+        };
+      case 'livre':
+        return {
+          label: 'Acesso Livre',
+          badgeClass: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
+        };
+      case 'inativo':
+        return {
+          label: 'Inativo',
+          badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+        };
+      default:
+        return {
+          label: planKey ? `Plano ${planKey}` : 'Nenhum',
+          badgeClass: 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+        };
+    }
+  };
 
   const handleSelectPlan = async (plan: 'gratis' | 'mensal' | 'anual') => {
     if (plan === 'gratis' && isFreePlanUsed) {
@@ -327,6 +466,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
                 </span>
                 <span className="ml-1 text-xs text-slate-400">/ ano</span>
               </div>
+              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                somente {annualPerMonth || '...'} / mês
+              </p>
             </div>
 
             <ul className="mt-6 space-y-3.5 text-xs text-slate-600 dark:text-slate-400">
@@ -367,6 +509,152 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Card Histórico de Assinaturas */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 border border-blue-100 dark:border-blue-900/60 shadow-sm">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                Histórico de assinaturas
+                <span className="text-xs font-normal text-slate-400">
+                  ({resolvedHistory.length} {resolvedHistory.length === 1 ? 'registro' : 'registros'})
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Registro detalhado das suas assinaturas contratadas, pagamentos confirmados e extensões de validade.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => fetchHistory()}
+            disabled={loadingHistory}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/80 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs"
+            title="Atualizar histórico de assinaturas"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingHistory ? 'animate-spin text-blue-500' : ''}`} />
+            <span>Atualizar</span>
+          </button>
+        </div>
+
+        {loadingHistory && resolvedHistory.length === 0 ? (
+          <div className="py-10 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />
+            <span>Carregando histórico de assinaturas...</span>
+          </div>
+        ) : resolvedHistory.length === 0 ? (
+          <div className="py-10 text-center space-y-2">
+            <div className="inline-flex p-3 rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
+              <History className="h-6 w-6" />
+            </div>
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+              Nenhuma assinatura registrada até o momento.
+            </p>
+            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+              Ao assinar um plano ou ter seu prazo estendido pelo administrador, o registro completo com data, horário e validade aparecerá aqui.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-2 sm:mx-0">
+            <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+              <thead>
+                <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+                  <th className="py-2.5 px-3">Plano</th>
+                  <th className="py-2.5 px-3">Data e Horário</th>
+                  <th className="py-2.5 px-3">Validade do Plano</th>
+                  <th className="py-2.5 px-3">Origem / Status</th>
+                  <th className="py-2.5 px-3 text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-normal">
+                {resolvedHistory.map((item, index) => {
+                  const badge = getPlanBadge(item.plan);
+                  const isLatest = index === 0;
+                  return (
+                    <tr 
+                      key={item.id || index}
+                      className="hover:bg-slate-50/75 dark:hover:bg-slate-800/40 transition-colors"
+                    >
+                      {/* Plano */}
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${badge.badgeClass}`}>
+                            {item.plan === 'anual' ? (
+                              <Sparkles className="h-3 w-3" />
+                            ) : item.plan === 'mensal' ? (
+                              <CreditCard className="h-3 w-3" />
+                            ) : (
+                              <Clock className="h-3 w-3" />
+                            )}
+                            {badge.label}
+                          </span>
+                          {isLatest && (
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-900/60">
+                              Mais recente
+                            </span>
+                          )}
+                        </div>
+                        {item.description && (
+                          <p className="text-[11px] text-slate-400 mt-1 max-w-xs leading-tight">
+                            {item.description}
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Data e Horário */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
+                          <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span>{formatDateTime(item.createdAt)}</span>
+                        </div>
+                      </td>
+
+                      {/* Validade do Plano */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {formatValidUntil(item.validUntil, item.plan)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Origem e Status */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                            {item.source === 'administrador' ? (
+                              <span className="text-purple-600 dark:text-purple-400 font-semibold">Administrador</span>
+                            ) : item.source?.includes('Mercado Pago') ? (
+                              <span className="text-teal-600 dark:text-teal-400 font-semibold">{item.source}</span>
+                            ) : item.source === 'cadastro' ? (
+                              <span className="text-slate-500">Cadastro Inicial</span>
+                            ) : (
+                              <span>{item.source || 'Sistema'}</span>
+                            )}
+                          </span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {item.status || 'Ativo'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Valor */}
+                      <td className="py-3 px-3 text-right whitespace-nowrap font-semibold text-slate-800 dark:text-slate-200">
+                        {item.price || (item.plan === 'gratis' ? 'R$ 0,00' : '—')}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
     </div>

@@ -78,11 +78,13 @@ CREATE POLICY "Acesso total - trial_history" ON trial_history FOR ALL USING (tru
   selected_at TIMESTAMPTZ,
   free_plan_used BOOLEAN DEFAULT FALSE,
   approved BOOLEAN DEFAULT FALSE,
+  history JSONB DEFAULT '[]'::jsonb,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );`,
     columnsAlterSql: [
       `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS free_plan_used BOOLEAN DEFAULT FALSE;`,
-      `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT FALSE;`
+      `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT FALSE;`,
+      `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS history JSONB DEFAULT '[]'::jsonb;`
     ],
     rlsPolicySql: `ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - subscriptions" ON subscriptions;

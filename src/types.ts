@@ -9,6 +9,17 @@ export interface UserSubscription {
   freePlanUsedReason?: string;
 }
 
+export interface SubscriptionHistoryItem {
+  id: string;
+  plan: 'none' | 'inativo' | 'gratis' | 'mensal' | 'anual' | 'livre' | string;
+  createdAt: string; // Data e horário da assinatura/alteração
+  validUntil: string | null; // Data e horário de validade do plano
+  source?: 'cadastro' | 'mercadopago' | 'admin' | 'gratis' | string;
+  status?: 'Ativo' | 'Concluído' | 'Prorrogado' | 'Expirado' | string;
+  description?: string;
+  price?: string;
+}
+
 export interface UserProfile {
   email: string;
   name: string;
@@ -28,6 +39,7 @@ export interface UserProfile {
   previousApproved?: boolean;
   previousSubscription?: UserSubscription;
   lastAccess?: string;
+  subscriptionHistory?: SubscriptionHistoryItem[];
 }
 
 export interface Income {
