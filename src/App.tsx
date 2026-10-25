@@ -6,6 +6,7 @@ import { getUserInitials } from './utils/userUtils';
 import { renameExpenseCategoryInUserData } from './utils/categoryUtils';
 import { isUserSubscriptionActive } from './utils/subscriptionUtils';
 import { FloatingMenuButton } from './components/FloatingMenuButton';
+import { PullToRefresh } from './components/PullToRefresh';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
 const Home = lazy(() => import('./components/Home').then(m => ({ default: m.Home })));
@@ -1309,12 +1310,22 @@ export default function App() {
           </div>
         </header>
 
-        {/* Scrollable contents frame */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
+        {/* Scrollable contents frame with Pull-to-Refresh support */}
+        <PullToRefresh
+          onRefresh={async () => {
+            if (currentUser) {
+              await Promise.all([
+                fetchUserData(currentUser.email),
+                refreshProfile(currentUser.email)
+              ]);
+            }
+          }}
+          className="flex-1 p-4 sm:p-6 md:p-8"
+        >
           <Suspense fallback={<PageLoadingFallback />}>
             {renderPageContent()}
           </Suspense>
-        </div>
+        </PullToRefresh>
       </main>
     </div>
   );
