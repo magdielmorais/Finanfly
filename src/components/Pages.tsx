@@ -1710,6 +1710,7 @@ export const DespesasPage: React.FC<PageProps> = ({
   // Estados para Alterar em massa
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [bulkEditMonth, setBulkEditMonth] = useState<string>(''); // YYYY-MM
+  const [bulkEditCategory, setBulkEditCategory] = useState<string>('all');
   const [bulkEditField, setBulkEditField] = useState<'classification' | 'paymentType' | 'status'>('classification');
   const [bulkEditCurrentVal, setBulkEditCurrentVal] = useState<string>('');
   const [bulkEditTargetVal, setBulkEditTargetVal] = useState<string>('');
@@ -1748,11 +1749,155 @@ export const DespesasPage: React.FC<PageProps> = ({
     return `${yyyy}-${mm}`;
   }, []);
 
-  const [selectedYear, setSelectedYear] = useState<string>('all');
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>(() => new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    return `${yyyy}-${mm}`;
+  });
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedWeekOffset, setSelectedWeekOffset] = useState<number | null>(null);
   const [isExpenseFiltersOpen, setIsExpenseFiltersOpen] = useState<boolean>(false);
+  const expenseFilterCardRef = useRef<HTMLDivElement>(null);
+
+  const scrollToCardTop = () => {
+    if (!expenseFilterCardRef.current) return;
+    const container = (expenseFilterCardRef.current.closest('.overflow-y-auto') as HTMLElement | null) ||
+                      (document.querySelector('main .overflow-y-auto') as HTMLElement | null);
+    if (container) {
+      const cardRect = expenseFilterCardRef.current.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const relativeTop = cardRect.top - containerRect.top;
+      const targetScroll = container.scrollTop + relativeTop - 12;
+      container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+    } else {
+      expenseFilterCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleToggleFilters = () => {
+    const nextState = !isExpenseFiltersOpen;
+    setIsExpenseFiltersOpen(nextState);
+    if (nextState) {
+      setTimeout(scrollToCardTop, 80);
+      setTimeout(scrollToCardTop, 250);
+    }
+  };
+
+  // Recolher automaticamente o card de filtros ao rolar a página para baixo quando estiver aberto
+  useEffect(() => {
+    if (!isExpenseFiltersOpen) return;
+
+    let isOpeningPeriod = true;
+    const graceTimer = setTimeout(() => {
+      isOpeningPeriod = false;
+    }, 600);
+
+    const getScrollContainer = () => {
+      return (expenseFilterCardRef.current?.closest('.overflow-y-auto') as HTMLElement | null) ||
+             (document.querySelector('main .overflow-y-auto') as HTMLElement | null);
+    };
+
+    const getScrollPos = () => {
+      const container = getScrollContainer();
+      if (container) return container.scrollTop;
+      return window.scrollY || document.documentElement.scrollTop || 0;
+    };
+
+    let lastScrollY = getScrollPos();
+    let touchStartY = 0;
+
+    const handleScroll = () => {
+      if (isOpeningPeriod) return;
+      const currentScroll = getScrollPos();
+      
+      // Ao rolar a tela para baixo (currentScroll aumenta), recolhe o card de filtros automaticamente
+      if (currentScroll - lastScrollY > 15) {
+        setIsExpenseFiltersOpen(false);
+      } else if (currentScroll < lastScrollY) {
+        lastScrollY = currentScroll;
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (isOpeningPeriod) return;
+      // Rolar a tela para baixo (deltaY positivo)
+      if (e.deltaY > 10) {
+        setIsExpenseFiltersOpen(false);
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartY = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isOpeningPeriod) return;
+      if (e.touches.length > 0) {
+        const currentTouchY = e.touches[0].clientY;
+        // Puxar o dedo para cima movimenta a página para baixo
+        if (touchStartY - currentTouchY > 20) {
+          setIsExpenseFiltersOpen(false);
+        }
+      }
+    };
+
+    const container = getScrollContainer();
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+      container.addEventListener('wheel', handleWheel, { passive: true });
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
+      container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      clearTimeout(graceTimer);
+      if (container) {
+        container.removeEventListener('scroll', handleScroll);
+        container.removeEventListener('wheel', handleWheel);
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+      }
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isExpenseFiltersOpen]);
+
+  const weekRange = useMemo(() => {
+    if (selectedWeekOffset === null) return null;
+    const refDate = dayjs().add(selectedWeekOffset, 'week');
+    const start = refDate.startOf('isoWeek').format('YYYY-MM-DD');
+    const end = refDate.endOf('isoWeek').format('YYYY-MM-DD');
+    const label = `${refDate.startOf('isoWeek').format('DD/MM')} a ${refDate.endOf('isoWeek').format('DD/MM/YYYY')}`;
+    return { start, end, label };
+  }, [selectedWeekOffset]);
+
+  const selectedMonthYearText = useMemo(() => {
+    if (selectedMonth !== 'all') {
+      const [year, month] = selectedMonth.split('-');
+      const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const monthIdx = parseInt(month, 10) - 1;
+      const monthName = monthNames[monthIdx] || '';
+      return `Referente a ${monthName} de ${year}`;
+    } else {
+      const activeYear = selectedYear !== 'all' ? selectedYear : new Date().getFullYear().toString();
+      return `Referente ao ano de ${activeYear}`;
+    }
+  }, [selectedMonth, selectedYear]);
 
   const yearOptions = useMemo(() => {
     const yearsSet = new Set<string>();
@@ -1811,7 +1956,7 @@ export const DespesasPage: React.FC<PageProps> = ({
   };
 
   const formatMonthYearStr = (monthStr: string) => {
-    if (!monthStr || monthStr === 'all') return 'Todos';
+    if (!monthStr || monthStr === 'all') return 'Mês / Ano';
     const [year, month] = monthStr.split('-');
     const monthNames = [
       'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -1866,6 +2011,8 @@ export const DespesasPage: React.FC<PageProps> = ({
     if (!bulkEditMonth || !bulkEditCurrentVal) return 0;
     return userData.expenses.filter(exp => {
       if (!exp.date.startsWith(bulkEditMonth)) return false;
+      if (bulkEditCategory !== 'all' && exp.category !== bulkEditCategory) return false;
+
       if (bulkEditField === 'classification') {
         return (exp.classification || '') === bulkEditCurrentVal;
       }
@@ -1877,12 +2024,13 @@ export const DespesasPage: React.FC<PageProps> = ({
       }
       return false;
     }).length;
-  }, [userData.expenses, bulkEditMonth, bulkEditField, bulkEditCurrentVal]);
+  }, [userData.expenses, bulkEditMonth, bulkEditCategory, bulkEditField, bulkEditCurrentVal]);
 
   const handleOpenBulkEdit = () => {
-    // Definir mês padrão: o mês filtrado atualmente na tela se houver, ou mês corrente
+    // Definir mês e categoria padrão de acordo com o filtro atual da tela se houver
     const initialMonth = (selectedMonth !== 'all' ? selectedMonth : currentMonthYearStr);
     setBulkEditMonth(initialMonth);
+    setBulkEditCategory(selectedCategory !== 'all' ? selectedCategory : 'all');
     setBulkEditField('classification');
     setBulkEditCurrentVal('Variável');
     setBulkEditTargetVal('Fixo');
@@ -1901,6 +2049,7 @@ export const DespesasPage: React.FC<PageProps> = ({
     let changedCount = 0;
     const updatedExpenses = userData.expenses.map(exp => {
       if (!exp.date.startsWith(bulkEditMonth)) return exp;
+      if (bulkEditCategory !== 'all' && exp.category !== bulkEditCategory) return exp;
 
       if (bulkEditField === 'classification' && (exp.classification || '') === bulkEditCurrentVal) {
         changedCount++;
@@ -2178,9 +2327,13 @@ export const DespesasPage: React.FC<PageProps> = ({
 
       if (selectedStatus !== 'all' && e.status !== selectedStatus) return false;
 
+      if (weekRange) {
+        if (e.date < weekRange.start || e.date > weekRange.end) return false;
+      }
+
       return true;
     });
-  }, [userData.expenses, search, selectedMonth, selectedYear, selectedCategory, selectedStatus]);
+  }, [userData.expenses, search, selectedMonth, selectedYear, selectedCategory, selectedStatus, weekRange]);
 
   const total = useMemo(() => {
     return filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
@@ -2190,7 +2343,14 @@ export const DespesasPage: React.FC<PageProps> = ({
     return userData.expenses.reduce((acc, curr) => acc + curr.value, 0);
   }, [userData.expenses]);
 
-  const hasActiveFilter = (search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all');
+  const hasActiveFilter = (
+    search !== '' ||
+    selectedYear !== 'all' ||
+    selectedMonth !== 'all' ||
+    selectedCategory !== 'all' ||
+    selectedStatus !== 'all' ||
+    selectedWeekOffset !== null
+  );
 
   const formatShortDate = (dateStr: string) => {
     if (!dateStr) return '-';
@@ -2853,9 +3013,9 @@ export const DespesasPage: React.FC<PageProps> = ({
     )}
 
       {/* Filtro de Despesas Accordion Card */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+      <div ref={expenseFilterCardRef} className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
         <div
-          onClick={() => setIsExpenseFiltersOpen(!isExpenseFiltersOpen)}
+          onClick={handleToggleFilters}
           className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
         >
           <div className="flex items-center gap-2.5">
@@ -2882,180 +3042,256 @@ export const DespesasPage: React.FC<PageProps> = ({
           </div>
         </div>
 
-        {isExpenseFiltersOpen && (
-          <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 space-y-4 animate-slide-down bg-slate-50/50 dark:bg-slate-950/30">
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              {/* Search Input */}
-              <div className="relative flex-1 min-w-[180px]">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Search className="h-4 w-4 text-slate-400" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Pesquisar por descrição ou categoria da despesa..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200/50 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
-                />
-              </div>
+        <AnimatePresence initial={false}>
+          {isExpenseFiltersOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30"
+            >
+              <div className="p-4 sm:p-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  {/* Column 1: Search Input & Year Filter Directly Below */}
+                  <div className="flex flex-col gap-2.5">
+                    {/* Search Input */}
+                    <div className="relative w-full">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <Search className="h-4 w-4 text-slate-400" />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Pesquisar por descrição ou categoria da despesa..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200/50 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800/50 dark:bg-slate-950 dark:text-white"
+                      />
+                    </div>
 
-              {/* Year Filter Dropdown */}
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => handleYearChange(e.target.value)}
-                    className="rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                  >
-                    <option value="all">Todos os Anos</option>
-                    {yearOptions.map((y) => (
-                      <option key={y} value={y}>
-                        Ano {y}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                    <Calendar className="h-4 w-4 text-slate-400" />
-                  </span>
-                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                    ▼
-                  </span>
+                    {/* Year Filter Dropdown - Directly below Search */}
+                    <div className="relative w-full">
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => handleYearChange(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                      >
+                        {yearOptions.map((y) => (
+                          <option key={y} value={y}>
+                            Ano {y}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                        <Calendar className="h-4 w-4 text-slate-400" />
+                      </span>
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                        ▼
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Column 2: Month Filter Dropdown & Ir para Mês Corrente */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="relative w-full">
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => handleMonthChange(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                      >
+                        <option value="all">Mês / Ano</option>
+                        {monthOptions.map((m) => {
+                          const isCurrent = m === currentMonthYearStr;
+                          return (
+                            <option key={m} value={m}>
+                              {formatMonthYearStr(m)} {isCurrent ? ' (Mês Corrente)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                        <Calendar className="h-4 w-4 text-slate-400" />
+                      </span>
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                        ▼
+                      </span>
+                    </div>
+
+                    {/* Ir para o mês corrente button rendered directly below Mês / Ano */}
+                    {selectedMonth !== currentMonthYearStr && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth(currentMonthYearStr);
+                          const currentYear = currentMonthYearStr.substring(0, 4);
+                          setSelectedYear(currentYear);
+                          setSelectedWeekOffset(null);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-[0.98] px-2.5 py-2 text-xs font-bold text-white transition-all shadow-md shadow-slate-900/15 cursor-pointer animate-fade-in"
+                        title="Mudar para o Mês Corrente"
+                      >
+                        <Calendar className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                        <span>Ir para o mês corrente</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Column 3: Category, Status, and Stacked Week Buttons */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="relative w-full">
+                      <select
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                        title="Filtrar por Categoria"
+                      >
+                        <option value="all">Todas as Categorias</option>
+                        {sortedExpenseCategories.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                        <Tag className="h-3.5 w-3.5 text-slate-400" />
+                      </span>
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                        ▼
+                      </span>
+                    </div>
+
+                    <div className="relative w-full">
+                      <select
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                        title="Filtrar por Situação"
+                      >
+                        <option value="all">Todas as Situações</option>
+                        {sortedPaymentStatuses.map((st) => (
+                          <option key={st} value={st}>
+                            {st}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                        <Filter className="h-3.5 w-3.5 text-slate-400" />
+                      </span>
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                        ▼
+                      </span>
+                    </div>
+
+                    {/* Week Navigation Buttons Stacked Vertically Below Todas as Situações */}
+                    <div className="w-full pt-1 flex flex-col items-start gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextOffset = (selectedWeekOffset ?? 0) - 1;
+                          setSelectedWeekOffset(nextOffset);
+                          setSelectedMonth('all');
+                        }}
+                        className={`w-fit inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border cursor-pointer ${
+                          selectedWeekOffset !== null && selectedWeekOffset < 0
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                        title="Ir para a Semana Anterior"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+                        <span>Semana anterior</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWeekOffset(0);
+                          setSelectedMonth('all');
+                        }}
+                        className={`w-fit inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border cursor-pointer ${
+                          selectedWeekOffset === 0
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                        title="Ir para a Semana Atual"
+                      >
+                        <Calendar className="h-3.5 w-3.5 shrink-0" />
+                        <span>Semana atual</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextOffset = (selectedWeekOffset ?? 0) + 1;
+                          setSelectedWeekOffset(nextOffset);
+                          setSelectedMonth('all');
+                        }}
+                        className={`w-fit inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border cursor-pointer ${
+                          selectedWeekOffset !== null && selectedWeekOffset > 0
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                        title="Ir para a Semana Seguinte"
+                      >
+                        <span>Semana seguinte</span>
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                      </button>
+
+                      {weekRange && (
+                        <div className="text-[11px] text-blue-600 dark:text-blue-400 font-bold text-left mt-0.5">
+                          Filtrando: {weekRange.label}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Month Filter Dropdown */}
-              <div className="flex flex-col items-start gap-1">
-                <div className="relative w-full">
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => handleMonthChange(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                  >
-                    <option value="all">Todos os Meses</option>
-                    {monthOptions.map((m) => {
-                      const isCurrent = m === currentMonthYearStr;
-                      return (
-                        <option key={m} value={m}>
-                          {formatMonthYearStr(m)} {isCurrent ? ' (Mês Corrente)' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                    <Calendar className="h-4 w-4 text-slate-400" />
-                  </span>
-                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                    ▼
-                  </span>
-                </div>
-
-                {selectedMonth !== currentMonthYearStr && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedMonth(currentMonthYearStr);
-                      const currentYear = currentMonthYearStr.substring(0, 4);
-                      setSelectedYear(currentYear);
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-[0.98] px-2.5 py-1.5 text-xs font-bold text-white transition-all shadow-md shadow-slate-900/15 cursor-pointer animate-fade-in"
-                    title="Mudar para o Mês Corrente"
-                  >
-                    <Calendar className="h-3.5 w-3.5 text-slate-200 shrink-0" />
-                    <span>Ir para o mês corrente</span>
-                  </button>
+                {/* Clear Filters Button */}
+                {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all' || selectedWeekOffset !== null) && (
+                  <div className="flex justify-end pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch('');
+                        setSelectedYear('all');
+                        setSelectedMonth('all');
+                        setSelectedCategory('all');
+                        setSelectedStatus('all');
+                        setSelectedWeekOffset(null);
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3.5 py-1.5 text-xs font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 cursor-pointer"
+                      title="Limpar todos os filtros"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Limpar Filtros
+                    </button>
+                  </div>
                 )}
               </div>
-
-              {/* Category and Status Filters Column */}
-              <div className="flex flex-col items-start gap-1.5">
-                <div className="relative w-full">
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                    title="Filtrar por Categoria"
-                  >
-                    <option value="all">Todas as Categorias</option>
-                    {sortedExpenseCategories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                    <Tag className="h-3.5 w-3.5 text-slate-400" />
-                  </span>
-                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                    ▼
-                  </span>
-                </div>
-
-                <div className="relative w-full">
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
-                    title="Filtrar por Situação"
-                  >
-                    <option value="all">Todas as Situações</option>
-                    {sortedPaymentStatuses.map((st) => (
-                      <option key={st} value={st}>
-                        {st}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                    <Filter className="h-3.5 w-3.5 text-slate-400" />
-                  </span>
-                  <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-                    ▼
-                  </span>
-                </div>
-              </div>
-
-              {/* Clear Filters Button */}
-              {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all') && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch('');
-                    setSelectedYear('all');
-                    setSelectedMonth('all');
-                    setSelectedCategory('all');
-                    setSelectedStatus('all');
-                  }}
-                  className="flex items-center gap-1.5 rounded-lg border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600 px-3 py-2 font-bold transition-all dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 cursor-pointer"
-                  title="Limpar todos os filtros"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Limpar Filtros
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Summary and Bulk Action Card */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
-          {hasActiveFilter ? 'Total de Despesas com filtro' : 'Total de Despesas'}
+      {/* Summary Card with "Referente a mês de ano" and Soma total stacked underneath */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div>
+          <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+            {hasActiveFilter ? 'Total de Despesas com filtro' : 'Total de Despesas'}
+          </h4>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+            {selectedMonthYearText}
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          {!hasActiveFilter ? (
-            <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 text-right">
-              Soma total: <span className="font-mono text-rose-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{totalAll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 text-right">
-                Soma total: <span className="font-mono text-slate-700 dark:text-slate-300"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{totalAll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg font-bold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 text-right">
-                Soma Filtrada: <span className="font-mono text-rose-600"><span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>{total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          )}
+
+        <div className="bg-slate-50 border border-slate-200/80 dark:border-slate-800 p-3.5 rounded-xl font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-300 w-full sm:w-fit">
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+            {hasActiveFilter ? 'Soma Total filtrada:' : 'Soma total:'}
+          </span>
+          <span className="font-mono text-xl sm:text-2xl font-black text-rose-600 block">
+            <span className="text-xs font-sans font-normal text-slate-400 dark:text-slate-500 mr-1 select-none">R$</span>
+            {(hasActiveFilter ? total : totalAll).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
         </div>
       </div>
 
@@ -3133,7 +3369,27 @@ export const DespesasPage: React.FC<PageProps> = ({
                         </select>
                       </div>
 
-                      {/* 2. Campo a escolher: Classificação, Tipo ou Situação */}
+                      {/* 2. Filtro de Categorias */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+                          <Tag className="h-3.5 w-3.5 text-slate-400" />
+                          <span>Categoria de Despesas</span>
+                        </label>
+                        <select
+                          value={bulkEditCategory}
+                          onChange={(e) => setBulkEditCategory(e.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white font-medium cursor-pointer"
+                        >
+                          <option value="all">Todas as Categorias</option>
+                          {sortedExpenseCategories.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* 3. Campo a escolher: Classificação, Tipo ou Situação */}
                       <div>
                         <label className="block text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1.5">
                           Campo a alterar
@@ -8484,7 +8740,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                     onClick={() => setShowMassConfirmModal(true)}
                     className="py-2 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    Ajuste
+                    Copiar
                   </button>
                 </div>
               </div>
@@ -8561,7 +8817,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                 <AlertTriangle className="h-6 w-6" />
               </div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Confirmar Ajuste?
+                Confirmar Cópia?
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                 Tem certeza que deseja copiar todos os valores de <strong>{monthsFull[massSourceMonth]}</strong> para <strong>{monthsFull[massTargetMonth]}</strong>? Se houver valores cadastrados no mês de destino, eles serão sobrescritos.
@@ -8585,7 +8841,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
                 }}
                 className="flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01] cursor-pointer"
               >
-                Sim, Ajuste
+                Sim, Copiar
               </button>
             </div>
           </div>
