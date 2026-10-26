@@ -173,7 +173,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
               {/* Par 2: Adicionar Receitas e Adicionar Despesas abaixo */}
               <div className="flex flex-col gap-1.5 items-start">
                 <button
-                  onClick={() => onNavigate('Receitas (Ganhos)')}
+                  onClick={() => onNavigate('Receitas (Lançar Ganhos)')}
                   className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
                   title="Cadastrar novas receitas"
                 >
@@ -181,7 +181,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
                   <span>Adicionar Receitas</span>
                 </button>
                 <button
-                  onClick={() => onNavigate('Despesas (Gastos)')}
+                  onClick={() => onNavigate('Despesas (Lançar Gastos)')}
                   className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
                   title="Cadastrar novas despesas"
                 >

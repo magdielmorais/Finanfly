@@ -8,7 +8,7 @@ import { MonthlyExpenseTrendChart } from './CustomChart';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { renameExpenseCategoryInUserData, migrateLocalBudgetsCategory } from '../utils/categoryUtils';
-import { exportExpensesToPdf } from '../utils/pdfExport';
+import { exportExpensesToPdf, exportMonthlySummaryToPdf } from '../utils/pdfExport';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { getMonthWeeksCount } from '../utils/dateUtils';
@@ -2383,6 +2383,122 @@ export const DespesasPage: React.FC<PageProps> = ({
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
+  const [isPdfExportOpen, setIsPdfExportOpen] = useState<boolean>(false);
+  const pdfExportCardRef = useRef<HTMLDivElement>(null);
+
+  const scrollToPdfCardTop = () => {
+    if (!pdfExportCardRef.current) return;
+    const container = (pdfExportCardRef.current.closest('.overflow-y-auto') as HTMLElement | null) ||
+                      (document.querySelector('main .overflow-y-auto') as HTMLElement | null);
+    if (container) {
+      const cardRect = pdfExportCardRef.current.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const relativeTop = cardRect.top - containerRect.top;
+      const targetScroll = container.scrollTop + relativeTop - 12;
+      container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+    } else {
+      pdfExportCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleTogglePdfExport = () => {
+    const nextState = !isPdfExportOpen;
+    setIsPdfExportOpen(nextState);
+    if (nextState) {
+      setTimeout(scrollToPdfCardTop, 80);
+      setTimeout(scrollToPdfCardTop, 250);
+    }
+  };
+
+  // Recolher automaticamente o card de exportar PDF ao subir a página quando estiver aberto
+  useEffect(() => {
+    if (!isPdfExportOpen) return;
+
+    let isOpeningPeriod = true;
+    const graceTimer = setTimeout(() => {
+      isOpeningPeriod = false;
+    }, 600);
+
+    const getScrollContainer = () => {
+      return (pdfExportCardRef.current?.closest('.overflow-y-auto') as HTMLElement | null) ||
+             (document.querySelector('main .overflow-y-auto') as HTMLElement | null);
+    };
+
+    const getScrollPos = () => {
+      const container = getScrollContainer();
+      if (container) return container.scrollTop;
+      return window.scrollY || document.documentElement.scrollTop || 0;
+    };
+
+    let lastScrollY = getScrollPos();
+    let touchStartY = 0;
+
+    const handleScroll = () => {
+      if (isOpeningPeriod) return;
+      const currentScroll = getScrollPos();
+      
+      // Ao subir a página (currentScroll diminui), recolhe o card automaticamente
+      if (lastScrollY - currentScroll > 15) {
+        setIsPdfExportOpen(false);
+      } else if (currentScroll > lastScrollY + 25) {
+        setIsPdfExportOpen(false);
+      } else {
+        lastScrollY = currentScroll;
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (isOpeningPeriod) return;
+      // Rolar a tela para cima (deltaY negativo)
+      if (e.deltaY < -10) {
+        setIsPdfExportOpen(false);
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartY = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isOpeningPeriod) return;
+      if (e.touches.length > 0) {
+        const currentTouchY = e.touches[0].clientY;
+        // Puxar o dedo para baixo movimenta a página para cima (subir a página)
+        if (currentTouchY - touchStartY > 20) {
+          setIsPdfExportOpen(false);
+        }
+      }
+    };
+
+    const container = getScrollContainer();
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+      container.addEventListener('wheel', handleWheel, { passive: true });
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
+      container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      clearTimeout(graceTimer);
+      if (container) {
+        container.removeEventListener('scroll', handleScroll);
+        container.removeEventListener('wheel', handleWheel);
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+      }
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isPdfExportOpen]);
 
   const handleExportPdf = async () => {
     if (filteredExpenses.length === 0) {
@@ -3775,90 +3891,90 @@ export const DespesasPage: React.FC<PageProps> = ({
         confirmLabel="Excluir Despesa"
       />
 
-      {/* Card para Exportar em PDF de acordo com o filtro atual */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+      {/* Card para Exportar em PDF de acordo com o filtro atual - Accordion */}
+      <div ref={pdfExportCardRef} className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        {/* Accordion Header */}
+        <div
+          onClick={handleTogglePdfExport}
+          className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 flex items-center justify-center font-bold shrink-0">
-              <FileText className="h-5 w-5" />
+            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 flex items-center justify-center font-bold shrink-0">
+              <FileText className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 Exportar Relatório em PDF
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   {filteredExpenses.length} {filteredExpenses.length === 1 ? 'registro' : 'registros'}
                 </span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Gere e baixe um documento PDF completo com os lançamentos de despesas de acordo com os filtros selecionados.
+                {isPdfExportOpen ? 'Clique para recolher o painel de exportação' : 'Clique para expandir as opções e exportar o relatório com base no filtro atual'}
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            disabled={isExportingPdf || filteredExpenses.length === 0}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 active:bg-rose-900 text-white font-bold text-xs shadow-sm shadow-rose-950/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
-            title={filteredExpenses.length === 0 ? "Nenhuma despesa para exportar no filtro atual" : "Exportar despesas filtradas para PDF"}
-          >
-            {isExportingPdf ? (
-              <>
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Gerando PDF...</span>
-              </>
+          <div className="flex items-center gap-2">
+            {isPdfExportOpen ? (
+              <ChevronUp className="h-5 w-5 text-slate-400" />
             ) : (
-              <>
-                <Download className="h-4 w-4" />
-                <span>Exportar em PDF</span>
-              </>
+              <ChevronDown className="h-5 w-5 text-slate-400" />
             )}
-          </button>
-        </div>
-
-        {/* Resumo dos dados e filtros que constarão no PDF */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Período Selecionado</span>
-            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
-              {selectedMonthYearText}
-            </span>
-          </div>
-
-          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Categoria / Tipo</span>
-            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
-              {selectedCategory === 'all' ? 'Todas' : selectedCategory} • {selectedType === 'all' ? 'Todos' : selectedType}
-            </span>
-          </div>
-
-          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Situação</span>
-            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
-              {selectedStatus === 'all' ? 'Todas as Situações' : selectedStatus}
-            </span>
-          </div>
-
-          <div className="p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30">
-            <span className="text-[10px] uppercase font-bold text-rose-500 dark:text-rose-400 block mb-0.5">Total Filtrado</span>
-            <span className="font-mono font-bold text-rose-700 dark:text-rose-400 text-sm block">
-              R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </span>
           </div>
         </div>
 
-        {pdfSuccessMessage && (
-          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold animate-fade-in">
-            <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <span>{pdfSuccessMessage}</span>
-          </div>
-        )}
+        {/* Accordion Content with slow expand effect */}
+        <AnimatePresence initial={false}>
+          {isPdfExportOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30"
+            >
+              <div className="p-4 sm:p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-medium max-w-xl">
+                    O documento PDF será gerado com cabeçalho institucional, data e hora de emissão, filtros aplicados e a listagem completa dos lançamentos filtrados.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    disabled={isExportingPdf || filteredExpenses.length === 0}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 active:bg-rose-900 text-white font-bold text-xs shadow-sm shadow-rose-950/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                    title={filteredExpenses.length === 0 ? "Nenhuma despesa para exportar no filtro atual" : "Exportar despesas filtradas para PDF"}
+                  >
+                    {isExportingPdf ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Gerando PDF...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        <span>Exportar em PDF</span>
+                      </>
+                    )}
+                  </button>
+                </div>
 
-        {filteredExpenses.length === 0 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-            * Nenhum lançamento encontrado com o filtro atual para gerar o documento PDF. Ajuste ou limpe os filtros para exportar.
-          </p>
-        )}
+                {pdfSuccessMessage && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold animate-fade-in">
+                    <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>{pdfSuccessMessage}</span>
+                  </div>
+                )}
+
+                {filteredExpenses.length === 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                    * Nenhum lançamento encontrado com o filtro atual para gerar o documento PDF. Ajuste ou limpe os filtros para exportar.
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Help Card como último conteúdo da página */}
@@ -3885,12 +4001,18 @@ export const DespesasPage: React.FC<PageProps> = ({
 };
 
 // ======================== RESUMO MENSAL ========================
-export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserData, onNavigate }) => {
+export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, onUpdateUserData, onNavigate }) => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
   const [selectedRealizedCategory, setSelectedRealizedCategory] = useState<string | null>(null);
   const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
+
+  // Estados para o Card de Exportar PDF (mesmo padrão de Despesas)
+  const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
+  const pdfExportCardRef = useRef<HTMLDivElement>(null);
 
   // Estados para o popup de Novo Registro de Despesa disparado no Resumo Mensal
   const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
@@ -4013,7 +4135,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
     setShowNewExpenseModal(false);
     setEditingLaunchItem(null);
     if (onNavigate) {
-      onNavigate('Despesas (Gastos)');
+      onNavigate('Despesas (Lançar Gastos)');
     }
   };
 
@@ -4518,6 +4640,133 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const scrollToPdfCardTop = () => {
+    if (pdfExportCardRef.current) {
+      pdfExportCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleTogglePdfExport = () => {
+    const nextState = !isPdfExportOpen;
+    setIsPdfExportOpen(nextState);
+    if (nextState) {
+      setTimeout(scrollToPdfCardTop, 80);
+      setTimeout(scrollToPdfCardTop, 250);
+    }
+  };
+
+  // Recolher automaticamente o card de exportar PDF ao subir a página quando estiver aberto
+  useEffect(() => {
+    if (!isPdfExportOpen) return;
+
+    let isOpeningPeriod = true;
+    const graceTimer = setTimeout(() => {
+      isOpeningPeriod = false;
+    }, 600);
+
+    const getScrollContainer = () => {
+      return (pdfExportCardRef.current?.closest('.overflow-y-auto') as HTMLElement | null) ||
+             (document.querySelector('main .overflow-y-auto') as HTMLElement | null);
+    };
+
+    const getScrollPos = () => {
+      const container = getScrollContainer();
+      if (container) return container.scrollTop;
+      return window.scrollY || document.documentElement.scrollTop || 0;
+    };
+
+    let lastScrollY = getScrollPos();
+    let touchStartY = 0;
+
+    const handleScroll = () => {
+      if (isOpeningPeriod) return;
+      const currentScroll = getScrollPos();
+      
+      // Ao subir a página (currentScroll diminui), recolhe o card automaticamente
+      if (lastScrollY - currentScroll > 15) {
+        setIsPdfExportOpen(false);
+      } else if (currentScroll > lastScrollY + 25) {
+        setIsPdfExportOpen(false);
+      } else {
+        lastScrollY = currentScroll;
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (isOpeningPeriod) return;
+      if (e.deltaY < -10) {
+        setIsPdfExportOpen(false);
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartY = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isOpeningPeriod) return;
+      if (e.touches.length > 0) {
+        const currentTouchY = e.touches[0].clientY;
+        if (currentTouchY - touchStartY > 20) {
+          setIsPdfExportOpen(false);
+        }
+      }
+    };
+
+    const container = getScrollContainer();
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+      container.addEventListener('wheel', handleWheel, { passive: true });
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
+      container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      clearTimeout(graceTimer);
+      if (container) {
+        container.removeEventListener('scroll', handleScroll);
+        container.removeEventListener('wheel', handleWheel);
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+      }
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isPdfExportOpen]);
+
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    setPdfSuccessMessage(null);
+    try {
+      await exportMonthlySummaryToPdf({
+        monthName: monthsList[selectedMonth],
+        year: selectedYear,
+        userProfile,
+        categoriesTableData: monthData.categoriesTableData,
+        realizedCategoriesList: monthData.realizedCategoriesList,
+        sumBudget: monthData.sumBudget,
+        sumExpense: monthData.sumExpense,
+        balance: monthData.balance
+      });
+      setPdfSuccessMessage('Relatório mensal em PDF gerado e baixado com sucesso!');
+      setTimeout(() => setPdfSuccessMessage(null), 4000);
+    } catch (err) {
+      console.error('Erro ao exportar PDF do Resumo Mensal:', err);
+      alert('Ocorreu um erro ao gerar o relatório em PDF. Tente novamente.');
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   return (
@@ -5457,7 +5706,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
                       type="button"
                       onClick={handleListaDespesas}
                       className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-[0.99] text-slate-800 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all border border-slate-300/50 dark:border-slate-700/50 cursor-pointer shadow-2xs whitespace-nowrap"
-                      title="Ir para a Lista de Despesas (Gastos)"
+                      title="Ir para a Lista de Despesas (Lançar Gastos)"
                     >
                       <Wallet className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                       <span>Lista Despesas</span>
@@ -5850,6 +6099,86 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, onUpdateUserDa
         </AnimatePresence>,
         document.body
       )}
+
+      {/* Exportar Relatório em PDF Accordion Card (Resumo Mensal por Categoria) */}
+      <div ref={pdfExportCardRef} className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        {/* Accordion Header */}
+        <div
+          onClick={handleTogglePdfExport}
+          className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 flex items-center justify-center font-bold shrink-0">
+              <FileText className="h-4.5 w-4.5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                Exportar Relatório em PDF
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {monthsList[selectedMonth]} de {selectedYear} • {monthData.categoriesTableData.length} categorias
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {isPdfExportOpen ? 'Clique para recolher o painel de exportação' : 'Clique para expandir as opções e exportar o relatório com o resumo por categoria e gráfico'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isPdfExportOpen ? (
+              <ChevronUp className="h-5 w-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-slate-400" />
+            )}
+          </div>
+        </div>
+
+        {/* Accordion Content with slow expand effect */}
+        <AnimatePresence initial={false}>
+          {isPdfExportOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30"
+            >
+              <div className="p-4 sm:p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-medium max-w-xl">
+                    O documento PDF será gerado com o resumo comparativo por categoria (Orçado vs Realizado), balanço do mês e a seção Categorias Realizado contendo o gráfico e percentuais de cada categoria.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    disabled={isExportingPdf || monthData.categoriesTableData.length === 0}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-sm shadow-blue-950/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                    title={monthData.categoriesTableData.length === 0 ? "Nenhuma categoria para exportar" : "Exportar resumo mensal para PDF"}
+                  >
+                    {isExportingPdf ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Gerando PDF...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        <span>Exportar em PDF</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {pdfSuccessMessage && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold animate-fade-in">
+                    <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>{pdfSuccessMessage}</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard

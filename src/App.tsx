@@ -624,6 +624,7 @@ export default function App() {
       case 'Receitas':
       case 'Receitas (Ganhos)':
       case 'Lançar Receitas (Ganhos)':
+      case 'Receitas (Lançar Ganhos)':
         if (!userData) return null;
         return (
           <ReceitasPage
@@ -636,6 +637,7 @@ export default function App() {
       case 'Despesas':
       case 'Despesas (Gastos)':
       case 'Lançar Despesas (Gastos)':
+      case 'Despesas (Lançar Gastos)':
         if (!userData) return null;
         return (
           <DespesasPage
@@ -981,8 +983,8 @@ export default function App() {
     { name: 'Painel', icon: BarChart3, type: 'link' },
     { name: 'Resumo Mensal', icon: Calendar, type: 'link' },
     { name: 'Resumo Anual', icon: Layers, type: 'link' },
-    { name: 'Lançar Receitas (Ganhos)', icon: TrendingUp, type: 'link' },
-    { name: 'Lançar Despesas (Gastos)', icon: TrendingDown, type: 'link' },
+    { name: 'Receitas (Lançar Ganhos)', icon: TrendingUp, type: 'link' },
+    { name: 'Despesas (Lançar Gastos)', icon: TrendingDown, type: 'link' },
     { name: 'Orçamento anual', icon: FileText, type: 'link' },
     { name: 'Plano de Ajuste', icon: AlertTriangle, type: 'link' },
     { name: 'Investimentos', icon: PiggyBank, type: 'link' },
@@ -1068,8 +1070,8 @@ export default function App() {
             const active = currentPage === item.name || 
               (item.name === 'Início' && currentPage === 'Home') || 
               (item.name === 'Painel' && currentPage === 'Dashboard') ||
-              (item.name === 'Lançar Receitas (Ganhos)' && (currentPage === 'Receitas' || currentPage === 'Receitas (Ganhos)' || currentPage === 'Lançar Receitas (Ganhos)')) ||
-              (item.name === 'Lançar Despesas (Gastos)' && (currentPage === 'Despesas' || currentPage === 'Despesas (Gastos)' || currentPage === 'Lançar Despesas (Gastos)')) ||
+              (item.name === 'Receitas (Lançar Ganhos)' && (currentPage === 'Receitas' || currentPage === 'Receitas (Ganhos)' || currentPage === 'Lançar Receitas (Ganhos)' || currentPage === 'Receitas (Lançar Ganhos)')) ||
+              (item.name === 'Despesas (Lançar Gastos)' && (currentPage === 'Despesas' || currentPage === 'Despesas (Gastos)' || currentPage === 'Lançar Despesas (Gastos)' || currentPage === 'Despesas (Lançar Gastos)')) ||
               (item.name === 'Orçamento anual' && (currentPage === 'Orçamento anual' || currentPage === 'Orçamento Anual' || currentPage === 'Planejamento anual' || currentPage === 'Plano anual' || currentPage === 'Planejamento Anual')) ||
               (item.name === 'Plano de Ajuste' && (currentPage === 'Inconsistência financeira' || currentPage === 'P. A. desvio financeiro' || currentPage === 'Melhoria financeira' || currentPage === 'Ação de melhoria' || currentPage === 'Plano de Ação para Inconsistência financeira'));
             return (
