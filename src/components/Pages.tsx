@@ -4004,7 +4004,6 @@ export const DespesasPage: React.FC<PageProps> = ({
 export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, onUpdateUserData, onNavigate }) => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string | null>(null);
   const [selectedRealizedCategory, setSelectedRealizedCategory] = useState<string | null>(null);
   const [selectedCategoryModal, setSelectedCategoryModal] = useState<string | null>(null);
 
@@ -4605,43 +4604,6 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
     };
   }, [userData.expenses, userData.annualPlanning, selectedCategoryModal, selectedYear, selectedMonth]);
 
-  const handleExportToExcel = () => {
-    // Columns: Categoria; Orçado; Realizado; Saldo
-    const headers = ['Categoria', 'Orçado (R$)', 'Realizado (R$)', 'Saldo (R$)'];
-    
-    const rows = monthData.categoriesTableData.map(item => [
-      item.category,
-      item.budgetedValue.toFixed(2).replace('.', ','),
-      item.realizedValue.toFixed(2).replace('.', ','),
-      item.balanceValue.toFixed(2).replace('.', ',')
-    ]);
-
-    // Total Row
-    const totalRow = [
-      'TOTAL',
-      monthData.sumBudget.toFixed(2).replace('.', ','),
-      monthData.sumExpense.toFixed(2).replace('.', ','),
-      monthData.balance.toFixed(2).replace('.', ',')
-    ];
-
-    const allRows = [headers, ...rows, totalRow];
-    
-    // Convert to CSV string with semicolons and a UTF-8 BOM so Excel opens it with correct accents
-    const csvContent = '\uFEFF' + allRows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(';')).join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    
-    const monthName = monthsList[selectedMonth].toLowerCase();
-    link.setAttribute('download', `resumo_categoria_${monthName}_${selectedYear}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const scrollToPdfCardTop = () => {
     if (pdfExportCardRef.current) {
       pdfExportCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -4933,20 +4895,6 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
             )}
           </table>
         </div>
-
-        {/* Botão de Exportar para Excel */}
-        {monthData.categoriesTableData.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/60 flex justify-center">
-            <button
-              onClick={handleExportToExcel}
-              className="flex items-center gap-2.5 px-4.5 py-2.5 bg-slate-600 hover:bg-slate-500 active:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:active:bg-slate-800 text-xs font-bold text-white rounded-xl shadow-md shadow-slate-600/10 hover:shadow-lg hover:shadow-slate-600/15 active:shadow-xs transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-              title="Exportar dados de categorias para planilha Excel"
-            >
-              <Download className="h-4 w-4 shrink-0" />
-              Exportar para Excel
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Gráfico de Tendência de Gastos (Evolução Acumulada Dia a Dia) */}
@@ -4969,178 +4917,6 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
             Gráficos de percentuais
           </div>
         </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Card Gráfico Orçado */}
-          <div className="space-y-3">
-          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-            <div className="h-4 w-1 rounded-full bg-purple-600 dark:bg-sky-400" />
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
-              Categorias - Orçado
-            </h3>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col items-center">
-            {monthData.budgetedPieSlices.length > 0 ? (
-              <>
-                <div className="relative h-64 w-full flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={monthData.budgetedPieSlices}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={95}
-                        paddingAngle={3}
-                        dataKey="value"
-                        nameKey="name"
-                        cursor="pointer"
-                        onClick={(entry: any) => {
-                          if (entry && entry.name) {
-                            setSelectedBudgetCategory(prev => prev === entry.name ? null : entry.name);
-                          }
-                        }}
-                      >
-                        {monthData.budgetedPieSlices.map((entry) => {
-                          const isSelected = selectedBudgetCategory === entry.name;
-                          return (
-                            <Cell
-                              key={`cell-budget-${entry.name}`}
-                              fill={entry.color}
-                              stroke={isSelected ? '#ffffff' : 'transparent'}
-                              strokeWidth={isSelected ? 3 : 0}
-                              opacity={selectedBudgetCategory ? (isSelected ? 1 : 0.35) : 1}
-                              style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-                            />
-                          );
-                        })}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-
-                  {/* Informação no centro da rosca ao clicar na fatia */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    {(() => {
-                      const sel = monthData.budgetedCategoriesList.find(c => c.name === selectedBudgetCategory);
-                      if (sel && sel.value > 0) {
-                        return (
-                          <div className="text-center px-1.5 max-w-[100px]">
-                            <div className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate leading-tight" title={sel.name}>
-                              {sel.name}
-                            </div>
-                            <div className="text-base font-black text-purple-600 dark:text-sky-400 leading-tight my-0.5 font-mono">
-                              {sel.percentage.toFixed(1)}%
-                            </div>
-                            <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                              R$ {sel.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="text-center px-1.5 max-w-[100px]">
-                          <div className="text-[9px] font-medium text-slate-400 dark:text-slate-500 leading-tight">
-                            Clique na fatia
-                          </div>
-                          <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-0.5">
-                            Orçado
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {/* Banner com destaque da categoria e porcentagem ao clicar */}
-                {(() => {
-                  const sel = monthData.budgetedCategoriesList.find(c => c.name === selectedBudgetCategory);
-                  if (!sel) return null;
-                  return (
-                    <div className="w-full my-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex items-center justify-between transition-all">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="h-4 w-4 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: sel.color }} />
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-purple-950 dark:text-purple-100 truncate">
-                            {sel.name}
-                          </div>
-                          <div className="text-[11px] font-mono text-purple-700 dark:text-purple-300">
-                            Valor Orçado: <span className="font-bold">R$ {sel.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="px-2.5 py-1 rounded-md bg-purple-600 dark:bg-sky-500 text-white font-mono font-bold text-xs shadow-sm">
-                          {sel.percentage.toFixed(1)}%
-                        </div>
-                        <button
-                          onClick={() => setSelectedBudgetCategory(null)}
-                          className="p-1 rounded text-purple-500 hover:text-purple-800 hover:bg-purple-200/50 dark:text-purple-300 dark:hover:text-white dark:hover:bg-purple-900/60 transition-colors"
-                          title="Desmarcar seleção"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            ) : (
-              <div className="h-48 w-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-xs">
-                <div className="h-24 w-24 rounded-full border-4 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center mb-2">
-                  <span className="font-semibold text-[11px] text-slate-400">R$ 0,00</span>
-                </div>
-                Nenhum valor orçado para as categorias neste mês.
-              </div>
-            )}
-
-            {/* Legenda com TODAS as categorias de Cadastro Categoria Despesas */}
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 w-full">
-              <div className="flex items-center justify-between pb-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                <span>Todas as Categorias Cadastradas ({monthData.budgetedCategoriesList.length})</span>
-                <span>Total: R$ {monthData.sumBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-56 overflow-y-auto pr-1">
-                {monthData.budgetedCategoriesList.map((item) => {
-                  const isSelected = selectedBudgetCategory === item.name;
-                  return (
-                    <div
-                      key={item.name}
-                      onClick={() => setSelectedBudgetCategory(prev => prev === item.name ? null : item.name)}
-                      className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all ${
-                        isSelected
-                          ? 'ring-2 ring-purple-500 bg-purple-100/70 dark:bg-purple-950/60 dark:ring-sky-400 shadow-sm'
-                          : 'bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/40 dark:hover:bg-slate-800/70'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                        <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                        <span className={`truncate ${isSelected ? 'font-bold text-purple-950 dark:text-purple-100' : 'font-medium text-slate-700 dark:text-slate-200'}`} title={item.name}>
-                          {item.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0 font-mono text-right">
-                        <span className={`text-[11px] ${item.value > 0 ? 'font-medium text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
-                          R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          item.value > 0 
-                            ? isSelected
-                              ? 'text-white bg-purple-600 dark:bg-sky-500'
-                              : 'text-purple-700 dark:text-sky-300 bg-purple-100 dark:bg-sky-950/60' 
-                            : 'text-slate-400 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-800/60'
-                        }`}>
-                          {item.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Card Gráfico Realizado */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
@@ -5310,7 +5086,6 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
             </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* ========================================================================= */}
