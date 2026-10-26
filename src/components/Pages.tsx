@@ -2,12 +2,13 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart, Download, Layers } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart, Download, Layers, FileText } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MonthlyExpenseTrendChart } from './CustomChart';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { renameExpenseCategoryInUserData, migrateLocalBudgetsCategory } from '../utils/categoryUtils';
+import { exportExpensesToPdf } from '../utils/pdfExport';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { getMonthWeeksCount } from '../utils/dateUtils';
@@ -1619,6 +1620,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 // ======================== DESPESAS PAGE ========================
 export const DespesasPage: React.FC<PageProps> = ({ 
   userData, 
+  userProfile,
   onUpdateUserData,
   initialShowAddForm,
   initialCategory,
@@ -1685,6 +1687,19 @@ export const DespesasPage: React.FC<PageProps> = ({
       a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
     );
   }, [userData.paymentTypes]);
+
+  const expenseTypeOptions = useMemo(() => {
+    const set = new Set<string>();
+    (userData.paymentTypes || []).forEach(t => {
+      if (t && t.trim()) set.add(t.trim());
+    });
+    (userData.expenses || []).forEach(e => {
+      if (e.paymentType && e.paymentType.trim()) {
+        set.add(e.paymentType.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [userData.paymentTypes, userData.expenses]);
 
   const sortedPaymentStatuses = useMemo(() => {
     return [...(userData.paymentStatuses || [])].sort((a, b) =>
@@ -1757,6 +1772,7 @@ export const DespesasPage: React.FC<PageProps> = ({
     return `${yyyy}-${mm}`;
   });
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedWeekOffset, setSelectedWeekOffset] = useState<number | null>(null);
   const [isExpenseFiltersOpen, setIsExpenseFiltersOpen] = useState<boolean>(false);
@@ -2325,6 +2341,8 @@ export const DespesasPage: React.FC<PageProps> = ({
 
       if (selectedCategory !== 'all' && e.category !== selectedCategory) return false;
 
+      if (selectedType !== 'all' && e.paymentType !== selectedType) return false;
+
       if (selectedStatus !== 'all' && e.status !== selectedStatus) return false;
 
       if (weekRange) {
@@ -2333,7 +2351,7 @@ export const DespesasPage: React.FC<PageProps> = ({
 
       return true;
     });
-  }, [userData.expenses, search, selectedMonth, selectedYear, selectedCategory, selectedStatus, weekRange]);
+  }, [userData.expenses, search, selectedMonth, selectedYear, selectedCategory, selectedType, selectedStatus, weekRange]);
 
   const total = useMemo(() => {
     return filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
@@ -2348,6 +2366,7 @@ export const DespesasPage: React.FC<PageProps> = ({
     selectedYear !== 'all' ||
     selectedMonth !== 'all' ||
     selectedCategory !== 'all' ||
+    selectedType !== 'all' ||
     selectedStatus !== 'all' ||
     selectedWeekOffset !== null
   );
@@ -2360,6 +2379,40 @@ export const DespesasPage: React.FC<PageProps> = ({
       return `${day}/${month}/${year.slice(-2)}`;
     }
     return dateStr;
+  };
+
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
+
+  const handleExportPdf = async () => {
+    if (filteredExpenses.length === 0) {
+      alert('Não há lançamentos de despesas para exportar com os filtros selecionados.');
+      return;
+    }
+
+    setIsExportingPdf(true);
+    setPdfSuccessMessage(null);
+    try {
+      await exportExpensesToPdf({
+        expenses: filteredExpenses,
+        userProfile,
+        filterDetails: {
+          periodText: selectedMonthYearText,
+          categoryText: selectedCategory === 'all' ? 'Todas as Categorias' : selectedCategory,
+          typeText: selectedType === 'all' ? 'Todos os Tipos' : selectedType,
+          statusText: selectedStatus === 'all' ? 'Todas as Situações' : selectedStatus,
+          searchText: search.trim() ? search.trim() : undefined
+        },
+        totalValue: total
+      });
+      setPdfSuccessMessage('Relatório em PDF gerado e baixado com sucesso!');
+      setTimeout(() => setPdfSuccessMessage(null), 4000);
+    } catch (err) {
+      console.error('Erro ao exportar PDF de despesas:', err);
+      alert('Ocorreu um erro ao gerar o relatório em PDF. Tente novamente.');
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   return (
@@ -3025,7 +3078,7 @@ export const DespesasPage: React.FC<PageProps> = ({
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 Filtro de Despesas
-                {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all') && (
+                {hasActiveFilter && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
                     Ativo
                   </span>
@@ -3160,6 +3213,29 @@ export const DespesasPage: React.FC<PageProps> = ({
                       </span>
                     </div>
 
+                    {/* Filtro por Tipo de Despesa */}
+                    <div className="relative w-full">
+                      <select
+                        value={selectedType}
+                        onChange={(e) => setSelectedType(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200/50 bg-white pl-8 pr-8 py-2 text-sm font-medium text-slate-700 focus:outline-none dark:border-slate-800/50 dark:bg-slate-950 dark:text-slate-300 appearance-none cursor-pointer"
+                        title="Filtrar por Tipo"
+                      >
+                        <option value="all">Todos os Tipos</option>
+                        {expenseTypeOptions.map((typeOption) => (
+                          <option key={typeOption} value={typeOption}>
+                            {typeOption}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                        <CreditCard className="h-3.5 w-3.5 text-slate-400" />
+                      </span>
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+                        ▼
+                      </span>
+                    </div>
+
                     <div className="relative w-full">
                       <select
                         value={selectedStatus}
@@ -3247,7 +3323,7 @@ export const DespesasPage: React.FC<PageProps> = ({
                 </div>
 
                 {/* Clear Filters Button */}
-                {(search !== '' || selectedYear !== 'all' || selectedMonth !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all' || selectedWeekOffset !== null) && (
+                {hasActiveFilter && (
                   <div className="flex justify-end pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
                     <button
                       type="button"
@@ -3256,6 +3332,7 @@ export const DespesasPage: React.FC<PageProps> = ({
                         setSelectedYear('all');
                         setSelectedMonth('all');
                         setSelectedCategory('all');
+                        setSelectedType('all');
                         setSelectedStatus('all');
                         setSelectedWeekOffset(null);
                       }}
@@ -3697,6 +3774,92 @@ export const DespesasPage: React.FC<PageProps> = ({
         ] : []}
         confirmLabel="Excluir Despesa"
       />
+
+      {/* Card para Exportar em PDF de acordo com o filtro atual */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 flex items-center justify-center font-bold shrink-0">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
+                Exportar Relatório em PDF
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {filteredExpenses.length} {filteredExpenses.length === 1 ? 'registro' : 'registros'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Gere e baixe um documento PDF completo com os lançamentos de despesas de acordo com os filtros selecionados.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            disabled={isExportingPdf || filteredExpenses.length === 0}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 active:bg-rose-900 text-white font-bold text-xs shadow-sm shadow-rose-950/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+            title={filteredExpenses.length === 0 ? "Nenhuma despesa para exportar no filtro atual" : "Exportar despesas filtradas para PDF"}
+          >
+            {isExportingPdf ? (
+              <>
+                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Gerando PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                <span>Exportar em PDF</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Resumo dos dados e filtros que constarão no PDF */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Período Selecionado</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+              {selectedMonthYearText}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Categoria / Tipo</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+              {selectedCategory === 'all' ? 'Todas' : selectedCategory} • {selectedType === 'all' ? 'Todos' : selectedType}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Situação</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+              {selectedStatus === 'all' ? 'Todas as Situações' : selectedStatus}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30">
+            <span className="text-[10px] uppercase font-bold text-rose-500 dark:text-rose-400 block mb-0.5">Total Filtrado</span>
+            <span className="font-mono font-bold text-rose-700 dark:text-rose-400 text-sm block">
+              R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+
+        {pdfSuccessMessage && (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold animate-fade-in">
+            <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span>{pdfSuccessMessage}</span>
+          </div>
+        )}
+
+        {filteredExpenses.length === 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+            * Nenhum lançamento encontrado com o filtro atual para gerar o documento PDF. Ajuste ou limpe os filtros para exportar.
+          </p>
+        )}
+      </div>
 
       {/* Help Card como último conteúdo da página */}
       <HelpCard
