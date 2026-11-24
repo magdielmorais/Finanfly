@@ -7,6 +7,7 @@ import { renameExpenseCategoryInUserData } from './utils/categoryUtils';
 import { isUserSubscriptionActive } from './utils/subscriptionUtils';
 import { FloatingMenuButton } from './components/FloatingMenuButton';
 import { PullToRefresh } from './components/PullToRefresh';
+import { clearAuthToken, getAuthHeaders } from './utils/authToken';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
 const Home = lazy(() => import('./components/Home').then(m => ({ default: m.Home })));
@@ -79,27 +80,32 @@ import {
   Globe
 } from 'lucide-react';
 
-export default function App() {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const savedUserStr = localStorage.getItem('finanfly_user');
-      const lastActivityStr = localStorage.getItem('finanfly_last_activity');
-      if (savedUserStr && lastActivityStr) {
-        const lastActivityTime = parseInt(lastActivityStr, 10);
-        const now = Date.now();
-        if (!isNaN(lastActivityTime) && (now - lastActivityTime < 5 * 60 * 1000)) {
-          return JSON.parse(savedUserStr);
-        }
+function clearLegacyLocalData() {
+  try {
+    localStorage.removeItem('finanfly_user');
+    localStorage.removeItem('finanfy_user');
+    localStorage.removeItem('finanfly_token');
+    localStorage.removeItem('finanfly_last_activity');
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('finanfly_data_')) {
+        keysToRemove.push(key);
       }
-    } catch (e) {
-      console.error('Error reading saved user session:', e);
     }
-    return null;
-  });
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export default function App() {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentPage, setCurrentPage] = useState<string>('Início');
   const [subscriptionWarning, setSubscriptionWarning] = useState<string>('');
   const [inactivityNotice, setInactivityNotice] = useState<string>('');
+  const [saveError, setSaveError] = useState<string>('');
 
   // Sidebar toggle for responsive mobile views
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -267,54 +273,17 @@ export default function App() {
     }
   }, [isDark]);
 
-  // Persistent session restore on page reload: restore user if within 5 minutes (300,000 ms) of last activity
+  // Scrub any legacy local user/financial storage on startup
   useEffect(() => {
-    const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
-    const savedUserStr = localStorage.getItem('finanfly_user');
-    const lastActivityStr = localStorage.getItem('finanfly_last_activity');
-
-    if (savedUserStr && lastActivityStr) {
-      const lastActivityTime = parseInt(lastActivityStr, 10);
-      const now = Date.now();
-      if (!isNaN(lastActivityTime) && (now - lastActivityTime < INACTIVITY_TIMEOUT_MS)) {
-        try {
-          const user = JSON.parse(savedUserStr);
-          setCurrentUser(user);
-          localStorage.setItem('finanfly_last_activity', now.toString());
-          return;
-        } catch (e) {
-          console.error('Error parsing saved user session:', e);
-        }
-      } else {
-        setInactivityNotice('Você foi desconectado automaticamente por inatividade. Faça login para continuar.');
-      }
-    }
-
-    // Clean up if expired or no active session
-    localStorage.removeItem('finanfly_user');
-    localStorage.removeItem('finanfy_user');
-    localStorage.removeItem('finanfly_token');
-    localStorage.removeItem('finanfly_last_activity');
-    setCurrentUser(null);
+    clearLegacyLocalData();
   }, []);
 
-  // Sync user data whenever currentUser changes
+  // Sync user data exclusively from Supabase when currentUser changes
   useEffect(() => {
     if (currentUser) {
       if (skipNextFetchUserDataRef.current) {
         skipNextFetchUserDataRef.current = false;
         return;
-      }
-      try {
-        const cachedStr = localStorage.getItem(`finanfly_data_${currentUser.email.toLowerCase().trim()}`);
-        if (cachedStr) {
-          const parsed = JSON.parse(cachedStr);
-          if (parsed && typeof parsed === 'object') {
-            updateUserDataState(parsed);
-          }
-        }
-      } catch (e) {
-        // ignore
       }
       fetchUserData(currentUser.email);
     } else {
@@ -324,12 +293,10 @@ export default function App() {
 
   const refreshProfile = async (email: string) => {
     try {
-      const token = localStorage.getItem('finanfly_token') || '';
       const res = await fetch('/api/user/profile', {
-        headers: {
-          'x-user-email': email,
-          'x-auth-token': token
-        }
+        headers: getAuthHeaders({
+          'x-user-email': email
+        })
       });
       
       let data: any = null;
@@ -345,15 +312,13 @@ export default function App() {
         data = null;
       }
 
-      if (res.status === 403 || data?.isBlocked) {
-        // User has been blocked
+      if (res.status === 401 || res.status === 403 || data?.isBlocked) {
         handleLogout();
         return;
       }
 
       if (res.ok && data?.user) {
         setCurrentUser(data.user);
-        localStorage.setItem('finanfly_user', JSON.stringify(data.user));
       }
     } catch (err) {
       console.error('Error refreshing profile:', err);
@@ -363,12 +328,10 @@ export default function App() {
   const fetchUserData = async (email: string) => {
     const requestVersion = dataMutationVersionRef.current;
     try {
-      const token = localStorage.getItem('finanfly_token') || '';
       const res = await fetch('/api/user/data', {
-        headers: {
-          'x-user-email': email,
-          'x-auth-token': token
-        }
+        headers: getAuthHeaders({
+          'x-user-email': email
+        })
       });
 
       let data: any = null;
@@ -384,19 +347,23 @@ export default function App() {
         data = null;
       }
 
-      if (res.status === 403 || data?.isBlocked) {
+      if (res.status === 401 || res.status === 403 || data?.isBlocked) {
         handleLogout();
         return;
       }
 
-      if (res.ok && data && dataMutationVersionRef.current === requestVersion) {
+      if (!res.ok) {
+        setSaveError(data?.error || 'Não foi possível carregar os dados do Supabase. Tente atualizar novamente.');
+        return;
+      }
+
+      if (data && dataMutationVersionRef.current === requestVersion) {
+        setSaveError('');
         updateUserDataState(data);
-        try {
-          localStorage.setItem(`finanfly_data_${email.toLowerCase().trim()}`, JSON.stringify(data));
-        } catch (e) {}
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
+      setSaveError('Falha de conexão ao buscar dados no servidor.');
     }
   };
 
@@ -405,23 +372,18 @@ export default function App() {
     if (!currentUser || !baseData) return;
 
     const writeVersion = ++dataMutationVersionRef.current;
-    const storageKey = `finanfly_data_${currentUser.email.toLowerCase().trim()}`;
     const merged = { ...baseData, ...newData };
 
+    setSaveError('');
     updateUserDataState(merged); // Optimistic UI update using latest ref
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(merged));
-    } catch (e) {}
 
     try {
-      const token = localStorage.getItem('finanfly_token') || '';
       const res = await fetch('/api/user/data', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
-          'x-user-email': currentUser.email,
-          'x-auth-token': token
-        },
+          'x-user-email': currentUser.email
+        }),
         body: JSON.stringify(newData),
       });
 
@@ -438,7 +400,7 @@ export default function App() {
         data = null;
       }
 
-      if (res.status === 403 || data?.isBlocked) {
+      if (res.status === 401 || res.status === 403 || data?.isBlocked) {
         handleLogout();
         return;
       }
@@ -448,21 +410,21 @@ export default function App() {
           await fetchUserData(currentUser.email);
         } else if (dataMutationVersionRef.current === writeVersion) {
           updateUserDataState(baseData);
-          try {
-            localStorage.setItem(storageKey, JSON.stringify(baseData));
-          } catch (e) {}
         }
-        throw new Error(data?.error || 'Erro ao salvar dados.');
+        const msg = data?.error || 'Erro ao salvar dados no Supabase. Nenhuma alteração foi salva localmente.';
+        setSaveError(msg);
+        throw new Error(msg);
       }
 
       if (data?.data && dataMutationVersionRef.current === writeVersion) {
         updateUserDataState(data.data);
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(data.data));
-        } catch (e) {}
       }
     } catch (err: any) {
       console.error('Error saving user data:', err);
+      if (dataMutationVersionRef.current === writeVersion && !saveError) {
+        updateUserDataState(baseData);
+      }
+      setSaveError(err?.message || 'Erro de conexão ao salvar no Supabase. Suas alterações anteriores foram mantidas.');
     }
   };
 
@@ -478,10 +440,9 @@ export default function App() {
       cpf: cpf !== undefined ? cpf : currentUser.cpf
     };
     setCurrentUser(updated);
-    localStorage.setItem('finanfly_user', JSON.stringify(updated));
   };
 
-  // Auto-logout mechanism after 5 minutes (300,000 ms) of inactivity
+  // Auto-logout mechanism after 5 minutes (300,000 ms) of inactivity (in-memory tracker)
   useEffect(() => {
     if (!currentUser) return;
 
@@ -491,21 +452,19 @@ export default function App() {
 
     const performLogout = () => {
       clearTimeout(timer);
+      clearAuthToken();
+      clearLegacyLocalData();
       setCurrentUser(null);
       updateUserDataState(null);
-      localStorage.removeItem('finanfly_user');
-      localStorage.removeItem('finanfy_user');
-      localStorage.removeItem('finanfly_token');
-      localStorage.removeItem('finanfly_last_activity');
       setCurrentPage('Início');
       setSubscriptionWarning('');
+      setSaveError('');
       setInactivityNotice('Você foi desconectado automaticamente por inatividade. Faça login para continuar.');
     };
 
     const resetTimer = () => {
       clearTimeout(timer);
       lastActivityTime = Date.now();
-      localStorage.setItem('finanfly_last_activity', lastActivityTime.toString());
       timer = setTimeout(performLogout, INACTIVITY_TIMEOUT_MS);
     };
 
@@ -515,16 +474,13 @@ export default function App() {
         performLogout();
         return;
       }
-      // Throttle resetting the timer to once every second
       if (now - lastActivityTime > 1000) {
         resetTimer();
       }
     };
 
     const handleVisibilityOrFocus = () => {
-      const savedLastActivity = localStorage.getItem('finanfly_last_activity');
-      const timeToCheck = savedLastActivity ? parseInt(savedLastActivity, 10) : lastActivityTime;
-      if (Date.now() - timeToCheck >= INACTIVITY_TIMEOUT_MS) {
+      if (Date.now() - lastActivityTime >= INACTIVITY_TIMEOUT_MS) {
         performLogout();
       }
     };
@@ -550,19 +506,16 @@ export default function App() {
   }, [currentUser]);
 
   const handleLoginSuccess = (user: UserProfile, initialUserData?: UserData) => {
+    clearLegacyLocalData();
     if (initialUserData) {
       skipNextFetchUserDataRef.current = true;
       dataMutationVersionRef.current += 1;
       updateUserDataState(initialUserData);
-      try {
-        localStorage.setItem(`finanfly_data_${user.email.toLowerCase().trim()}`, JSON.stringify(initialUserData));
-      } catch (e) {}
     }
     setCurrentUser(user);
-    localStorage.setItem('finanfly_user', JSON.stringify(user));
-    localStorage.setItem('finanfly_last_activity', Date.now().toString());
     setSubscriptionWarning('');
     setInactivityNotice('');
+    setSaveError('');
 
     if (user.role === 'admin') {
       setCurrentPage('Administrador');
@@ -572,24 +525,23 @@ export default function App() {
   };
 
   const handleRedirectToSubscription = (user: UserProfile) => {
+    clearLegacyLocalData();
     setCurrentUser(user);
-    localStorage.setItem('finanfly_user', JSON.stringify(user));
-    localStorage.setItem('finanfly_last_activity', Date.now().toString());
     setSubscriptionWarning('Sua assinatura não está ativa ou expirou! Por favor, ative um plano.');
     setInactivityNotice('');
+    setSaveError('');
     setCurrentPage('Assinatura');
   };
 
   const handleLogout = () => {
+    clearAuthToken();
+    clearLegacyLocalData();
     setCurrentUser(null);
     updateUserDataState(null);
-    localStorage.removeItem('finanfly_user');
-    localStorage.removeItem('finanfly_token');
-    localStorage.removeItem('finanfy_user');
-    localStorage.removeItem('finanfly_last_activity');
     setCurrentPage('Início');
     setSubscriptionWarning('');
     setInactivityNotice('');
+    setSaveError('');
   };
 
   // Subscription gate check for normal users: faithful to expiration date and registration trial
@@ -611,7 +563,6 @@ export default function App() {
           user={currentUser}
           onUpdateUser={(updated) => {
             setCurrentUser(updated);
-            localStorage.setItem('finanfly_user', JSON.stringify(updated));
             setSubscriptionWarning('');
           }}
           message="É necessário escolher um plano para continuar utilizando este recurso."
@@ -963,7 +914,6 @@ export default function App() {
             user={currentUser}
             onUpdateUser={(updated) => {
               setCurrentUser(updated);
-              localStorage.setItem('finanfly_user', JSON.stringify(updated));
               setSubscriptionWarning('');
             }}
             message={subscriptionWarning}
@@ -1357,6 +1307,22 @@ export default function App() {
           }}
           className="flex-1 p-4 sm:p-6 md:p-8"
         >
+          {saveError && (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-800 dark:border-rose-800/70 dark:bg-rose-950/50 dark:text-rose-200">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span>{saveError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaveError('')}
+                className="rounded-lg p-1 hover:bg-rose-200/60 dark:hover:bg-rose-900/60"
+                aria-label="Fechar alerta"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <Suspense fallback={<PageLoadingFallback />}>
             {renderPageContent()}
           </Suspense>

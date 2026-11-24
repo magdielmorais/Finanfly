@@ -5,6 +5,7 @@ import { getUserInitials } from '../utils/userUtils';
 import { isUserSubscriptionActive, getSubscriptionDetails } from '../utils/subscriptionUtils';
 import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check, Calendar } from 'lucide-react';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
+import { getAuthHeaders } from '../utils/authToken';
 
 interface AdminPageProps {
   adminUser: UserProfile;
@@ -58,7 +59,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const checkSupabaseStatus = async () => {
     setSupabaseStatus(prev => ({ ...prev, loading: true }));
     try {
-      const res = await fetch('/api/supabase-status');
+      const res = await fetch('/api/supabase-status', {
+        headers: getAuthHeaders({ 'x-user-email': adminUser.email })
+      });
       const data = await res.json();
       setSupabaseStatus({
         loading: false,
@@ -481,7 +484,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     setError('');
     try {
       const res = await fetch('/api/admin/users', {
-        headers: { 'x-user-email': adminUser.email }
+        headers: getAuthHeaders({ 'x-user-email': adminUser.email })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao carregar usuários.');
@@ -502,16 +505,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
     try {
       const res = await fetch(`/api/admin/retrieve-password/${encodeURIComponent(reminderEmail.trim())}`, {
-        headers: {
+        headers: getAuthHeaders({
           'x-user-email': adminUser.email,
-        }
+        })
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Erro ao recuperar senha.');
       }
-      setFoundPassword(data.password);
-      setSuccessMsg(`Senha localizada com sucesso!`);
+      if (data.protected) {
+        setFoundPassword('');
+        setSuccessMsg(data.message || 'Senha protegida por criptografia. Utilize Editar Usuário para definir uma nova senha.');
+      } else {
+        setFoundPassword(data.password);
+        setSuccessMsg(`Senha localizada com sucesso!`);
+      }
     } catch (err: any) {
       setError(err.message || 'Erro de conexão.');
     }
@@ -523,10 +531,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/delete-user', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({ targetEmail })
       });
       const data = await res.json();
@@ -555,10 +563,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/send-password-email', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({ targetEmail: selectedEmailForReminder })
       });
       const data = await res.json();
@@ -604,10 +612,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/edit-user', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({
           targetEmail: editingUser.email,
           name: editName,
@@ -731,10 +739,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/approve-user', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({ targetEmail, approve: !currentApprovedStatus }),
       });
       const data = await res.json();
@@ -760,10 +768,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/create-user', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({
           targetEmail: newEmail,
           password: newPassword || 'user123',
@@ -800,7 +808,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
     try {
       const res = await fetch(`/api/admin/user-details/${encodeURIComponent(user.email)}`, {
-        headers: { 'x-user-email': adminUser.email }
+        headers: getAuthHeaders({ 'x-user-email': adminUser.email })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao buscar dados.');
@@ -826,10 +834,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/save-user-message', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({
           targetEmail: selectedUserForAudit.email,
           userMessage: auditUserMessage,
@@ -877,10 +885,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/edit-user', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({
           targetEmail: selectedUserForBlock.email,
           isBlocked: blockModalIsBlocked,
@@ -1037,10 +1045,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/extend-subscription', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({
           targetEmail: extendTargetEmail,
           newValidUntil: new Date(extendNewDate + 'T23:59:59.999Z').toISOString(),
@@ -1075,10 +1083,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/plan-prices', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify(pricesDePor)
       });
       const data = await res.json();
@@ -1106,10 +1114,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/free-trial-days', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify({ days: Number(freeTrialDaysInput) })
       });
       const data = await res.json();
@@ -1139,10 +1147,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     try {
       const res = await fetch('/api/admin/notices', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': adminUser.email
-        },
+        }),
         body: JSON.stringify(payload)
       });
       const data = await res.json();

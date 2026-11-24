@@ -12,6 +12,7 @@ import { exportExpensesToPdf, exportMonthlySummaryToPdf } from '../utils/pdfExpo
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { getMonthWeeksCount } from '../utils/dateUtils';
+import { getAuthHeaders } from '../utils/authToken';
 
 dayjs.extend(isoWeek);
 // dayjs('2026-09-01').isoWeek(); // Retorna 36
@@ -9484,9 +9485,9 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
     try {
       const res = await fetch('/api/auth/delete-account', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({ email: userProfile.email }),
       });
       const data = await res.json();
@@ -9520,9 +9521,9 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
     try {
       const res = await fetch('/api/auth/change-password', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({
           email: userProfile.email,
           oldPassword,
@@ -9551,10 +9552,10 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
     try {
       const res = await fetch('/api/user/profile', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': userProfile.email
-        },
+        }),
         body: JSON.stringify({ name, address, phone, city, state, cpf }),
       });
       const data = await res.json();

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserProfile, SubscriptionHistoryItem } from '../types';
 import { getSubscriptionDetails } from '../utils/subscriptionUtils';
+import { getAuthHeaders } from '../utils/authToken';
 import { 
   Check, 
   AlertCircle, 
@@ -41,9 +42,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
     try {
       setLoadingHistory(true);
       const res = await fetch('/api/user/subscription-history', {
-        headers: {
+        headers: getAuthHeaders({
           'x-user-email': user.email
-        }
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -213,10 +214,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
       try {
         const res = await fetch('/api/user/subscription', {
           method: 'POST',
-          headers: {
+          headers: getAuthHeaders({
             'Content-Type': 'application/json',
             'x-user-email': user.email
-          },
+          }),
           body: JSON.stringify({ plan }),
         });
         const data = await res.json();
@@ -234,10 +235,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
       try {
         const res = await fetch('/api/payment/create-preference', {
           method: 'POST',
-          headers: {
+          headers: getAuthHeaders({
             'Content-Type': 'application/json',
             'x-user-email': user.email
-          },
+          }),
           body: JSON.stringify({
             planName: plan
           }),

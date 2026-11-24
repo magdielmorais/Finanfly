@@ -56,19 +56,7 @@ function cleanSupabaseUrl(rawUrl?: string): string {
   return url;
 }
 
-// Valores padrão de fallback de produção (decodificados dinamicamente para evitar bloqueio por scanners de segredos no GitHub)
-const decodeFallback = (b64: string) => Buffer.from(b64, "base64").toString("utf-8");
-
-const DEFAULT_ENV_FALLBACKS: Record<string, string> = {
-  SUPABASE_URL: "https://xjwfzdyqjionolxsrevh.supabase.co",
-  SUPABASE_ANON_KEY: decodeFallback("c2Jfc2VjcmV0X2ZLMVpRQUNkbGYxYlU5SmJoaDNIQlFfVFRaa00zRF8="),
-  GEMINI_API_KEY: decodeFallback("QVEuQWI4Uk42Skl2eDBoZUpSbUYxTzQzT3lmbnRfY19POGxqWXhrNUtsVmVidkhPbnZKNkE="),
-  APP_URL: "https://ais-dev-bdq3svx3dm33qtw54btpck-187438088710.us-west2.run.app",
-  MERCADO_PAGO_ACCESS_TOKEN: decodeFallback("VEVTVC0yMTU2MzEyOTgwNDzczODgwLTA3MTUxNC02YWYwMjk3ZTJhZWZjNzM1YjkwMTk5N2M0NmE2N2JjLTIzODgxNTA0"),
-  MERCADO_PAGO_PUBLIC_KEY: decodeFallback("VEVTVC05OGNkNGRhNS0xMjZjLTQwMzktYmQ3ZC1iZjlhNGVjZGJmNjI="),
-};
-
-// Analisa pares chave=valor de um conteúdo de arquivo .env
+// Analisa pares chave=valor de um arquivo .env apenas em modo leitura
 const parseEnvContent = (content: string) => {
   const map: Record<string, string> = {};
   const lines = content.split("\n");
@@ -88,342 +76,39 @@ const parseEnvContent = (content: string) => {
   return map;
 };
 
-// Busca todos os arquivos .env do disco para encontrar chaves válidas
-function readAllDiskEnvValues(): Record<string, string> {
+// Carrega variáveis de ambiente dos arquivos .env existentes sem criar/sobrescrever arquivos nem embutir segredos no código
+function loadEnvFilesReadOnly() {
   const rootDir = process.cwd();
-  const nodejsDir = path.join(rootDir, "nodejs");
-
   const candidates = [
     path.join(rootDir, ".env"),
-    path.join(rootDir, "1.env"),
-    path.join(rootDir, ".env.example"),
-    path.join(nodejsDir, ".env"),
-    path.join(nodejsDir, "1.env"),
-    path.join(nodejsDir, ".env.example"),
+    path.join(rootDir, "nodejs", ".env"),
     path.join(_dirname, ".env"),
-    path.join(_dirname, "1.env"),
-    path.join(_dirname, ".env.example"),
     path.join(_dirname, "nodejs", ".env"),
-    path.join(_dirname, "nodejs", "1.env"),
-    path.join(_dirname, "nodejs", ".env.example"),
-    path.join(_dirname, "..", ".env"),
-    path.join(_dirname, "..", "1.env"),
-    path.join(_dirname, "..", ".env.example"),
-    path.join(_dirname, "..", "nodejs", ".env"),
-    path.join(_dirname, "..", "nodejs", "1.env"),
-    path.join(_dirname, "..", "nodejs", ".env.example"),
   ];
 
-  const uniqueCandidates = Array.from(new Set(candidates));
-  const found: Record<string, string> = {};
-
-  for (const filePath of uniqueCandidates) {
+  for (const envPath of Array.from(new Set(candidates))) {
     try {
-      if (fs.existsSync(filePath)) {
-        const parsed = parseEnvContent(fs.readFileSync(filePath, "utf-8"));
+      if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath, override: false });
+        const parsed = parseEnvContent(fs.readFileSync(envPath, "utf-8"));
         for (const [k, v] of Object.entries(parsed)) {
-          if (v && !isPlaceholderValue(v) && !found[k]) {
-            found[k] = v;
+          if (v && !isPlaceholderValue(v) && (!process.env[k] || isPlaceholderValue(process.env[k]))) {
+            process.env[k] = v;
           }
         }
       }
-    } catch (e) {
-      // ignore individual file read errors
-    }
-  }
-
-  return found;
-}
-
-// Sincronização automática de arquivos .env / 1.env / .env.example entre raiz e pasta nodejs
-function synchronizeEnvFiles() {
-  const rootDir = process.cwd();
-  const nodejsDir = path.join(rootDir, "nodejs");
-
-  const envFiles = [
-    path.join(rootDir, ".env"),
-    path.join(rootDir, "1.env"),
-    path.join(nodejsDir, ".env"),
-    path.join(nodejsDir, "1.env"),
-  ];
-
-  const envExampleFiles = [
-    path.join(rootDir, ".env.example"),
-    path.join(nodejsDir, ".env.example"),
-  ];
-
-  const existingValues = readAllDiskEnvValues();
-
-  const envKeys = [
-    "SUPABASE_URL",
-    "SUPABASE_ANON_KEY",
-    "GEMINI_API_KEY",
-    "APP_URL",
-    "MERCADO_PAGO_ACCESS_TOKEN",
-    "MERCADO_PAGO_PUBLIC_KEY",
-  ];
-
-  const finalEnv: Record<string, string> = {};
-
-  for (const key of envKeys) {
-    let val = cleanEnvString(process.env[key] || process.env[key.toLowerCase()]);
-    if (key === "SUPABASE_ANON_KEY" && (isPlaceholderValue(val) || !val)) {
-      val = cleanEnvString(process.env.SUPABASE_KEY || process.env.supabase_key);
-    }
-
-    if (!isPlaceholderValue(val) && val !== "") {
-      finalEnv[key] = val;
-    } else if (existingValues[key] && !isPlaceholderValue(existingValues[key])) {
-      finalEnv[key] = existingValues[key];
-    } else if (DEFAULT_ENV_FALLBACKS[key]) {
-      finalEnv[key] = DEFAULT_ENV_FALLBACKS[key];
-    } else {
-      finalEnv[key] = "";
-    }
-
-    // Injeta de volta em process.env para que toda a aplicação enxergue
-    if (finalEnv[key] && !isPlaceholderValue(finalEnv[key])) {
-      process.env[key] = finalEnv[key];
-    }
-  }
-
-  const envContent = `# Chaves de Configuração do Supabase, Mercado Pago e APIs do Sistema
-SUPABASE_URL="${finalEnv.SUPABASE_URL}"
-SUPABASE_ANON_KEY="${finalEnv.SUPABASE_ANON_KEY}"
-GEMINI_API_KEY="${finalEnv.GEMINI_API_KEY}"
-APP_URL="${finalEnv.APP_URL}"
-MERCADO_PAGO_ACCESS_TOKEN="${finalEnv.MERCADO_PAGO_ACCESS_TOKEN}"
-MERCADO_PAGO_PUBLIC_KEY="${finalEnv.MERCADO_PAGO_PUBLIC_KEY}"
-`;
-
-  // Garante que o diretório 'nodejs' existe
-  if (!fs.existsSync(nodejsDir)) {
-    try {
-      fs.mkdirSync(nodejsDir, { recursive: true });
-      console.log(`[Ambiente] Diretório criado: ${nodejsDir}`);
-    } catch (e) {
-      console.error(`[Ambiente] Erro ao criar diretório nodejs:`, e);
-    }
-  }
-
-  // Escreve os arquivos .env
-  for (const target of envFiles) {
-    try {
-      let shouldWrite = true;
-      if (fs.existsSync(target)) {
-        const current = fs.readFileSync(target, "utf-8").trim();
-        if (current === envContent.trim()) {
-          shouldWrite = false;
-        }
-      }
-      if (shouldWrite) {
-        fs.writeFileSync(target, envContent, "utf-8");
-        console.log(`[Ambiente] Arquivo .env sincronizado em: ${target}`);
-      }
-    } catch (err) {
-      console.error(`[Ambiente] Erro ao sincronizar para ${target}:`, err);
-    }
-  }
-
-  const envExampleContent = `# Chaves de Configuração do Supabase, Mercado Pago e APIs do Sistema
-SUPABASE_URL="https://xjwfzdyqjionolxsrevh.supabase.co/rest/v1/"
-SUPABASE_ANON_KEY="your_supabase_anon_key_here"
-GEMINI_API_KEY="your_gemini_api_key_here"
-APP_URL="https://ais-dev-bdq3svx3dm33qtw54btpck-187438088710.us-west2.run.app"
-MERCADO_PAGO_ACCESS_TOKEN="your_mercado_pago_access_token_here"
-MERCADO_PAGO_PUBLIC_KEY="your_mercado_pago_public_key_here"
-`;
-
-  // Escreve os arquivos .env.example com placeholders seguros (sem segredos vazados)
-  for (const target of envExampleFiles) {
-    try {
-      let shouldWrite = true;
-      if (fs.existsSync(target)) {
-        const current = fs.readFileSync(target, "utf-8").trim();
-        if (current === envExampleContent.trim()) {
-          shouldWrite = false;
-        }
-      }
-      if (shouldWrite) {
-        fs.writeFileSync(target, envExampleContent, "utf-8");
-        console.log(`[Ambiente] Arquivo .env.example (template seguro) sincronizado em: ${target}`);
-      }
-    } catch (err) {
-      console.error(`[Ambiente] Erro ao sincronizar para ${target}:`, err);
+    } catch {
+      // ignora arquivo inacessível individual
     }
   }
 }
 
-// Executa a sincronização dos arquivos .env antes do carregamento formal das variáveis
-try {
-  synchronizeEnvFiles();
-} catch (syncErr) {
-  console.error("[Ambiente] Falha durante a sincronização dos arquivos de ambiente:", syncErr);
-}
-
-// Carrega variáveis de ambiente de múltiplos locais possíveis
-const envPaths = [
-  path.join(process.cwd(), ".env"),
-  path.join(process.cwd(), "1.env"),
-  path.join(process.cwd(), "nodejs", ".env"),
-  path.join(process.cwd(), "nodejs", "1.env"),
-  path.join(_dirname, ".env"),
-  path.join(_dirname, "1.env"),
-  path.join(_dirname, "nodejs", ".env"),
-  path.join(_dirname, "nodejs", "1.env"),
-];
-
-const uniqueEnvPaths = Array.from(new Set(envPaths));
-
-for (const envPath of uniqueEnvPaths) {
-  try {
-    if (fs.existsSync(envPath)) {
-      const parsed = parseEnvContent(fs.readFileSync(envPath, "utf-8"));
-      for (const [k, v] of Object.entries(parsed)) {
-        if (v && !isPlaceholderValue(v) && isPlaceholderValue(process.env[k])) {
-          process.env[k] = v;
-        }
-      }
-      console.log(`[Ambiente] Variáveis de ambiente sincronizadas a partir de: ${envPath}`);
-    }
-  } catch (e) {
-    // ignora erros de leitura de arquivo individual
-  }
-}
+loadEnvFilesReadOnly();
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
-
-const DB_FILE = path.join(process.cwd(), "db.json");
-
-// Default initial state
-interface Database {
-  users: { [email: string]: any };
-  userData: { [email: string]: any };
-  planPrices?: {
-    mensal_de: string;
-    mensal_por: string;
-    anual_de: string;
-    anual_por: string;
-  };
-  freeTrialDays?: number;
-  notices?: {
-    fluxoCaixa?: { title: string; message: string };
-    resumosInteligentes?: { title: string; message: string };
-    planejamentoObjetivos?: { title: string; message: string };
-    rule50_30_20?: { title: string; message: string };
-    weeklyCheck?: { title: string; message: string };
-  };
-  trialHistory?: { [key: string]: boolean };
-  retainedAuditCpfs?: { [key: string]: any };
-}
-
-function initDb() {
-  const defaultDb: Database = {
-    users: {},
-    userData: {},
-    planPrices: {
-      mensal_de: "29,90",
-      mensal_por: "19,90",
-      anual_de: "299,00",
-      anual_por: "149,00"
-    },
-    freeTrialDays: 60,
-    notices: {
-      fluxoCaixa: {
-        title: "Fluxo de Caixa Simplificado",
-        message: "Cadastre suas receitas e despesas de forma imediata, mantendo o controle total dos seus gastos diários sem perder tempo."
-      },
-      resumosInteligentes: {
-        title: "Resumos Inteligentes",
-        message: "Acompanhe a sua evolução financeira através de uma visão consolidada mensal e anual, identificando padrões de consumo e oportunidades de economia com facilidade, veja onde está o gargalo das suas finanças."
-      },
-      planejamentoObjetivos: {
-        title: "Planejamento e Objetivos",
-        message: "Transforme suas metas em realidade criando planos de ação personalizados com status de acompanhamento em tempo real, ajuste sua realidade de ganhos com os gastos."
-      },
-      rule50_30_20: {
-        title: "Regra 70/30",
-        message: "A regra de ouro das finanças recomenda destinar os seus rendimentos da seguinte forma:\n✳️ 70% para o BEM DA FAMÍLIA - Necessidades básicas, desejos, segurança, desenvolvimento, lazer, além do bem-estar físico e emocional.\n✳️ 10% para o BEM DO REINO - Reconhecendo que tudo vem do Criador, uma parte é destinada para expandir o Seu amor, apoiando, por exemplo, instituições religiosas focadas na evangelização.\n✳️ 10% para o BEM DAS PESSOAS - Demonstrando generosidade ao auxiliar o próximo em momentos de necessidade (cestas básicas, remédios, roupas e calçados) e ao celebrar conquistas (presentes de aniversário, casamento, formatura, etc.).\n✳️ 10% para o BEM FUTURO - Investimentos voltados à construção de riqueza, fazendo o dinheiro trabalhar por você para garantir uma aposentadoria farta e abundante."
-      },
-      weeklyCheck: {
-        title: "Lançamento diário e Check-in Semanal",
-        message: "Registre suas finanças assim que elas acontecerem. Depois, reserve apenas 10 minutos no início ou no fim da semana para revisar o resumo de receitas e despesas. Manter os lançamentos em dia é o segredo para evitar surpresas no fim do mês!"
-      }
-    }
-  };
-
-  if (!fs.existsSync(DB_FILE)) {
-    try {
-      fs.writeFileSync(DB_FILE, JSON.stringify(defaultDb, null, 2));
-    } catch (err) {
-      console.error("Failed to initialize database file:", err);
-    }
-  } else {
-    try {
-      const data = fs.readFileSync(DB_FILE, "utf-8");
-      const currentDb = JSON.parse(data);
-      let updated = false;
-      if (!currentDb.users['admin@finanfly.com.br']) {
-        currentDb.users['admin@finanfly.com.br'] = {
-          email: 'admin@finanfly.com.br',
-          password: 'administrator',
-          role: 'admin',
-          name: 'ADMINISTRADOR',
-          createdAt: '2026-08-08T01:44:04.727+00:00',
-          lastAccess: new Date().toISOString(),
-          address: '',
-          city: '',
-          state: '',
-          phone: '',
-          cpf: '99099099099',
-          isBlocked: false,
-          subscription: {
-            plan: 'livre',
-            validUntil: null,
-            selectedAt: '2026-08-08T01:46:56.818+00:00',
-            freePlanUsed: false,
-            approved: true
-          }
-        };
-        updated = true;
-      }
-      if (!currentDb.planPrices) {
-        currentDb.planPrices = defaultDb.planPrices;
-        updated = true;
-      }
-      if (updated) {
-        fs.writeFileSync(DB_FILE, JSON.stringify(currentDb, null, 2));
-      }
-    } catch (err) {
-      console.error("Error verifying db.json:", err);
-    }
-  }
-}
-
-initDb();
-
-function getDb(): Database {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = fs.readFileSync(DB_FILE, "utf-8");
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error("Error reading database file from disk:", error);
-  }
-  return { users: {}, userData: {} };
-}
-
-function saveDb(db: Database, _immediate = false) {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-  } catch (err) {
-    console.error("Error saving database file to disk immediately:", err);
-  }
-}
+app.use(express.json({ limit: "5mb" }));
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -435,26 +120,13 @@ function markSupabaseKeyAsInvalid(reason?: string) {
   if (!isSupabaseKeyInvalid) {
     isSupabaseKeyInvalid = true;
     supabaseClient = null;
-    console.warn(`[Supabase Aviso] A chave do Supabase fornecida no ambiente é inválida ou expirou${reason ? ` (${reason})` : ''}. O servidor continuará funcionando normalmente utilizando o banco de dados local (db.json). Para ativar a sincronização com o Supabase, adicione uma SUPABASE_ANON_KEY válida no seu arquivo .env ou no painel do seu servidor.`);
+    console.error(`[Supabase Erro] A chave do Supabase é inválida ou expirou${reason ? ` (${reason})` : ""}. Configure SUPABASE_URL e SUPABASE_ANON_KEY válidas nas variáveis de ambiente.`);
   }
 }
 
 function getSupabaseClient() {
-  let rawUrl = process.env.SUPABASE_URL || process.env.supabase_url || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  let rawKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  const diskValues = readAllDiskEnvValues();
-
-  if (isPlaceholderValue(rawUrl) || !rawUrl) {
-    rawUrl = diskValues.SUPABASE_URL && !isPlaceholderValue(diskValues.SUPABASE_URL)
-      ? diskValues.SUPABASE_URL
-      : DEFAULT_ENV_FALLBACKS.SUPABASE_URL;
-  }
-  if (isPlaceholderValue(rawKey) || !rawKey) {
-    rawKey = diskValues.SUPABASE_ANON_KEY && !isPlaceholderValue(diskValues.SUPABASE_ANON_KEY)
-      ? diskValues.SUPABASE_ANON_KEY
-      : DEFAULT_ENV_FALLBACKS.SUPABASE_ANON_KEY;
-  }
+  const rawUrl = process.env.SUPABASE_URL || process.env.supabase_url || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   const cleanUrl = cleanSupabaseUrl(rawUrl);
   const cleanKey = cleanEnvString(rawKey);
@@ -474,8 +146,6 @@ function getSupabaseClient() {
         if (!supabaseClient || supabaseClient.supabaseKey !== cleanKey || supabaseClient.supabaseUrl !== cleanUrl) {
           supabaseClient = createClient(cleanUrl, cleanKey);
         }
-        process.env.SUPABASE_URL = cleanUrl;
-        process.env.SUPABASE_ANON_KEY = cleanKey;
         return supabaseClient;
       } catch (err) {
         console.error("[Supabase] Erro ao instanciar createClient:", err);
@@ -486,26 +156,118 @@ function getSupabaseClient() {
   return null;
 }
 
-// ---------------- GESTÃO DE CONFIGURAÇÕES GLOBAIS NO SUPABASE ----------------
-async function getPlanPrices(): Promise<{ mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }> {
-  const supabase = getSupabaseClient();
-  if (supabase) {
+function requireSupabase() {
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error("Banco de dados Supabase não configurado ou indisponível no momento.");
+  }
+  return client;
+}
+
+function isTransientNetworkError(err: any): boolean {
+  const msg = String(err?.message || err || "").toLowerCase();
+  return (
+    msg.includes("timeout") ||
+    msg.includes("econnreset") ||
+    msg.includes("etimedout") ||
+    msg.includes("fetch failed") ||
+    msg.includes("network") ||
+    msg.includes("502") ||
+    msg.includes("503") ||
+    msg.includes("504")
+  );
+}
+
+async function withSupabaseRetry<T = any>(fn: () => PromiseLike<T>, label: string, retries = 1): Promise<T> {
+  let lastErr: any;
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const { data } = await supabase.from('system_settings').select('value').eq('key', 'plan_prices').maybeSingle();
-      if (data && data.value && data.value.mensal_por) {
-        const db = getDb();
-        db.planPrices = data.value;
-        saveDb(db);
-        return data.value;
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      if (attempt < retries && isTransientNetworkError(err)) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        continue;
       }
-    } catch (err) {
-      // ignore, fall back to local db
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
+// Fila por usuário para serializar gravações concorrentes e impedir sobrescritas
+const userWriteQueues = new Map<string, Promise<any>>();
+function withUserWriteLock<T>(email: string, fn: () => Promise<T>): Promise<T> {
+  const key = email.toLowerCase().trim();
+  const prev = userWriteQueues.get(key) || Promise.resolve();
+  const next = prev.then(fn, fn);
+  const tracked = next.catch(() => {});
+  userWriteQueues.set(key, tracked);
+  tracked.finally(() => {
+    if (userWriteQueues.get(key) === tracked) {
+      userWriteQueues.delete(key);
+    }
+  });
+  return next;
+}
+
+// Criptografia de senhas (scrypt com salt aleatório por usuário + migração transparente de senhas legadas)
+function hashPassword(plain: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derived = crypto.scryptSync(plain, salt, 64).toString("hex");
+  return `scrypt$${salt}$${derived}`;
+}
+
+function verifyPassword(plain: string, stored: string): { valid: boolean; needsUpgrade: boolean } {
+  if (!stored || typeof plain !== "string") {
+    return { valid: false, needsUpgrade: false };
+  }
+  if (stored.startsWith("scrypt$")) {
+    const parts = stored.split("$");
+    if (parts.length !== 3) return { valid: false, needsUpgrade: false };
+    const [, salt, hexHash] = parts;
+    try {
+      const derived = crypto.scryptSync(plain, salt, 64);
+      const storedBuf = Buffer.from(hexHash, "hex");
+      if (derived.length !== storedBuf.length) return { valid: false, needsUpgrade: false };
+      return { valid: crypto.timingSafeEqual(derived, storedBuf), needsUpgrade: false };
+    } catch {
+      return { valid: false, needsUpgrade: false };
     }
   }
 
-  const db = getDb();
-  if (db.planPrices && db.planPrices.mensal_por) {
-    return db.planPrices;
+  // Registro legado ainda em texto plano: valida com timingSafeEqual e sinaliza migração imediata
+  const a = Buffer.from(plain, "utf-8");
+  const b = Buffer.from(stored, "utf-8");
+  if (a.length !== b.length) return { valid: false, needsUpgrade: false };
+  const valid = crypto.timingSafeEqual(a, b);
+  return { valid, needsUpgrade: valid };
+}
+
+// ---------------- GESTÃO DE CONFIGURAÇÕES GLOBAIS NO SUPABASE (100% EM NUVEM) ----------------
+let planPricesCache: { data: { mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }; timestamp: number } | null = null;
+let freeTrialDaysCache: { value: number; timestamp: number } | null = null;
+let homeNoticesCache: { data: any; timestamp: number } | null = null;
+
+async function getPlanPrices(): Promise<{ mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }> {
+  const supabase = requireSupabase();
+  try {
+    const { data, error } = await withSupabaseRetry<any>(
+      () => supabase.from('system_settings').select('value').eq('key', 'plan_prices').maybeSingle(),
+      'getPlanPrices'
+    );
+    if (!error && data && data.value && data.value.mensal_por) {
+      planPricesCache = { data: data.value, timestamp: Date.now() };
+      return data.value;
+    }
+    if (error && !isMissingTableOrColumnError(error)) {
+      throw new Error(error.message);
+    }
+  } catch (err) {
+    if (planPricesCache && (Date.now() - planPricesCache.timestamp < 300000)) {
+      return planPricesCache.data;
+    }
+    throw err;
   }
 
   return {
@@ -517,67 +279,55 @@ async function getPlanPrices(): Promise<{ mensal_de: string; mensal_por: string;
 }
 
 async function savePlanPrices(prices: { mensal_de: string; mensal_por: string; anual_de: string; anual_por: string }): Promise<void> {
-  const db = getDb();
-  db.planPrices = prices;
-  saveDb(db);
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      await supabase.from('system_settings').upsert({
-        key: 'plan_prices',
-        value: prices,
-        updated_at: new Date().toISOString()
-      });
-    } catch (err) {
-      console.error('[Supabase] Error saving plan prices to system_settings:', err);
-    }
+  const supabase = requireSupabase();
+  const { error } = await supabase.from('system_settings').upsert({
+    key: 'plan_prices',
+    value: prices,
+    updated_at: new Date().toISOString()
+  });
+  if (error) {
+    throw new Error(`Erro ao salvar valores dos planos no Supabase: ${error.message}`);
   }
+  planPricesCache = { data: prices, timestamp: Date.now() };
 }
 
 async function getFreeTrialDays(): Promise<number> {
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'free_trial_days')
-        .maybeSingle();
+  const supabase = requireSupabase();
+  try {
+    const { data, error } = await withSupabaseRetry<any>(
+      () => supabase.from('system_settings').select('value').eq('key', 'free_trial_days').maybeSingle(),
+      'getFreeTrialDays'
+    );
 
-      if (!error && data && data.value && data.value.days !== undefined) {
-        const days = Number(data.value.days);
-        const db = getDb();
-        db.freeTrialDays = days;
-        saveDb(db);
-        return days;
-      }
-    } catch (err) {
-      console.warn('[Supabase] Error fetching free_trial_days from system_settings:', err);
+    if (!error && data && data.value && data.value.days !== undefined) {
+      const days = Number(data.value.days);
+      freeTrialDaysCache = { value: days, timestamp: Date.now() };
+      return days;
     }
+    if (error && !isMissingTableOrColumnError(error)) {
+      throw new Error(error.message);
+    }
+  } catch (err) {
+    if (freeTrialDaysCache && (Date.now() - freeTrialDaysCache.timestamp < 300000)) {
+      return freeTrialDaysCache.value;
+    }
+    throw err;
   }
 
-  const db = getDb();
-  return db.freeTrialDays !== undefined ? db.freeTrialDays : 60;
+  return 60;
 }
 
 async function saveFreeTrialDays(days: number): Promise<void> {
-  const db = getDb();
-  db.freeTrialDays = days;
-  saveDb(db);
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      await supabase.from('system_settings').upsert({
-        key: 'free_trial_days',
-        value: { days },
-        updated_at: new Date().toISOString()
-      });
-    } catch (err) {
-      console.error('[Supabase] Erro ao salvar free_trial_days no Supabase:', err);
-    }
+  const supabase = requireSupabase();
+  const { error } = await supabase.from('system_settings').upsert({
+    key: 'free_trial_days',
+    value: { days },
+    updated_at: new Date().toISOString()
+  });
+  if (error) {
+    throw new Error(`Erro ao salvar limite de teste grátis no Supabase: ${error.message}`);
   }
+  freeTrialDaysCache = { value: days, timestamp: Date.now() };
 }
 
 // ---------------- GESTÃO DE MENSAGENS DE USUÁRIOS NO SUPABASE ----------------
@@ -588,112 +338,77 @@ async function getUserMessagesMap(bypassCache = false): Promise<Record<string, s
     return userMessagesCache.data;
   }
 
-  const supabase = getSupabaseClient();
+  const supabase = requireSupabase();
   let map: Record<string, string> = {};
 
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'user_messages')
-        .maybeSingle();
+  try {
+    const { data, error } = await withSupabaseRetry<any>(
+      () => supabase.from('system_settings').select('value').eq('key', 'user_messages').maybeSingle(),
+      'getUserMessagesMap'
+    );
 
-      if (!error && data && data.value && typeof data.value === 'object') {
-        map = { ...data.value };
-      }
-    } catch (err) {
-      console.warn('[Supabase] Erro ao buscar user_messages em system_settings:', err);
+    if (!error && data && data.value && typeof data.value === 'object') {
+      map = { ...data.value };
+      userMessagesCache = { data: map, timestamp: Date.now() };
+      return map;
     }
-  }
-
-  // Also check local DB users for any existing messages to ensure migration
-  const db = getDb();
-  let updated = false;
-  if (db.users) {
-    for (const [email, u] of Object.entries<any>(db.users)) {
-      const lower = email.toLowerCase().trim();
-      const msg = (u.userMessage || u.mensagemUsuario || '').trim();
-      if (msg && !map[lower]) {
-        map[lower] = msg;
-        updated = true;
-      }
+    if (error && !isMissingTableOrColumnError(error)) {
+      throw new Error(error.message);
     }
+  } catch (err) {
+    if (userMessagesCache) {
+      return userMessagesCache.data;
+    }
+    console.warn('[Supabase] Aviso ao buscar user_messages:', err);
   }
 
-  if (updated && supabase) {
-    supabase.from('system_settings').upsert({
-      key: 'user_messages',
-      value: map,
-      updated_at: new Date().toISOString()
-    }).then(() => {}).catch(() => {});
-  }
-
-  userMessagesCache = { data: map, timestamp: Date.now() };
   return map;
 }
 
 async function saveUserMessageToDatabase(email: string, message: string): Promise<void> {
   const lowerEmail = email.toLowerCase().trim();
   const cleanMsg = typeof message === 'string' ? message.trim() : '';
+  const supabase = requireSupabase();
 
-  // 1. Update memory cache & local DB
-  const db = getDb();
-  if (!db.users) db.users = {};
-  if (!db.users[lowerEmail]) {
-    db.users[lowerEmail] = { email: lowerEmail };
-  }
-  db.users[lowerEmail].userMessage = cleanMsg;
-  db.users[lowerEmail].mensagemUsuario = cleanMsg;
-  if (!db.userData) db.userData = {};
-  if (db.userData[lowerEmail]) {
-    db.userData[lowerEmail].userMessage = cleanMsg;
-    db.userData[lowerEmail].mensagemUsuario = cleanMsg;
-  }
-  saveDb(db);
+  const currentMap = await getUserMessagesMap(true);
+  currentMap[lowerEmail] = cleanMsg;
 
-  // Invalidate and update user cache
+  const { error } = await supabase.from('system_settings').upsert({
+    key: 'user_messages',
+    value: currentMap,
+    updated_at: new Date().toISOString()
+  });
+  if (error) {
+    throw new Error(`Erro ao gravar mensagem no Supabase: ${error.message}`);
+  }
+  userMessagesCache = { data: currentMap, timestamp: Date.now() };
+
   const cachedUser = userCache.get(lowerEmail);
   if (cachedUser) {
     cachedUser.data.userMessage = cleanMsg;
     cachedUser.data.mensagemUsuario = cleanMsg;
   }
 
-  // 2. Persist to Supabase system_settings
-  const currentMap = await getUserMessagesMap(true);
-  currentMap[lowerEmail] = cleanMsg;
-  userMessagesCache = { data: currentMap, timestamp: Date.now() };
+  // Atualiza também profiles.user_message se a coluna existir
+  try {
+    await supabase.from('profiles').update({
+      user_message: cleanMsg,
+      updated_at: new Date().toISOString()
+    }).eq('email', lowerEmail);
+  } catch {
+    // coluna opcional
+  }
 
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      await supabase.from('system_settings').upsert({
-        key: 'user_messages',
-        value: currentMap,
-        updated_at: new Date().toISOString()
-      });
-      console.log(`[Supabase] Mensagem do usuário ${lowerEmail} sincronizada com sucesso no banco de dados.`);
-    } catch (err) {
-      console.error(`[Supabase] Erro ao salvar mensagem de ${lowerEmail} em system_settings:`, err);
+  // Atualiza user_data se existir
+  try {
+    const { data: udRow } = await supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
+    if (udRow && udRow.data) {
+      udRow.data.userMessage = cleanMsg;
+      udRow.data.mensagemUsuario = cleanMsg;
+      await supabase.from('user_data').update({ data: udRow.data, updated_at: new Date().toISOString() }).eq('email', lowerEmail);
     }
-
-    // Also update profiles table if user_message column exists
-    try {
-      await supabase.from('profiles').update({
-        user_message: cleanMsg,
-        updated_at: new Date().toISOString()
-      }).eq('email', lowerEmail);
-    } catch (err) {}
-
-    // Also update user_data table
-    try {
-      const { data: udRow } = await supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
-      if (udRow && udRow.data) {
-        udRow.data.userMessage = cleanMsg;
-        udRow.data.mensagemUsuario = cleanMsg;
-        await supabase.from('user_data').update({ data: udRow.data, updated_at: new Date().toISOString() }).eq('email', lowerEmail);
-      }
-    } catch (err) {}
+  } catch {
+    // opcional
   }
 }
 
@@ -704,75 +419,50 @@ async function getHomeNotices(): Promise<{
   rule50_30_20: { title: string; message: string };
   weeklyCheck: { title: string; message: string };
 }> {
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'home_notices')
-        .maybeSingle();
+  const supabase = requireSupabase();
+  try {
+    const { data, error } = await withSupabaseRetry<any>(
+      () => supabase.from('system_settings').select('value').eq('key', 'home_notices').maybeSingle(),
+      'getHomeNotices'
+    );
 
-      if (!error && data && data.value) {
-        const val = data.value;
-        const db = getDb();
-        db.notices = val;
-        saveDb(db);
-        return {
-          fluxoCaixa: {
-            title: val.fluxoCaixa?.title ?? '',
-            message: val.fluxoCaixa?.message ?? ''
-          },
-          resumosInteligentes: {
-            title: val.resumosInteligentes?.title ?? '',
-            message: val.resumosInteligentes?.message ?? ''
-          },
-          planejamentoObjetivos: {
-            title: val.planejamentoObjetivos?.title ?? '',
-            message: val.planejamentoObjetivos?.message ?? ''
-          },
-          rule50_30_20: {
-            title: val.rule50_30_20?.title ?? '',
-            message: val.rule50_30_20?.message ?? ''
-          },
-          weeklyCheck: {
-            title: val.weeklyCheck?.title ?? '',
-            message: val.weeklyCheck?.message ?? ''
-          }
-        };
-      }
-    } catch (err) {
-      console.warn('[Supabase] Error fetching home_notices from Supabase:', err);
+    if (!error && data && data.value) {
+      const val = data.value;
+      const normalized = {
+        fluxoCaixa: {
+          title: val.fluxoCaixa?.title ?? '',
+          message: val.fluxoCaixa?.message ?? ''
+        },
+        resumosInteligentes: {
+          title: val.resumosInteligentes?.title ?? '',
+          message: val.resumosInteligentes?.message ?? ''
+        },
+        planejamentoObjetivos: {
+          title: val.planejamentoObjetivos?.title ?? '',
+          message: val.planejamentoObjetivos?.message ?? ''
+        },
+        rule50_30_20: {
+          title: val.rule50_30_20?.title ?? '',
+          message: val.rule50_30_20?.message ?? ''
+        },
+        weeklyCheck: {
+          title: val.weeklyCheck?.title ?? '',
+          message: val.weeklyCheck?.message ?? ''
+        }
+      };
+      homeNoticesCache = { data: normalized, timestamp: Date.now() };
+      return normalized;
     }
+    if (error && !isMissingTableOrColumnError(error)) {
+      throw new Error(error.message);
+    }
+  } catch (err) {
+    if (homeNoticesCache && (Date.now() - homeNoticesCache.timestamp < 300000)) {
+      return homeNoticesCache.data;
+    }
+    throw err;
   }
 
-  const db = getDb();
-  if (db.notices && Object.keys(db.notices).length > 0) {
-    return {
-      fluxoCaixa: {
-        title: db.notices.fluxoCaixa?.title ?? '',
-        message: db.notices.fluxoCaixa?.message ?? ''
-      },
-      resumosInteligentes: {
-        title: db.notices.resumosInteligentes?.title ?? '',
-        message: db.notices.resumosInteligentes?.message ?? ''
-      },
-      planejamentoObjetivos: {
-        title: db.notices.planejamentoObjetivos?.title ?? '',
-        message: db.notices.planejamentoObjetivos?.message ?? ''
-      },
-      rule50_30_20: {
-        title: db.notices.rule50_30_20?.title ?? '',
-        message: db.notices.rule50_30_20?.message ?? ''
-      },
-      weeklyCheck: {
-        title: db.notices.weeklyCheck?.title ?? '',
-        message: db.notices.weeklyCheck?.message ?? ''
-      }
-    };
-  }
-
-  // Fallback defaults strictly reflecting user customized database texts
   return {
     fluxoCaixa: {
       title: "Fluxo de Caixa Simplificado",
@@ -798,71 +488,42 @@ async function getHomeNotices(): Promise<{
 }
 
 async function saveHomeNotices(notices: any): Promise<void> {
-  const db = getDb();
-  db.notices = notices;
-  saveDb(db);
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      await supabase.from('system_settings').upsert({
-        key: 'home_notices',
-        value: notices,
-        updated_at: new Date().toISOString()
-      });
-      console.log('[Supabase] Avisos e cards da página inicial sincronizados com sucesso no Supabase.');
-    } catch (err) {
-      console.error('[Supabase] Erro ao sincronizar home_notices no Supabase system_settings:', err);
-    }
+  const supabase = requireSupabase();
+  const { error } = await supabase.from('system_settings').upsert({
+    key: 'home_notices',
+    value: notices,
+    updated_at: new Date().toISOString()
+  });
+  if (error) {
+    throw new Error(`Erro ao sincronizar avisos no Supabase: ${error.message}`);
   }
+  homeNoticesCache = { data: notices, timestamp: Date.now() };
 }
 
-// Record used trial email and CPF in persistent historical trial / audit table
+// Registra e-mail e CPF no histórico persistente de teste gratuito no Supabase
 async function recordTrialHistory(email: string, cpf?: string): Promise<void> {
   const lowerEmail = email.toLowerCase().trim();
   const cleanCpf = cpf ? cpf.trim().replace(/\D/g, '') : '';
+  const supabase = requireSupabase();
 
-  // Local retention for audit and subscription plans
-  const db = getDb();
-  if (!db.trialHistory) db.trialHistory = {};
-  db.trialHistory[lowerEmail] = true;
-  if (cleanCpf) {
-    db.trialHistory[cleanCpf] = true;
-  }
-  if (!db.retainedAuditCpfs) db.retainedAuditCpfs = {};
-  if (cleanCpf) {
-    db.retainedAuditCpfs[cleanCpf] = {
-      cpf: cleanCpf,
+  const { error } = await supabase
+    .from('trial_history')
+    .upsert({
       email: lowerEmail,
-      retainedAt: new Date().toISOString(),
-      purpose: 'Auditoria e validação de planos de assinatura'
-    };
-  }
-  saveDb(db);
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      await supabase
-        .from('trial_history')
-        .upsert({
-          email: lowerEmail,
-          cpf: cleanCpf || null
-        });
-    } catch (err) {
-      console.error("Erro ao registrar histórico de período grátis no Supabase:", err);
-    }
+      cpf: cleanCpf || null
+    });
+  if (error && !isMissingTableOrColumnError(error)) {
+    throw new Error(`Erro ao registrar histórico de período grátis no Supabase: ${error.message}`);
   }
 }
 
-// High-performance in-memory cache for fast lookups
+// Cache em memória de curto prazo exclusivamente alimentado por leituras válidas do Supabase
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
 }
 const userCache = new Map<string, CacheEntry<any>>();
 const userDataCache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 300 * 1000; // 5 minutes
 
 function invalidateUserCache(email?: string) {
   if (email) {
@@ -878,86 +539,6 @@ function invalidateUserDataCache(email?: string) {
   } else {
     userDataCache.clear();
   }
-}
-
-// Background sync function to keep a single user record fresh from Supabase
-function refreshUserInBackground(lowerEmail: string) {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-  Promise.all([
-    supabase.from('users').select('*').eq('email', lowerEmail).maybeSingle(),
-    supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
-    supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
-  ]).then(async ([userRes, profileRes, subRes]) => {
-    const userData = userRes.data;
-    if (userData) {
-      const profileData = profileRes.data;
-      const subData = subRes.data;
-      const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
-      const localDb = getDb();
-      const localUser = localDb.users[lowerEmail];
-      
-      // Prioritize admin-saved message from Supabase system_settings or profiles table
-      const messagesMap = await getUserMessagesMap();
-      const resolvedUserMessage = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '')
-        ? messagesMap[lowerEmail]
-        : (profileData?.user_message !== undefined && profileData.user_message !== ''
-            ? String(profileData.user_message).trim()
-            : (localUser?.userMessage !== undefined && localUser.userMessage !== ''
-                ? String(localUser.userMessage).trim()
-                : (localUser?.mensagemUsuario !== undefined && localUser.mensagemUsuario !== ''
-                    ? String(localUser.mensagemUsuario).trim()
-                    : '')));
-
-      const compiledUser = {
-        email: userData.email,
-        password: userData.password || localUser?.password || '',
-        role: userData.role || 'user',
-        createdAt: userData.created_at || userData.createdAt || new Date().toISOString(),
-        lastAccess: localUser?.lastAccess || profileData?.updated_at || userData?.created_at || new Date().toISOString(),
-        name: profileData ? profileData.name : (userData.name || ''),
-        address: profileData ? profileData.address : (userData.address || ''),
-        city: profileData ? profileData.city : (userData.city || ''),
-        state: profileData ? profileData.state : (userData.state || ''),
-        phone: profileData ? profileData.phone : (userData.phone || ''),
-        cpf: cpfValue || '',
-        userMessage: resolvedUserMessage,
-        isBlocked: userData.is_blocked !== undefined
-          ? !!userData.is_blocked
-          : (userData.isBlocked !== undefined
-              ? !!userData.isBlocked
-              : (profileData?.is_blocked !== undefined
-                  ? !!profileData.is_blocked
-                  : (subData ? subData.plan === 'inativo' : (localUser ? !!localUser.isBlocked : false)))),
-        previousPlan: localUser?.previousPlan || (localUser?.subscription?.plan && localUser?.subscription?.plan !== 'inativo' ? localUser.subscription.plan : undefined),
-        previousValidUntil: localUser?.previousValidUntil !== undefined ? localUser.previousValidUntil : (localUser?.subscription?.validUntil || null),
-        previousApproved: localUser?.previousApproved !== undefined ? localUser.previousApproved : localUser?.subscription?.approved,
-        previousSubscription: localUser?.previousSubscription || (localUser?.subscription?.plan !== 'inativo' ? localUser?.subscription : undefined),
-        subscription: subData ? {
-          plan: subData.plan || 'none',
-          validUntil: subData.valid_until,
-          selectedAt: subData.selected_at,
-          freePlanUsed: !!subData.free_plan_used,
-          freePlanUsedReason: undefined,
-          approved: !!subData.approved
-        } : {
-          plan: localUser?.subscription?.plan || 'none',
-          validUntil: localUser?.subscription?.validUntil || null,
-          selectedAt: localUser?.subscription?.selectedAt || null,
-          freePlanUsed: !!localUser?.subscription?.freePlanUsed,
-          freePlanUsedReason: undefined,
-          approved: localUser?.subscription?.approved !== undefined ? !!localUser.subscription.approved : false
-        }
-      };
-
-      normalizeUserSubscription(compiledUser);
-      userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
-      if (localDb.users[lowerEmail]) {
-        localDb.users[lowerEmail] = { ...localDb.users[lowerEmail], ...compiledUser };
-        saveDb(localDb);
-      }
-    }
-  }).catch(() => {});
 }
 
 // Helper to faithfully validate and normalize user subscription status
@@ -1103,197 +684,161 @@ function addSubscriptionHistoryEntry(
   }
 }
 
-// Check if an email or CPF already used a free trial in history
+// Check if an email or CPF already used a free trial in Supabase
 async function checkIsBlacklisted(email: string, cpf?: string): Promise<{ blacklisted: boolean; reason?: string }> {
   const lowerEmail = email.toLowerCase().trim();
   const cleanCpf = cpf ? cpf.trim().replace(/\D/g, '') : '';
+  const supabase = requireSupabase();
 
-  // 1. Check local DB fallback
-  const db = getDb();
-  if (db.trialHistory) {
-    if (db.trialHistory[lowerEmail]) {
-      return { blacklisted: true, reason: `O e-mail ${lowerEmail} já utilizou o período de experiência grátis.` };
-    }
-    if (cleanCpf && db.trialHistory[cleanCpf]) {
-      return { blacklisted: true, reason: `O CPF ${cpf} já utilizou o período de experiência grátis.` };
-    }
+  const { data: byEmail, error: emailErr } = await withSupabaseRetry<any>(
+    () => supabase.from('trial_history').select('email').eq('email', lowerEmail).maybeSingle(),
+    'checkIsBlacklisted:email'
+  );
+  if (emailErr && !isMissingTableOrColumnError(emailErr)) {
+    throw new Error(`Erro ao consultar trial_history no Supabase: ${emailErr.message}`);
+  }
+  if (byEmail) {
+    return { blacklisted: true, reason: `O e-mail ${lowerEmail} já utilizou o período de experiência grátis.` };
   }
 
-  // 2. Check Supabase
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      // Query by email
-      const { data: byEmail } = await supabase
-        .from('trial_history')
-        .select('*')
-        .eq('email', lowerEmail)
-        .maybeSingle();
-
-      if (byEmail) {
-        return { blacklisted: true, reason: `O e-mail ${lowerEmail} já utilizou o período de experiência grátis.` };
-      }
-
-      // Query by CPF
-      if (cleanCpf) {
-        const { data: byCpf } = await supabase
-          .from('trial_history')
-          .select('*')
-          .eq('cpf', cleanCpf)
-          .maybeSingle();
-
-        if (byCpf) {
-          return { blacklisted: true, reason: `O CPF ${cpf} já utilizou o período de experiência grátis.` };
-        }
-      }
-    } catch (err: any) {
-      if (err && err.code !== '42P01') {
-        console.error("Erro ao consultar trial_history no Supabase:", err);
-      }
+  if (cleanCpf) {
+    const { data: byCpf, error: cpfErr } = await withSupabaseRetry<any>(
+      () => supabase.from('trial_history').select('cpf').eq('cpf', cleanCpf).maybeSingle(),
+      'checkIsBlacklisted:cpf'
+    );
+    if (cpfErr && !isMissingTableOrColumnError(cpfErr)) {
+      throw new Error(`Erro ao consultar trial_history por CPF no Supabase: ${cpfErr.message}`);
+    }
+    if (byCpf) {
+      return { blacklisted: true, reason: `O CPF ${cpf} já utilizou o período de experiência grátis.` };
     }
   }
 
   return { blacklisted: false };
 }
 
-// Get user by email - pulling exclusively from Supabase when available
-async function getUserByEmail(email: string, bypassCache = false): Promise<any> {
+// Get user by email exclusively from Supabase (throws on transient DB error when requested)
+async function getUserByEmail(
+  email: string,
+  options: boolean | { bypassCache?: boolean; throwOnError?: boolean } = false
+): Promise<any> {
+  const bypassCache = typeof options === 'boolean' ? options : Boolean(options?.bypassCache);
+  const throwOnError = typeof options === 'boolean' ? false : Boolean(options?.throwOnError);
   const lowerEmail = email.toLowerCase().trim();
 
-  // If bypassCache is false, try in-memory cache first for fast response
   if (!bypassCache) {
     const cached = userCache.get(lowerEmail);
-    if (cached && Date.now() - cached.timestamp < 300000) { // 5-minute cache
+    if (cached && Date.now() - cached.timestamp < 30000) {
       return cached.data;
     }
   }
 
-  const supabase = getSupabaseClient();
-  const db = getDb();
-  const localUser = db.users[lowerEmail];
+  const supabase = requireSupabase();
 
-  if (supabase) {
-    try {
-      // Query relational 'users', 'profiles', and 'subscriptions' in parallel for maximum speed with 2.5s timeout
+  try {
+    const [userRes, profileRes, subRes] = await withSupabaseRetry(async () => {
       const queryPromise = Promise.all([
         supabase.from('users').select('*').eq('email', lowerEmail).maybeSingle(),
         supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
         supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
       ]);
-      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000));
-      const [userRes, profileRes, subRes] = await Promise.race([queryPromise, timeoutPromise]);
-      
-      if (userRes.error) {
-        if (userRes.error.message?.includes("Invalid API key") || userRes.error.hint?.includes("API key")) {
-          markSupabaseKeyAsInvalid("Invalid API key");
-          return localUser || null;
-        }
-        if (userRes.error.code === '42P01') {
-          // Table not created yet - fall back
-          throw new Error("Tabela 'users' não existe no Supabase.");
-        }
-      }
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER')), 10000));
+      return Promise.race([queryPromise, timeoutPromise]);
+    }, `getUserByEmail:${lowerEmail}`);
 
-      if (profileRes.error?.message?.includes("Invalid API key") || subRes.error?.message?.includes("Invalid API key")) {
+    if (userRes.error) {
+      if (userRes.error.message?.includes("Invalid API key") || userRes.error.hint?.includes("API key")) {
         markSupabaseKeyAsInvalid("Invalid API key");
-        return localUser || null;
       }
-
-      const userData = userRes.data;
-
-      if (userData) {
-        const profileData = profileRes.data;
-        const subData = subRes.data;
-        const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
-
-        const messagesMap = await getUserMessagesMap();
-        const resolvedUserMessage = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '')
-          ? messagesMap[lowerEmail]
-          : (profileData?.user_message !== undefined && profileData.user_message !== ''
-              ? String(profileData.user_message).trim()
-              : '');
-
-        const isBlockedFromDb = (userData.is_blocked !== undefined)
-          ? !!userData.is_blocked
-          : (userData.isBlocked !== undefined
-              ? !!userData.isBlocked
-              : (profileData?.is_blocked !== undefined
-                  ? !!profileData.is_blocked
-                  : (subData ? subData.plan === 'inativo' : false)));
-
-        const compiledUser = {
-          email: userData.email,
-          password: userData.password || '',
-          role: userData.role || 'user',
-          createdAt: userData.created_at || new Date().toISOString(),
-          lastAccess: profileData?.updated_at || userData?.created_at || new Date().toISOString(),
-          name: profileData ? profileData.name : (userData.name || ''),
-          address: profileData ? profileData.address : (userData.address || ''),
-          city: profileData ? profileData.city : (userData.city || ''),
-          state: profileData ? profileData.state : (userData.state || ''),
-          phone: profileData ? profileData.phone : (userData.phone || ''),
-          cpf: cpfValue || '',
-          userMessage: resolvedUserMessage,
-          mensagemUsuario: resolvedUserMessage,
-          isBlocked: isBlockedFromDb,
-          subscription: subData ? {
-            plan: subData.plan || 'none',
-            validUntil: subData.valid_until,
-            selectedAt: subData.selected_at,
-            freePlanUsed: !!subData.free_plan_used,
-            approved: !!subData.approved
-          } : {
-            plan: 'none',
-            validUntil: null,
-            selectedAt: null,
-            freePlanUsed: false,
-            approved: false
-          },
-          subscriptionHistory: (Array.isArray(subData?.history) && subData.history.length > 0)
-            ? subData.history
-            : (Array.isArray(localUser?.subscriptionHistory) && localUser.subscriptionHistory.length > 0)
-              ? localUser.subscriptionHistory
-              : (Array.isArray(db.users[lowerEmail]?.subscriptionHistory) ? db.users[lowerEmail].subscriptionHistory : [])
-        };
-
-        normalizeUserSubscription(compiledUser);
-        userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
-        return compiledUser;
-      }
-
-      // If Supabase is active but user is not found, they simply do not exist!
-      // Do NOT fall back to localUser and do NOT perform auto-migration.
-      return null;
-    } catch (err: any) {
-      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
-        markSupabaseKeyAsInvalid("Invalid API key");
-      } else {
-        console.error("Falha ao consultar usuário no Supabase:", err?.message || err);
-      }
+      throw new Error(userRes.error.message || "Falha ao consultar tabela 'users' no Supabase.");
     }
-  }
+    if (profileRes.error && !isMissingTableOrColumnError(profileRes.error)) {
+      throw new Error(profileRes.error.message || "Falha ao consultar tabela 'profiles' no Supabase.");
+    }
+    if (subRes.error && !isMissingTableOrColumnError(subRes.error)) {
+      throw new Error(subRes.error.message || "Falha ao consultar tabela 'subscriptions' no Supabase.");
+    }
 
-  // Fallback to local JSON file DB ONLY if Supabase is NOT active/configured
-  if (!supabase && localUser) {
-    normalizeUserSubscription(localUser);
-    userCache.set(lowerEmail, { data: localUser, timestamp: Date.now() });
-    return localUser;
-  }
+    const userData = userRes.data;
+    if (!userData) {
+      return null;
+    }
 
-  return null;
+    const profileData = profileRes.data;
+    const subData = subRes.data;
+    const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
+
+    const messagesMap = await getUserMessagesMap();
+    const resolvedUserMessage = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '')
+      ? messagesMap[lowerEmail]
+      : (profileData?.user_message !== undefined && profileData.user_message !== ''
+          ? String(profileData.user_message).trim()
+          : '');
+
+    const isBlockedFromDb = (userData.is_blocked !== undefined)
+      ? !!userData.is_blocked
+      : (userData.isBlocked !== undefined
+          ? !!userData.isBlocked
+          : (profileData?.is_blocked !== undefined
+              ? !!profileData.is_blocked
+              : (subData ? subData.plan === 'inativo' : false)));
+
+    const compiledUser = {
+      email: userData.email,
+      password: userData.password || '',
+      role: userData.role || 'user',
+      createdAt: userData.created_at || new Date().toISOString(),
+      lastAccess: profileData?.updated_at || userData?.created_at || new Date().toISOString(),
+      name: profileData ? profileData.name : (userData.name || ''),
+      address: profileData ? profileData.address : (userData.address || ''),
+      city: profileData ? profileData.city : (userData.city || ''),
+      state: profileData ? profileData.state : (userData.state || ''),
+      phone: profileData ? profileData.phone : (userData.phone || ''),
+      cpf: cpfValue || '',
+      userMessage: resolvedUserMessage,
+      mensagemUsuario: resolvedUserMessage,
+      isBlocked: isBlockedFromDb,
+      subscription: subData ? {
+        plan: subData.plan || 'none',
+        validUntil: subData.valid_until,
+        selectedAt: subData.selected_at,
+        freePlanUsed: !!subData.free_plan_used,
+        approved: !!subData.approved
+      } : {
+        plan: 'none',
+        validUntil: null,
+        selectedAt: null,
+        freePlanUsed: false,
+        approved: false
+      },
+      subscriptionHistory: Array.isArray(subData?.history) ? subData.history : []
+    };
+
+    const trialDays = await getFreeTrialDays().catch(() => 60);
+    normalizeUserSubscription(compiledUser, trialDays);
+    userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
+    return compiledUser;
+  } catch (err: any) {
+    if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
+      markSupabaseKeyAsInvalid("Invalid API key");
+    } else {
+      console.error("Falha ao consultar usuário no Supabase:", err?.message || err);
+    }
+    if (throwOnError) {
+      throw err;
+    }
+    const cached = userCache.get(lowerEmail);
+    if (cached) return cached.data;
+    throw err;
+  }
 }
 
-// Save/Update user profile across users, profiles, and subscriptions tables
+// Save/Update user profile strictly on Supabase (throws on failure, never saves locally)
 async function saveUser(user: any): Promise<boolean> {
   const lowerEmail = user.email.toLowerCase().trim();
-  const supabase = getSupabaseClient();
+  const supabase = requireSupabase();
+  const existingSource = userCache.get(lowerEmail)?.data || {};
 
-  // If Supabase is active, use the in-memory cache as source of truth for merging (protecting personal fields),
-  // otherwise fallback to the local DB file.
-  const existingSource = supabase 
-    ? (userCache.get(lowerEmail)?.data || {})
-    : (getDb().users[lowerEmail] || {});
-  
   const mergedName = user.name !== undefined && user.name !== '' ? user.name : (existingSource.name || '');
   const mergedAddress = user.address !== undefined && user.address !== '' ? user.address : (existingSource.address || '');
   const mergedCity = user.city !== undefined && user.city !== '' ? user.city : (existingSource.city || '');
@@ -1301,18 +846,20 @@ async function saveUser(user: any): Promise<boolean> {
   const mergedPhone = user.phone !== undefined && user.phone !== '' ? user.phone : (existingSource.phone || '');
   const mergedCpf = user.cpf !== undefined && user.cpf !== '' ? user.cpf : (existingSource.cpf || '');
   const mergedPassword = user.password !== undefined && user.password !== '' ? user.password : (existingSource.password || '');
+
   const messagesMap = await getUserMessagesMap();
   const dbSavedMsg = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '') ? messagesMap[lowerEmail] : undefined;
 
-  const mergedUserMessage = user.userMessage !== undefined 
-    ? user.userMessage 
-    : (user.mensagemUsuario !== undefined 
-        ? user.mensagemUsuario 
+  const mergedUserMessage = user.userMessage !== undefined
+    ? user.userMessage
+    : (user.mensagemUsuario !== undefined
+        ? user.mensagemUsuario
         : (dbSavedMsg !== undefined ? dbSavedMsg : (existingSource.userMessage !== undefined ? existingSource.userMessage : (existingSource.mensagemUsuario || ''))));
 
   const finalUser = {
     ...existingSource,
     ...user,
+    email: lowerEmail,
     name: mergedName,
     address: mergedAddress,
     city: mergedCity,
@@ -1325,142 +872,102 @@ async function saveUser(user: any): Promise<boolean> {
     subscriptionHistory: user.subscriptionHistory !== undefined ? user.subscriptionHistory : (existingSource.subscriptionHistory || [])
   };
 
-  // Invalidate and update user cache immediately
-  userCache.set(lowerEmail, { data: { ...finalUser }, timestamp: Date.now() });
+  try {
+    // 1. Upsert users table
+    let { error: userErr } = await supabase
+      .from('users')
+      .upsert({
+        email: lowerEmail,
+        password: finalUser.password,
+        role: finalUser.role || 'user',
+        created_at: finalUser.createdAt || finalUser.created_at || new Date().toISOString(),
+        is_blocked: !!finalUser.isBlocked
+      });
 
-  // Always keep local DB synchronized as robust fallback
-  const db = getDb();
-  if (!db.users) db.users = {};
-  db.users[lowerEmail] = { ...finalUser };
-
-  if (mergedUserMessage !== undefined) {
-    db.users[lowerEmail].userMessage = mergedUserMessage;
-    db.users[lowerEmail].mensagemUsuario = mergedUserMessage;
-    if (!db.userData) db.userData = {};
-    if (db.userData[lowerEmail]) {
-      db.userData[lowerEmail].userMessage = mergedUserMessage;
-      db.userData[lowerEmail].mensagemUsuario = mergedUserMessage;
-    }
-  }
-  saveDb(db);
-
-  if (mergedUserMessage !== undefined) {
-    saveUserMessageToDatabase(lowerEmail, mergedUserMessage).catch(err => console.error("Error persisting user message in saveUser:", err));
-  }
-
-  if (finalUser.subscription && (finalUser.subscription.freePlanUsed || finalUser.subscription.plan === 'gratis')) {
-    recordTrialHistory(lowerEmail, finalUser.cpf).catch(err => console.error("Error recording trial history in saveUser:", err));
-  }
-
-  if (supabase) {
-    try {
-      // 1. Upsert users table (for credential validation)
-      let { error: userErr } = await supabase
+    if (userErr && (userErr.code === '42703' || userErr.code === 'PGRST204' || userErr.message?.includes('is_blocked'))) {
+      const fallbackRes = await supabase
         .from('users')
         .upsert({
           email: lowerEmail,
           password: finalUser.password,
           role: finalUser.role || 'user',
-          created_at: finalUser.createdAt || finalUser.created_at || new Date().toISOString(),
-          is_blocked: !!finalUser.isBlocked
+          created_at: finalUser.createdAt || finalUser.created_at || new Date().toISOString()
         });
-      
-      if (userErr && (userErr.code === '42703' || userErr.message?.includes('is_blocked'))) {
-        // Fallback if is_blocked column does not exist on Supabase users table
-        const fallbackRes = await supabase
-          .from('users')
-          .upsert({
-            email: lowerEmail,
-            password: finalUser.password,
-            role: finalUser.role || 'user',
-            created_at: finalUser.createdAt || finalUser.created_at || new Date().toISOString()
-          });
-        userErr = fallbackRes.error;
-      }
-      
-      if (userErr) {
-        if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
-          markSupabaseKeyAsInvalid("Invalid API key");
-        } else if (userErr.code === '42P01') {
-          console.warn("[Supabase] A tabela 'users' ainda não foi criada no Supabase.");
-        } else {
-          console.error("Erro ao salvar login do usuário no Supabase:", userErr.message || userErr);
-        }
-      }
+      userErr = fallbackRes.error;
+    }
 
-      // 2. Upsert profiles table (for personal details - strictly preserving all existing personal data)
-      const profilePayload: any = {
+    if (userErr) {
+      if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+      }
+      throw new Error(`Erro ao salvar usuário no Supabase: ${userErr.message}`);
+    }
+
+    // 2. Upsert profiles table
+    const profilePayload: any = {
+      email: lowerEmail,
+      name: finalUser.name || '',
+      address: finalUser.address || '',
+      city: finalUser.city || '',
+      state: finalUser.state || '',
+      phone: finalUser.phone || '',
+      cpf: finalUser.cpf || '',
+      updated_at: new Date().toISOString()
+    };
+    if (mergedUserMessage !== undefined && mergedUserMessage !== '') {
+      profilePayload.user_message = mergedUserMessage;
+    }
+
+    let { error: profErr } = await supabase.from('profiles').upsert(profilePayload);
+    if (profErr && (profErr.code === '42703' || profErr.code === 'PGRST204' || profErr.message?.includes('user_message'))) {
+      delete profilePayload.user_message;
+      const retryProf = await supabase.from('profiles').upsert(profilePayload);
+      profErr = retryProf.error;
+    }
+    if (profErr) {
+      throw new Error(`Erro ao salvar perfil no Supabase: ${profErr.message}`);
+    }
+
+    // 3. Upsert subscriptions table
+    if (finalUser.subscription) {
+      const subPayload: any = {
         email: lowerEmail,
-        name: finalUser.name || '',
-        address: finalUser.address || '',
-        city: finalUser.city || '',
-        state: finalUser.state || '',
-        phone: finalUser.phone || '',
-        cpf: finalUser.cpf || '',
+        plan: finalUser.subscription.plan || 'none',
+        valid_until: finalUser.subscription.validUntil || null,
+        selected_at: finalUser.subscription.selectedAt || null,
+        free_plan_used: !!finalUser.subscription.freePlanUsed,
+        approved: !!finalUser.subscription.approved,
+        history: finalUser.subscriptionHistory || [],
         updated_at: new Date().toISOString()
       };
-      if (mergedUserMessage !== undefined && mergedUserMessage !== '') {
-        profilePayload.user_message = mergedUserMessage;
+
+      let { error: subErr } = await supabase.from('subscriptions').upsert(subPayload);
+      if (subErr && (subErr.code === '42703' || subErr.code === 'PGRST204' || subErr.message?.includes('history'))) {
+        delete subPayload.history;
+        const retrySub = await supabase.from('subscriptions').upsert(subPayload);
+        subErr = retrySub.error;
       }
-
-      let { error: profErr } = await supabase
-        .from('profiles')
-        .upsert(profilePayload);
-
-      if (profErr && (profErr.code === '42703' || profErr.message?.includes('user_message'))) {
-        // Fallback if user_message column does not exist in profiles table
-        delete profilePayload.user_message;
-        const retryProf = await supabase
-          .from('profiles')
-          .upsert(profilePayload);
-        profErr = retryProf.error;
-      }
-
-      if (profErr && (profErr.message?.includes("Invalid API key") || profErr.hint?.includes("API key"))) {
-        markSupabaseKeyAsInvalid("Invalid API key");
-      }
-
-      // 3. Upsert subscriptions table (for user subscription tier and history)
-      if (finalUser.subscription) {
-        const subPayload: any = {
-          email: lowerEmail,
-          plan: finalUser.subscription.plan || 'none',
-          valid_until: finalUser.subscription.validUntil || null,
-          selected_at: finalUser.subscription.selectedAt || null,
-          free_plan_used: !!finalUser.subscription.freePlanUsed,
-          approved: !!finalUser.subscription.approved,
-          history: finalUser.subscriptionHistory || [],
-          updated_at: new Date().toISOString()
-        };
-
-        let { error: subErr } = await supabase
-          .from('subscriptions')
-          .upsert(subPayload);
-
-        if (subErr && (subErr.code === '42703' || subErr.message?.includes('history'))) {
-          // Fallback if history column does not exist on Supabase subscriptions table yet
-          delete subPayload.history;
-          const retrySub = await supabase
-            .from('subscriptions')
-            .upsert(subPayload);
-          subErr = retrySub.error;
-        }
-
-        if (subErr && (subErr.message?.includes("Invalid API key") || subErr.hint?.includes("API key"))) {
-          markSupabaseKeyAsInvalid("Invalid API key");
-        }
-      }
-
-      return true;
-    } catch (err: any) {
-      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
-        markSupabaseKeyAsInvalid("Invalid API key");
-      } else {
-        console.error("Falha ao salvar perfil relacional no Supabase:", err?.message || err);
+      if (subErr) {
+        throw new Error(`Erro ao salvar assinatura no Supabase: ${subErr.message}`);
       }
     }
+
+    if (mergedUserMessage !== undefined && user.userMessage !== undefined) {
+      await saveUserMessageToDatabase(lowerEmail, mergedUserMessage);
+    }
+
+    if (finalUser.subscription && (finalUser.subscription.freePlanUsed || finalUser.subscription.plan === 'gratis')) {
+      await recordTrialHistory(lowerEmail, finalUser.cpf);
+    }
+
+    userCache.set(lowerEmail, { data: { ...finalUser }, timestamp: Date.now() });
+    return true;
+  } catch (err: any) {
+    if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
+      markSupabaseKeyAsInvalid("Invalid API key");
+    }
+    throw err;
   }
-  return true;
 }
 
 // ==========================================
@@ -1627,7 +1134,7 @@ function pickNonEmptyArray(primary: any[] | null | undefined, ...fallbacks: Arra
   return Array.isArray(primary) ? primary : [];
 }
 
-// Get user workspace data from relational tables in parallel with error-safe fallback protection
+// Get user workspace data exclusively from Supabase with error-safe fallback to user_data backup
 async function getUserDataByEmail(
   email: string,
   options: boolean | { bypassCache?: boolean; throwOnError?: boolean } = false
@@ -1636,20 +1143,37 @@ async function getUserDataByEmail(
   const throwOnError = typeof options === 'boolean' ? false : Boolean(options?.throwOnError);
 
   const lowerEmail = email.toLowerCase().trim();
-  const supabase = getSupabaseClient();
-  const db = getDb();
-  const localData = db.userData ? db.userData[lowerEmail] : undefined;
+  const supabase = requireSupabase();
 
-  // Se houver cache recente em memória (< 30s), retorne imediatamente sem bloquear
   const cached = userDataCache.get(lowerEmail);
   if (!bypassCache && cached && cached.data && (Date.now() - cached.timestamp < 30000)) {
     return cached.data;
   }
 
-  if (supabase) {
-    try {
-      // Fetch relational tables in parallel for existing tables with resilient 15s timeout protection
+  try {
+    const [
+      rTypesRes,
+      rStatusesRes,
+      pTypesRes,
+      pStatusesRes,
+      incCatsRes,
+      expCatsRes,
+      incomesRes,
+      expensesRes,
+      annualRes,
+      shopRes,
+      actPlansRes,
+      defActionsRes,
+      tripsRes,
+      wishesRes,
+      investRes,
+      invTypesRes,
+      invStatusesRes,
+      backupUserDataRes
+    ] = await withSupabaseRetry(async () => {
       const queryPromise = Promise.all([
+        supabase.from('receipt_types').select('name').eq('email', lowerEmail),
+        supabase.from('receipt_statuses').select('name').eq('email', lowerEmail),
         supabase.from('payment_types').select('name').eq('email', lowerEmail),
         supabase.from('payment_statuses').select('name').eq('email', lowerEmail),
         supabase.from('income_categories').select('name').eq('email', lowerEmail),
@@ -1668,324 +1192,254 @@ async function getUserDataByEmail(
         supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle()
       ]);
       const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 15000));
-      const [
-        pTypesRes,
-        pStatusesRes,
-        incCatsRes,
-        expCatsRes,
-        incomesRes,
-        expensesRes,
-        annualRes,
-        shopRes,
-        actPlansRes,
-        defActionsRes,
-        tripsRes,
-        wishesRes,
-        investRes,
-        invTypesRes,
-        invStatusesRes,
-        backupUserDataRes
-      ] = await Promise.race([queryPromise, timeoutPromise]);
+      return Promise.race([queryPromise, timeoutPromise]);
+    }, `getUserDataByEmail:${lowerEmail}`);
 
-      // If database schema is missing, fall back to monolithic user_data table
-      const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && res.error.code === '42P01');
+    const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && res.error.code === '42P01');
 
-      if (relationMissing) {
-        console.log("Tabelas relacionais ainda não foram configuradas. Carregando dados do fallback...");
-        const { data, error } = await supabase
-          .from('user_data')
-          .select('data')
-          .eq('email', lowerEmail)
-          .maybeSingle();
-        
-        if (!error && data && data.data) {
-          const completedData = ensureUserHasDefaults(data.data);
-          userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
-          return completedData;
-        }
+    if (relationMissing) {
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('data')
+        .eq('email', lowerEmail)
+        .maybeSingle();
 
-        if (error) {
-          throw new Error(`Erro ao ler fallback user_data: ${error.message || error.code}`);
-        }
-        
-        const freshDefault = getDefaultUserData();
-        userDataCache.set(lowerEmail, { data: freshDefault, timestamp: Date.now() });
-        return freshDefault;
+      if (error) {
+        throw new Error(`Erro ao ler fallback user_data no Supabase: ${error.message || error.code}`);
+      }
+      if (data && data.data) {
+        const completedData = ensureUserHasDefaults(data.data);
+        userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
+        return completedData;
       }
 
-      const queryChecks: Array<[string, any]> = [
-        ['payment_types', pTypesRes],
-        ['payment_statuses', pStatusesRes],
-        ['income_categories', incCatsRes],
-        ['expense_categories', expCatsRes],
-        ['incomes', incomesRes],
-        ['expenses', expensesRes],
-        ['annual_planning', annualRes],
-        ['shopping_list', shopRes],
-        ['action_plans', actPlansRes],
-        ['deficit_actions', defActionsRes],
-        ['trips', tripsRes],
-        ['wishes', wishesRes],
-        ['investments', investRes],
-        ['investment_types', invTypesRes],
-        ['investment_statuses', invStatusesRes]
-      ];
-
-      const failedTables = queryChecks.filter(([, r]) => hasSupabaseQueryError(r)).map(([name]) => name);
-      const backupError = hasSupabaseQueryError(backupUserDataRes);
-      const backupData = !backupError ? backupUserDataRes?.data?.data : null;
-
-      if (failedTables.length > 0) {
-        console.warn(`[getUserDataByEmail] Erros parciais ao consultar Supabase para ${lowerEmail}:`, failedTables.join(', '));
-        if (throwOnError && !backupData && !cached?.data) {
-          throw new Error(`Falha ao consultar tabelas no Supabase (${failedTables.join(', ')}).`);
-        }
-      }
-
-      // Helper to resolve list of names (config tables): relational -> backup -> cache -> local -> defaults
-      const resolveNameList = (res: any, backupArr: any, cacheArr: any, localArr: any, defaultArr: string[]): string[] => {
-        if (!hasSupabaseQueryError(res) && Array.isArray(res?.data) && res.data.length > 0) {
-          return res.data.map((r: any) => r.name);
-        }
-        const recovered = pickNonEmptyArray(backupArr, hasSupabaseQueryError(res) ? cacheArr : undefined, hasSupabaseQueryError(res) ? localArr : undefined);
-        if (recovered.length > 0) {
-          return recovered;
-        }
-        return [...defaultArr];
-      };
-
-      // Helper to resolve entity arrays: never replace an errored query or unexpected empty relational table with [] if user_data backup still has records
-      const resolveEntityList = <T>(res: any, mapper: (r: any) => T, backupArr: any, cacheArr: any, localArr: any): T[] => {
-        if (!hasSupabaseQueryError(res) && Array.isArray(res?.data)) {
-          if (res.data.length > 0) {
-            return res.data.map(mapper);
-          }
-          // If relational table has 0 rows while user_data backup still has rows, recover from backup instead of losing records
-          if (Array.isArray(backupArr) && backupArr.length > 0) {
-            return backupArr;
-          }
-          return [];
-        }
-        return pickNonEmptyArray(backupArr, cacheArr, localArr);
-      };
-
-      const mappedExpenses = resolveEntityList(
-        expensesRes,
-        (r: any) => {
-          const backupExp = backupData?.expenses?.find((b: any) => b.id === r.id);
-          const rawClass = (backupExp && backupExp.classification !== undefined && backupExp.classification !== null && backupExp.classification !== '')
-            ? backupExp.classification
-            : (r.classification !== undefined && r.classification !== null && r.classification !== '')
-            ? r.classification
-            : (r.classificacao !== undefined && r.classificacao !== null && r.classificacao !== '')
-            ? r.classificacao
-            : undefined;
-          return {
-            id: r.id,
-            date: r.date,
-            description: r.description,
-            value: Number(r.value),
-            category: r.category,
-            status: r.status,
-            paymentType: r.payment_type,
-            classification: rawClass || undefined
-          };
-        },
-        backupData?.expenses,
-        cached?.data?.expenses,
-        localData?.expenses
-      );
-
-      const responseData: any = {
-        receiptTypes: (backupData?.receiptTypes && backupData.receiptTypes.length > 0)
-          ? backupData.receiptTypes
-          : (cached?.data?.receiptTypes && cached.data.receiptTypes.length > 0)
-            ? cached.data.receiptTypes
-            : [...DEFAULT_RECEIPT_TYPES],
-        receiptStatuses: (backupData?.receiptStatuses && backupData.receiptStatuses.length > 0)
-          ? backupData.receiptStatuses
-          : (cached?.data?.receiptStatuses && cached.data.receiptStatuses.length > 0)
-            ? cached.data.receiptStatuses
-            : [...DEFAULT_RECEIPT_STATUSES],
-        paymentTypes: resolveNameList(pTypesRes, backupData?.paymentTypes, cached?.data?.paymentTypes, localData?.paymentTypes, DEFAULT_PAYMENT_TYPES),
-        paymentStatuses: resolveNameList(pStatusesRes, backupData?.paymentStatuses, cached?.data?.paymentStatuses, localData?.paymentStatuses, DEFAULT_PAYMENT_STATUSES),
-        incomeCategories: resolveNameList(incCatsRes, backupData?.incomeCategories, cached?.data?.incomeCategories, localData?.incomeCategories, DEFAULT_INCOME_CATEGORIES),
-        expenseCategories: resolveNameList(expCatsRes, backupData?.expenseCategories, cached?.data?.expenseCategories, localData?.expenseCategories, DEFAULT_EXPENSE_CATEGORIES),
-        incomes: resolveEntityList(
-          incomesRes,
-          (r: any) => ({
-            id: r.id,
-            date: r.date,
-            description: r.description,
-            value: Number(r.value),
-            category: r.category,
-            status: r.status,
-            paymentType: r.payment_type
-          }),
-          backupData?.incomes,
-          cached?.data?.incomes,
-          localData?.incomes
-        ),
-        expenses: mappedExpenses,
-        annualPlanning: (!hasSupabaseQueryError(annualRes) && Array.isArray(annualRes?.data) && annualRes.data.length > 0)
-          ? annualRes.data.map((r: any) => ({ year: r.year, monthlyBudgets: r.monthly_budgets }))
-          : pickNonEmptyArray(
-              backupData?.annualPlanning,
-              hasSupabaseQueryError(annualRes) ? cached?.data?.annualPlanning : undefined,
-              hasSupabaseQueryError(annualRes) ? localData?.annualPlanning : undefined
-            ).length > 0
-            ? pickNonEmptyArray(
-                backupData?.annualPlanning,
-                hasSupabaseQueryError(annualRes) ? cached?.data?.annualPlanning : undefined,
-                hasSupabaseQueryError(annualRes) ? localData?.annualPlanning : undefined
-              )
-            : [
-                {
-                  year: 2026,
-                  monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-                    month: i,
-                    incomeBudget: 0,
-                    expenseBudget: 0
-                  }))
-                }
-              ],
-        shoppingList: resolveEntityList(
-          shopRes,
-          (r: any) => ({
-            id: r.id,
-            name: r.name,
-            quantity: Number(r.quantity),
-            price: Number(r.price),
-            category: r.category,
-            checked: !!r.checked,
-            date: r.date || undefined
-          }),
-          backupData?.shoppingList,
-          cached?.data?.shoppingList,
-          localData?.shoppingList
-        ),
-        actionPlans: resolveEntityList(
-          actPlansRes,
-          (r: any) => ({
-            id: r.id,
-            title: r.title,
-            description: r.description,
-            targetDate: r.target_date,
-            value: Number(r.value),
-            status: r.status
-          }),
-          backupData?.actionPlans,
-          cached?.data?.actionPlans,
-          localData?.actionPlans
-        ),
-        deficitActions: resolveEntityList(
-          defActionsRes,
-          (r: any) => ({
-            id: r.id,
-            costCenter: r.cost_center,
-            reason: r.reason,
-            correctionAction: r.correction_action,
-            responsible: r.responsible,
-            date: r.date,
-            status: r.status
-          }),
-          backupData?.deficitActions,
-          cached?.data?.deficitActions,
-          localData?.deficitActions
-        ),
-        trips: resolveEntityList(
-          tripsRes,
-          (r: any) => ({ id: r.id, name: r.name, expenses: r.expenses || [] }),
-          backupData?.trips,
-          cached?.data?.trips,
-          localData?.trips
-        ),
-        wishes: resolveEntityList(
-          wishesRes,
-          (r: any) => ({ id: r.id, title: r.title, description: r.description, targetDate: r.target_date, value: Number(r.value), status: r.status }),
-          backupData?.wishes,
-          cached?.data?.wishes,
-          localData?.wishes
-        ),
-        investments: resolveEntityList(
-          investRes,
-          (r: any) => ({ id: r.id, name: r.name, type: r.type, date: r.date, value: Number(r.value), status: r.status, notes: r.notes }),
-          backupData?.investments,
-          cached?.data?.investments,
-          localData?.investments
-        ),
-        investmentTypes: resolveNameList(invTypesRes, backupData?.investmentTypes, cached?.data?.investmentTypes, localData?.investmentTypes, DEFAULT_INVESTMENT_TYPES),
-        investmentStatuses: resolveNameList(invStatusesRes, backupData?.investmentStatuses, cached?.data?.investmentStatuses, localData?.investmentStatuses, DEFAULT_INVESTMENT_STATUSES)
-      };
-
-      const finalResponse = ensureUserHasDefaults(responseData);
-
-      // Only update in-memory cache and db.json if reads had no transient errors (or were safely backed by user_data)
-      if (failedTables.length === 0 || backupData) {
-        userDataCache.set(lowerEmail, { data: finalResponse, timestamp: Date.now() });
-        if (failedTables.length === 0) {
-          try {
-            const dbLocal = getDb();
-            if (!dbLocal.userData) dbLocal.userData = {};
-            dbLocal.userData[lowerEmail] = finalResponse;
-            saveDb(dbLocal);
-          } catch (e) {
-            // ignore
-          }
-        }
-      }
-
-      return finalResponse;
-    } catch (err: any) {
-      console.warn("Aviso ao ler dados relacionais no Supabase (acionando fallback seguro):", err?.message || err);
-
-      // 1. Fallback: Usar cache de memória recente se disponível
-      if (cached && cached.data) {
-        console.log(`[getUserDataByEmail] Retornando dados em cache de memória para ${lowerEmail}`);
-        return cached.data;
-      }
-
-      // 2. Fallback: Tentar ler da tabela monolítica user_data no Supabase com timeout de 4s
-      try {
-        const backupRowPromise = supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
-        const backupTimeout = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_BACKUP')), 4000));
-        const { data: backupRow, error: backupErr } = await Promise.race([backupRowPromise, backupTimeout]);
-        if (!backupErr && backupRow && backupRow.data) {
-          const completedData = ensureUserHasDefaults(backupRow.data);
-          userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
-          return completedData;
-        }
-      } catch (backupErr) {
-        // ignora erro do fallback secundário
-      }
-
-      // 3. Fallback: Usar dados locais salvos em db.json se disponíveis
-      if (localData) {
-        console.log(`[getUserDataByEmail] Retornando dados locais de backup em db.json para ${lowerEmail}`);
-        const finalLocal = ensureUserHasDefaults(localData);
-        userDataCache.set(lowerEmail, { data: finalLocal, timestamp: Date.now() });
-        return finalLocal;
-      }
-
-      if (throwOnError) {
-        throw err;
-      }
-
-      // CRITICAL: Do NOT cache empty default data in userDataCache after a timeout/failure
-      return getDefaultUserData();
+      const freshDefault = getDefaultUserData();
+      userDataCache.set(lowerEmail, { data: freshDefault, timestamp: Date.now() });
+      return freshDefault;
     }
-  }
 
-  // Fallback to local DB file se disponível
-  if (localData) {
-    const finalLocal = ensureUserHasDefaults(localData);
-    userDataCache.set(lowerEmail, { data: finalLocal, timestamp: Date.now() });
-    return finalLocal;
-  }
+    const queryChecks: Array<[string, any]> = [
+      ['receipt_types', rTypesRes],
+      ['receipt_statuses', rStatusesRes],
+      ['payment_types', pTypesRes],
+      ['payment_statuses', pStatusesRes],
+      ['income_categories', incCatsRes],
+      ['expense_categories', expCatsRes],
+      ['incomes', incomesRes],
+      ['expenses', expensesRes],
+      ['annual_planning', annualRes],
+      ['shopping_list', shopRes],
+      ['action_plans', actPlansRes],
+      ['deficit_actions', defActionsRes],
+      ['trips', tripsRes],
+      ['wishes', wishesRes],
+      ['investments', investRes],
+      ['investment_types', invTypesRes],
+      ['investment_statuses', invStatusesRes]
+    ];
 
-  const defaultUserObj = getDefaultUserData();
-  userDataCache.set(lowerEmail, { data: defaultUserObj, timestamp: Date.now() });
-  return defaultUserObj;
+    const failedTables = queryChecks.filter(([, r]) => hasSupabaseQueryError(r)).map(([name]) => name);
+    const backupError = hasSupabaseQueryError(backupUserDataRes);
+    const backupData = !backupError ? backupUserDataRes?.data?.data : null;
+
+    if (failedTables.length > 0) {
+      console.warn(`[getUserDataByEmail] Erros parciais ao consultar Supabase para ${lowerEmail}:`, failedTables.join(', '));
+      if (throwOnError && !backupData && !cached?.data) {
+        throw new Error(`Falha ao consultar tabelas no Supabase (${failedTables.join(', ')}).`);
+      }
+    }
+
+    const resolveNameList = (res: any, backupArr: any, cacheArr: any, defaultArr: string[]): string[] => {
+      if (!hasSupabaseQueryError(res) && Array.isArray(res?.data) && res.data.length > 0) {
+        return res.data.map((r: any) => r.name);
+      }
+      const recovered = pickNonEmptyArray(backupArr, hasSupabaseQueryError(res) ? cacheArr : undefined);
+      if (recovered.length > 0) {
+        return recovered;
+      }
+      return [...defaultArr];
+    };
+
+    const resolveEntityList = <T>(res: any, mapper: (r: any) => T, backupArr: any, cacheArr: any): T[] => {
+      if (!hasSupabaseQueryError(res) && Array.isArray(res?.data)) {
+        if (res.data.length > 0) {
+          return res.data.map(mapper);
+        }
+        if (Array.isArray(backupArr) && backupArr.length > 0) {
+          return backupArr;
+        }
+        return [];
+      }
+      return pickNonEmptyArray(backupArr, cacheArr);
+    };
+
+    const mappedExpenses = resolveEntityList(
+      expensesRes,
+      (r: any) => {
+        const backupExp = backupData?.expenses?.find((b: any) => b.id === r.id);
+        const rawClass = (backupExp && backupExp.classification !== undefined && backupExp.classification !== null && backupExp.classification !== '')
+          ? backupExp.classification
+          : (r.classification !== undefined && r.classification !== null && r.classification !== '')
+          ? r.classification
+          : (r.classificacao !== undefined && r.classificacao !== null && r.classificacao !== '')
+          ? r.classificacao
+          : undefined;
+        return {
+          id: r.id,
+          date: r.date,
+          description: r.description,
+          value: Number(r.value),
+          category: r.category,
+          status: r.status,
+          paymentType: r.payment_type,
+          classification: rawClass || undefined
+        };
+      },
+      backupData?.expenses,
+      cached?.data?.expenses
+    );
+
+    const resolvedAnnual = (!hasSupabaseQueryError(annualRes) && Array.isArray(annualRes?.data) && annualRes.data.length > 0)
+      ? annualRes.data.map((r: any) => ({ year: r.year, monthlyBudgets: r.monthly_budgets }))
+      : pickNonEmptyArray(
+          backupData?.annualPlanning,
+          hasSupabaseQueryError(annualRes) ? cached?.data?.annualPlanning : undefined
+        );
+
+    const responseData: any = {
+      receiptTypes: resolveNameList(rTypesRes, backupData?.receiptTypes, cached?.data?.receiptTypes, DEFAULT_RECEIPT_TYPES),
+      receiptStatuses: resolveNameList(rStatusesRes, backupData?.receiptStatuses, cached?.data?.receiptStatuses, DEFAULT_RECEIPT_STATUSES),
+      paymentTypes: resolveNameList(pTypesRes, backupData?.paymentTypes, cached?.data?.paymentTypes, DEFAULT_PAYMENT_TYPES),
+      paymentStatuses: resolveNameList(pStatusesRes, backupData?.paymentStatuses, cached?.data?.paymentStatuses, DEFAULT_PAYMENT_STATUSES),
+      incomeCategories: resolveNameList(incCatsRes, backupData?.incomeCategories, cached?.data?.incomeCategories, DEFAULT_INCOME_CATEGORIES),
+      expenseCategories: resolveNameList(expCatsRes, backupData?.expenseCategories, cached?.data?.expenseCategories, DEFAULT_EXPENSE_CATEGORIES),
+      incomes: resolveEntityList(
+        incomesRes,
+        (r: any) => ({
+          id: r.id,
+          date: r.date,
+          description: r.description,
+          value: Number(r.value),
+          category: r.category,
+          status: r.status,
+          paymentType: r.payment_type
+        }),
+        backupData?.incomes,
+        cached?.data?.incomes
+      ),
+      expenses: mappedExpenses,
+      annualPlanning: resolvedAnnual.length > 0
+        ? resolvedAnnual
+        : [
+            {
+              year: 2026,
+              monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
+                month: i,
+                incomeBudget: 0,
+                expenseBudget: 0
+              }))
+            }
+          ],
+      shoppingList: resolveEntityList(
+        shopRes,
+        (r: any) => ({
+          id: r.id,
+          name: r.name,
+          quantity: Number(r.quantity),
+          price: Number(r.price),
+          category: r.category,
+          checked: !!r.checked,
+          date: r.date || undefined
+        }),
+        backupData?.shoppingList,
+        cached?.data?.shoppingList
+      ),
+      actionPlans: resolveEntityList(
+        actPlansRes,
+        (r: any) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          targetDate: r.target_date,
+          value: Number(r.value),
+          status: r.status
+        }),
+        backupData?.actionPlans,
+        cached?.data?.actionPlans
+      ),
+      deficitActions: resolveEntityList(
+        defActionsRes,
+        (r: any) => ({
+          id: r.id,
+          costCenter: r.cost_center,
+          reason: r.reason,
+          correctionAction: r.correction_action,
+          responsible: r.responsible,
+          date: r.date,
+          status: r.status
+        }),
+        backupData?.deficitActions,
+        cached?.data?.deficitActions
+      ),
+      trips: resolveEntityList(
+        tripsRes,
+        (r: any) => ({ id: r.id, name: r.name, expenses: r.expenses || [] }),
+        backupData?.trips,
+        cached?.data?.trips
+      ),
+      wishes: resolveEntityList(
+        wishesRes,
+        (r: any) => ({ id: r.id, title: r.title, description: r.description, targetDate: r.target_date, value: Number(r.value), status: r.status }),
+        backupData?.wishes,
+        cached?.data?.wishes
+      ),
+      investments: resolveEntityList(
+        investRes,
+        (r: any) => ({ id: r.id, name: r.name, type: r.type, date: r.date, value: Number(r.value), status: r.status, notes: r.notes }),
+        backupData?.investments,
+        cached?.data?.investments
+      ),
+      investmentTypes: resolveNameList(invTypesRes, backupData?.investmentTypes, cached?.data?.investmentTypes, DEFAULT_INVESTMENT_TYPES),
+      investmentStatuses: resolveNameList(invStatusesRes, backupData?.investmentStatuses, cached?.data?.investmentStatuses, DEFAULT_INVESTMENT_STATUSES)
+    };
+
+    const finalResponse = ensureUserHasDefaults(responseData);
+
+    if (failedTables.length === 0 || backupData) {
+      userDataCache.set(lowerEmail, { data: finalResponse, timestamp: Date.now() });
+    }
+
+    return finalResponse;
+  } catch (err: any) {
+    console.warn("Erro ao ler dados relacionais no Supabase:", err?.message || err);
+
+    if (!bypassCache && cached && cached.data) {
+      return cached.data;
+    }
+
+    try {
+      const backupRowPromise = supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
+      const backupTimeout = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_BACKUP')), 5000));
+      const { data: backupRow, error: backupErr } = await Promise.race([backupRowPromise, backupTimeout]);
+      if (!backupErr && backupRow && backupRow.data) {
+        const completedData = ensureUserHasDefaults(backupRow.data);
+        userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
+        return completedData;
+      }
+    } catch {
+      // ignora erro secundário para repassar erro original se throwOnError estiver ativo
+    }
+
+    if (throwOnError) {
+      throw err;
+    }
+
+    if (cached && cached.data) {
+      return cached.data;
+    }
+
+    throw err;
+  }
 }
 
 // Helper: Diff-based sync for name-list tables (avoids wiping custom statuses/categories if insert fails)
@@ -2054,363 +1508,300 @@ async function syncIdEntityTable(
   }
 }
 
-// Save/Update user workspace data by syncing only modified lists safely to Supabase
+// Save/Update user workspace data strictly on Supabase (throws on failure, never saves locally)
 async function saveUserDataByEmail(email: string, data: any, changedKeys?: string[]): Promise<boolean> {
   const lowerEmail = email.toLowerCase().trim();
-  const supabase = getSupabaseClient();
+  const supabase = requireSupabase();
   const shouldSync = (key: string) => Boolean(data[key]) && (!changedKeys || changedKeys.includes(key));
 
-  if (supabase) {
-    try {
-      const promises: Promise<any>[] = [];
-
-      // 1. Sync paymentTypes
-      if (shouldSync('paymentTypes')) {
-        promises.push(syncNameListTable(supabase, 'payment_types', lowerEmail, data.paymentTypes));
-      }
-
-      // 2. Sync paymentStatuses
-      if (shouldSync('paymentStatuses')) {
-        promises.push(syncNameListTable(supabase, 'payment_statuses', lowerEmail, data.paymentStatuses));
-      }
-
-      // 3. Sync incomeCategories
-      if (shouldSync('incomeCategories')) {
-        promises.push(syncNameListTable(supabase, 'income_categories', lowerEmail, data.incomeCategories));
-      }
-
-      // 4. Sync expenseCategories
-      if (shouldSync('expenseCategories')) {
-        promises.push(syncNameListTable(supabase, 'expense_categories', lowerEmail, data.expenseCategories));
-      }
-
-      // 5. Sync incomes
-      if (shouldSync('incomes')) {
-        const rows = data.incomes.map((inc: any) => ({
-          id: inc.id,
-          email: lowerEmail,
-          date: inc.date,
-          description: inc.description,
-          value: Number(inc.value),
-          category: inc.category,
-          status: inc.status,
-          payment_type: inc.paymentType
-        }));
-        promises.push(syncIdEntityTable(supabase, 'incomes', lowerEmail, rows));
-      }
-
-      // 6. Sync expenses
-      if (shouldSync('expenses')) {
-        const rows = data.expenses.map((exp: any) => ({
-          id: exp.id,
-          email: lowerEmail,
-          date: exp.date,
-          description: exp.description,
-          value: Number(exp.value),
-          category: exp.category,
-          status: exp.status,
-          payment_type: exp.paymentType,
-          classification: exp.classification || null
-        }));
-        promises.push(
-          syncIdEntityTable(supabase, 'expenses', lowerEmail, rows, ({ classification, ...rest }: any) => rest)
-        );
-      }
-
-      // 7. Sync annualPlanning
-      if (shouldSync('annualPlanning')) {
-        promises.push((async () => {
-          for (const plan of data.annualPlanning) {
-            const { error: planErr } = await supabase.from('annual_planning').upsert({
-              email: lowerEmail,
-              year: Number(plan.year),
-              monthly_budgets: plan.monthlyBudgets
-            }, { onConflict: 'email,year' });
-            if (planErr && !isMissingTableOrColumnError(planErr)) {
-              throw new Error(`[annual_planning] Erro ao salvar planejamento anual: ${planErr.message}`);
-            }
-          }
-        })());
-      }
-
-      // 8. Sync shoppingList
-      if (shouldSync('shoppingList')) {
-        const rows = data.shoppingList.map((item: any) => ({
-          id: item.id,
-          email: lowerEmail,
-          name: item.name,
-          quantity: Number(item.quantity),
-          price: Number(item.price),
-          category: item.category,
-          checked: !!item.checked,
-          date: item.date || null
-        }));
-        promises.push(syncIdEntityTable(supabase, 'shopping_list', lowerEmail, rows));
-      }
-
-      // 9. Sync actionPlans
-      if (shouldSync('actionPlans')) {
-        const rows = data.actionPlans.map((plan: any) => ({
-          id: plan.id,
-          email: lowerEmail,
-          title: plan.title,
-          description: plan.description,
-          target_date: plan.targetDate,
-          value: Number(plan.value),
-          status: plan.status
-        }));
-        promises.push(syncIdEntityTable(supabase, 'action_plans', lowerEmail, rows));
-      }
-
-      // 10. Sync deficitActions
-      if (shouldSync('deficitActions')) {
-        const rows = data.deficitActions.map((action: any) => ({
-          id: action.id,
-          email: lowerEmail,
-          cost_center: action.costCenter,
-          reason: action.reason,
-          correction_action: action.correctionAction,
-          responsible: action.responsible,
-          date: action.date,
-          status: action.status
-        }));
-        promises.push(syncIdEntityTable(supabase, 'deficit_actions', lowerEmail, rows));
-      }
-
-      // 11. Sync trips
-      if (shouldSync('trips')) {
-        const rows = data.trips.map((trip: any) => ({
-          id: trip.id,
-          email: lowerEmail,
-          name: trip.name,
-          expenses: trip.expenses || []
-        }));
-        promises.push(syncIdEntityTable(supabase, 'trips', lowerEmail, rows));
-      }
-
-      // 12. Sync wishes
-      if (shouldSync('wishes')) {
-        const rows = data.wishes.map((wish: any) => ({
-          id: wish.id,
-          email: lowerEmail,
-          title: wish.title,
-          description: wish.description || '',
-          target_date: wish.targetDate || null,
-          value: Number(wish.value || 0),
-          status: wish.status || 'Pendente'
-        }));
-        promises.push(syncIdEntityTable(supabase, 'wishes', lowerEmail, rows));
-      }
-
-      // 13. Sync investments
-      if (shouldSync('investments')) {
-        const rows = data.investments.map((inv: any) => ({
-          id: inv.id,
-          email: lowerEmail,
-          name: inv.name,
-          type: inv.type,
-          date: inv.date,
-          value: Number(inv.value || 0),
-          status: inv.status,
-          notes: inv.notes || null
-        }));
-        promises.push(syncIdEntityTable(supabase, 'investments', lowerEmail, rows));
-      }
-
-      // 14. Sync investmentTypes
-      if (shouldSync('investmentTypes')) {
-        promises.push(syncNameListTable(supabase, 'investment_types', lowerEmail, data.investmentTypes));
-      }
-
-      // 15. Sync investmentStatuses
-      if (shouldSync('investmentStatuses')) {
-        promises.push(syncNameListTable(supabase, 'investment_statuses', lowerEmail, data.investmentStatuses));
-      }
-
-      await Promise.all(promises);
-
-      // Only update user_data backup in Supabase after all relational syncs succeed
-      const { error: backupErr } = await supabase.from('user_data').upsert({
-        email: lowerEmail,
-        data: data,
-        updated_at: new Date().toISOString()
-      });
-      if (backupErr) {
-        console.error("Erro ao atualizar backup user_data no Supabase:", backupErr.message);
-      }
-    } catch (err: any) {
-      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
-        markSupabaseKeyAsInvalid("Invalid API key");
-      } else {
-        console.error("Erro ao salvar dados relacionais no Supabase:", err);
-      }
-      throw err;
-    }
-  }
-
-  // Update in-memory cache and local db.json only after Supabase sync succeeds (or offline)
-  userDataCache.set(lowerEmail, { data: { ...data }, timestamp: Date.now() });
   try {
-    const db = getDb();
-    if (!db.userData) db.userData = {};
-    db.userData[lowerEmail] = data;
-    saveDb(db);
-  } catch (e) {
-    // ignore
+    const promises: Promise<any>[] = [];
+
+    // 1. Sync receiptTypes
+    if (shouldSync('receiptTypes')) {
+      promises.push(syncNameListTable(supabase, 'receipt_types', lowerEmail, data.receiptTypes));
+    }
+
+    // 2. Sync receiptStatuses
+    if (shouldSync('receiptStatuses')) {
+      promises.push(syncNameListTable(supabase, 'receipt_statuses', lowerEmail, data.receiptStatuses));
+    }
+
+    // 3. Sync paymentTypes
+    if (shouldSync('paymentTypes')) {
+      promises.push(syncNameListTable(supabase, 'payment_types', lowerEmail, data.paymentTypes));
+    }
+
+    // 4. Sync paymentStatuses
+    if (shouldSync('paymentStatuses')) {
+      promises.push(syncNameListTable(supabase, 'payment_statuses', lowerEmail, data.paymentStatuses));
+    }
+
+    // 5. Sync incomeCategories
+    if (shouldSync('incomeCategories')) {
+      promises.push(syncNameListTable(supabase, 'income_categories', lowerEmail, data.incomeCategories));
+    }
+
+    // 6. Sync expenseCategories
+    if (shouldSync('expenseCategories')) {
+      promises.push(syncNameListTable(supabase, 'expense_categories', lowerEmail, data.expenseCategories));
+    }
+
+    // 7. Sync incomes
+    if (shouldSync('incomes')) {
+      const rows = data.incomes.map((inc: any) => ({
+        id: inc.id,
+        email: lowerEmail,
+        date: inc.date,
+        description: inc.description,
+        value: Number(inc.value),
+        category: inc.category,
+        status: inc.status,
+        payment_type: inc.paymentType
+      }));
+      promises.push(syncIdEntityTable(supabase, 'incomes', lowerEmail, rows));
+    }
+
+    // 8. Sync expenses
+    if (shouldSync('expenses')) {
+      const rows = data.expenses.map((exp: any) => ({
+        id: exp.id,
+        email: lowerEmail,
+        date: exp.date,
+        description: exp.description,
+        value: Number(exp.value),
+        category: exp.category,
+        status: exp.status,
+        payment_type: exp.paymentType,
+        classification: exp.classification || null
+      }));
+      promises.push(
+        syncIdEntityTable(supabase, 'expenses', lowerEmail, rows, ({ classification, ...rest }: any) => rest)
+      );
+    }
+
+    // 9. Sync annualPlanning
+    if (shouldSync('annualPlanning')) {
+      promises.push((async () => {
+        for (const plan of data.annualPlanning) {
+          const { error: planErr } = await supabase.from('annual_planning').upsert({
+            email: lowerEmail,
+            year: Number(plan.year),
+            monthly_budgets: plan.monthlyBudgets
+          }, { onConflict: 'email,year' });
+          if (planErr && !isMissingTableOrColumnError(planErr)) {
+            throw new Error(`[annual_planning] Erro ao salvar planejamento anual: ${planErr.message}`);
+          }
+        }
+      })());
+    }
+
+    // 10. Sync shoppingList
+    if (shouldSync('shoppingList')) {
+      const rows = data.shoppingList.map((item: any) => ({
+        id: item.id,
+        email: lowerEmail,
+        name: item.name,
+        quantity: Number(item.quantity),
+        price: Number(item.price),
+        category: item.category,
+        checked: !!item.checked,
+        date: item.date || null
+      }));
+      promises.push(syncIdEntityTable(supabase, 'shopping_list', lowerEmail, rows));
+    }
+
+    // 11. Sync actionPlans
+    if (shouldSync('actionPlans')) {
+      const rows = data.actionPlans.map((plan: any) => ({
+        id: plan.id,
+        email: lowerEmail,
+        title: plan.title,
+        description: plan.description,
+        target_date: plan.targetDate,
+        value: Number(plan.value),
+        status: plan.status
+      }));
+      promises.push(syncIdEntityTable(supabase, 'action_plans', lowerEmail, rows));
+    }
+
+    // 12. Sync deficitActions
+    if (shouldSync('deficitActions')) {
+      const rows = data.deficitActions.map((action: any) => ({
+        id: action.id,
+        email: lowerEmail,
+        cost_center: action.costCenter,
+        reason: action.reason,
+        correction_action: action.correctionAction,
+        responsible: action.responsible,
+        date: action.date,
+        status: action.status
+      }));
+      promises.push(syncIdEntityTable(supabase, 'deficit_actions', lowerEmail, rows));
+    }
+
+    // 13. Sync trips
+    if (shouldSync('trips')) {
+      const rows = data.trips.map((trip: any) => ({
+        id: trip.id,
+        email: lowerEmail,
+        name: trip.name,
+        expenses: trip.expenses || []
+      }));
+      promises.push(syncIdEntityTable(supabase, 'trips', lowerEmail, rows));
+    }
+
+    // 14. Sync wishes
+    if (shouldSync('wishes')) {
+      const rows = data.wishes.map((wish: any) => ({
+        id: wish.id,
+        email: lowerEmail,
+        title: wish.title,
+        description: wish.description || '',
+        target_date: wish.targetDate || null,
+        value: Number(wish.value || 0),
+        status: wish.status || 'Pendente'
+      }));
+      promises.push(syncIdEntityTable(supabase, 'wishes', lowerEmail, rows));
+    }
+
+    // 15. Sync investments
+    if (shouldSync('investments')) {
+      const rows = data.investments.map((inv: any) => ({
+        id: inv.id,
+        email: lowerEmail,
+        name: inv.name,
+        type: inv.type,
+        date: inv.date,
+        value: Number(inv.value || 0),
+        status: inv.status,
+        notes: inv.notes || null
+      }));
+      promises.push(syncIdEntityTable(supabase, 'investments', lowerEmail, rows));
+    }
+
+    // 16. Sync investmentTypes
+    if (shouldSync('investmentTypes')) {
+      promises.push(syncNameListTable(supabase, 'investment_types', lowerEmail, data.investmentTypes));
+    }
+
+    // 17. Sync investmentStatuses
+    if (shouldSync('investmentStatuses')) {
+      promises.push(syncNameListTable(supabase, 'investment_statuses', lowerEmail, data.investmentStatuses));
+    }
+
+    await Promise.all(promises);
+
+    // Update user_data snapshot in Supabase after relational syncs succeed
+    const { error: backupErr } = await supabase.from('user_data').upsert({
+      email: lowerEmail,
+      data: data,
+      updated_at: new Date().toISOString()
+    });
+    if (backupErr) {
+      throw new Error(`Erro ao atualizar snapshot user_data no Supabase: ${backupErr.message}`);
+    }
+  } catch (err: any) {
+    if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
+      markSupabaseKeyAsInvalid("Invalid API key");
+    } else {
+      console.error("Erro ao salvar dados relacionais no Supabase:", err);
+    }
+    throw err;
   }
 
+  userDataCache.set(lowerEmail, { data: { ...data }, timestamp: Date.now() });
   return true;
 }
 
-// Get all users (Admin only) by merging users, profiles, and subscriptions
+// Get all users (Admin only) strictly from Supabase
 async function getAllUsersList(): Promise<any[]> {
-  const localDb = getDb();
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      const fetchSupabaseUsers = async () => {
-        const { data: usersData, error: userErr } = await supabase.from('users').select('*');
-        if (userErr) {
-          if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
-            markSupabaseKeyAsInvalid("Invalid API key");
-          }
-          return null;
+  const supabase = requireSupabase();
+
+  const result = await withSupabaseRetry(async () => {
+    const fetchPromise = (async () => {
+      const { data: usersData, error: userErr } = await supabase.from('users').select('*');
+      if (userErr) {
+        if (userErr.message?.includes("Invalid API key") || userErr.hint?.includes("API key")) {
+          markSupabaseKeyAsInvalid("Invalid API key");
         }
-        if (!usersData) return null;
-
-        const [profilesRes, subsRes] = await Promise.all([
-          supabase.from('profiles').select('*'),
-          supabase.from('subscriptions').select('*')
-        ]);
-
-        return { usersData, profilesRes, subsRes };
-      };
-
-      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_ADMIN_USERS')), 10000));
-      const result = await Promise.race([fetchSupabaseUsers(), timeoutPromise]);
-
-      if (result && result.usersData) {
-        const { usersData, profilesRes, subsRes } = result;
-        const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.email.toLowerCase().trim(), p]));
-        const subsMap = new Map((subsRes.data || []).map((s: any) => [s.email.toLowerCase().trim(), s]));
-        const usersMap = new Map<string, any>();
-        const messagesMap = await getUserMessagesMap();
-
-        // 1. Process Supabase users
-        for (const u of usersData) {
-          const lowerU = u.email.toLowerCase().trim();
-          const prof: any = profilesMap.get(lowerU);
-          const sub: any = subsMap.get(lowerU);
-          const localU = localDb.users[lowerU];
-          const localUD = localDb.userData ? localDb.userData[lowerU] : undefined;
-
-          const userMsg = (messagesMap[lowerU] !== undefined && messagesMap[lowerU] !== '')
-            ? messagesMap[lowerU]
-            : (prof?.user_message !== undefined && prof.user_message !== ''
-                ? String(prof.user_message).trim()
-                : (localU?.userMessage !== undefined && localU.userMessage !== ''
-                    ? String(localU.userMessage).trim()
-                    : (localU?.mensagemUsuario !== undefined && localU.mensagemUsuario !== ''
-                        ? String(localU.mensagemUsuario).trim()
-                        : '')));
-
-          const isBlockedFromDb = (u.is_blocked !== undefined)
-            ? !!u.is_blocked
-            : (u.isBlocked !== undefined
-                ? !!u.isBlocked
-                : (prof?.is_blocked !== undefined
-                    ? !!prof.is_blocked
-                    : (sub ? sub.plan === 'inativo' : (localU ? !!localU.isBlocked : false))));
-
-          if (localDb.users[lowerU]) {
-            localDb.users[lowerU].isBlocked = isBlockedFromDb;
-          }
-
-          const uObj = {
-            email: u.email,
-            password: u.password || localU?.password || '',
-            name: prof ? prof.name : (localU?.name || ''),
-            address: prof ? prof.address : (localU?.address || ''),
-            city: prof ? prof.city : (localU?.city || ''),
-            state: prof ? prof.state : (localU?.state || ''),
-            phone: prof ? prof.phone : (localU?.phone || ''),
-            cpf: prof ? prof.cpf : (localU?.cpf || ''),
-            userMessage: userMsg,
-            mensagemUsuario: userMsg,
-            isBlocked: isBlockedFromDb,
-            role: u.role || 'user',
-            previousPlan: localU?.previousPlan || (localU?.subscription?.plan && localU?.subscription?.plan !== 'inativo' ? localU.subscription.plan : undefined),
-            previousValidUntil: localU?.previousValidUntil !== undefined ? localU.previousValidUntil : (localU?.subscription?.validUntil || null),
-            previousApproved: localU?.previousApproved !== undefined ? localU.previousApproved : localU?.subscription?.approved,
-            previousSubscription: localU?.previousSubscription || (localU?.subscription?.plan !== 'inativo' ? localU?.subscription : undefined),
-            subscription: sub ? {
-              plan: sub.plan || 'none',
-              validUntil: sub.valid_until,
-              selectedAt: sub.selected_at,
-              freePlanUsed: !!sub.free_plan_used,
-              approved: !!sub.approved
-            } : (localU?.subscription ? { ...localU.subscription } : {
-              plan: 'none',
-              validUntil: null,
-              selectedAt: null,
-              freePlanUsed: false,
-              approved: false
-            }),
-            subscriptionHistory: (Array.isArray(sub?.history) && sub.history.length > 0)
-              ? sub.history
-              : (Array.isArray(localU?.subscriptionHistory) ? localU.subscriptionHistory : []),
-            lastAccess: u.last_access || u.lastAccess || prof?.last_access || prof?.lastAccess || localU?.lastAccess || localUD?.lastUpdated || null,
-            createdAt: u.created_at || u.createdAt || new Date().toISOString()
-          };
-          normalizeUserSubscription(uObj);
-          usersMap.set(lowerU, uObj);
-        }
-
-        // 2. Merge local-only users
-        for (const [key, localU] of Object.entries<any>(localDb.users)) {
-          const lowerKey = key.toLowerCase().trim();
-          if (!usersMap.has(lowerKey)) {
-            const localUD = localDb.userData ? localDb.userData[lowerKey] : undefined;
-            const localMsg = (localU.userMessage || localU.mensagemUsuario || '');
-            const localDataMsg = (localUD?.userMessage || localUD?.mensagemUsuario || '');
-            const fallbackMsg = (typeof localMsg === 'string' && localMsg.trim().length > 0 ? localMsg.trim() : '') ||
-              (typeof localDataMsg === 'string' && localDataMsg.trim().length > 0 ? localDataMsg.trim() : '') ||
-              '';
-            const userMsg = (messagesMap[lowerKey] !== undefined && messagesMap[lowerKey] !== '')
-              ? messagesMap[lowerKey]
-              : fallbackMsg;
-
-            const localCompiled = {
-              ...localU,
-              userMessage: userMsg,
-              mensagemUsuario: userMsg,
-              isBlocked: !!(localU.isBlocked || localU.blocked || localU.subscription?.plan === 'inativo'),
-              lastAccess: localU.lastAccess || localUD?.lastUpdated || null,
-              subscriptionHistory: Array.isArray(localU.subscriptionHistory) ? localU.subscriptionHistory : []
-            };
-            normalizeUserSubscription(localCompiled);
-            usersMap.set(lowerKey, localCompiled);
-          }
-        }
-
-        return Array.from(usersMap.values());
+        throw new Error(`Falha ao consultar tabela 'users' no Supabase: ${userErr.message}`);
       }
-    } catch (err) {
-      console.error("Falha ao buscar todos os usuários no Supabase:", err);
-    }
-  }
 
-  // Fallback to local
+      const [profilesRes, subsRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('subscriptions').select('*')
+      ]);
+
+      if (profilesRes.error && !isMissingTableOrColumnError(profilesRes.error)) {
+        throw new Error(`Falha ao consultar tabela 'profiles': ${profilesRes.error.message}`);
+      }
+      if (subsRes.error && !isMissingTableOrColumnError(subsRes.error)) {
+        throw new Error(`Falha ao consultar tabela 'subscriptions': ${subsRes.error.message}`);
+      }
+
+      return { usersData: usersData || [], profilesRes, subsRes };
+    })();
+
+    const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_ADMIN_USERS')), 10000));
+    return Promise.race([fetchPromise, timeoutPromise]);
+  }, 'getAllUsersList');
+
+  const { usersData, profilesRes, subsRes } = result;
+  const profilesMap = new Map((profilesRes.data || []).map((p: any) => [String(p.email || '').toLowerCase().trim(), p]));
+  const subsMap = new Map((subsRes.data || []).map((s: any) => [String(s.email || '').toLowerCase().trim(), s]));
   const messagesMap = await getUserMessagesMap();
-  return Object.values(localDb.users).map((user: any) => {
-    const { password: _, ...rest } = user;
-    const lower = (user.email || '').toLowerCase().trim();
-    const localUD = localDb.userData ? localDb.userData[lower] : undefined;
-    const msg = (messagesMap[lower] !== undefined && messagesMap[lower] !== '')
-      ? messagesMap[lower]
-      : (user.userMessage || user.mensagemUsuario || '');
-    const uObj = { ...rest, userMessage: msg, mensagemUsuario: msg, lastAccess: user.lastAccess || localUD?.lastUpdated || null };
-    normalizeUserSubscription(uObj);
+  const trialDays = await getFreeTrialDays().catch(() => 60);
+
+  return usersData.map((u: any) => {
+    const lowerU = String(u.email || '').toLowerCase().trim();
+    const prof: any = profilesMap.get(lowerU);
+    const sub: any = subsMap.get(lowerU);
+
+    const userMsg = (messagesMap[lowerU] !== undefined && messagesMap[lowerU] !== '')
+      ? messagesMap[lowerU]
+      : (prof?.user_message !== undefined && prof.user_message !== ''
+          ? String(prof.user_message).trim()
+          : '');
+
+    const isBlockedFromDb = (u.is_blocked !== undefined)
+      ? !!u.is_blocked
+      : (u.isBlocked !== undefined
+          ? !!u.isBlocked
+          : (prof?.is_blocked !== undefined
+              ? !!prof.is_blocked
+              : (sub ? sub.plan === 'inativo' : false)));
+
+    const uObj = {
+      email: u.email,
+      name: prof ? prof.name : (u.name || ''),
+      address: prof ? prof.address : (u.address || ''),
+      city: prof ? prof.city : (u.city || ''),
+      state: prof ? prof.state : (u.state || ''),
+      phone: prof ? prof.phone : (u.phone || ''),
+      cpf: prof ? prof.cpf : (u.cpf || ''),
+      userMessage: userMsg,
+      mensagemUsuario: userMsg,
+      isBlocked: isBlockedFromDb,
+      role: u.role || 'user',
+      subscription: sub ? {
+        plan: sub.plan || 'none',
+        validUntil: sub.valid_until,
+        selectedAt: sub.selected_at,
+        freePlanUsed: !!sub.free_plan_used,
+        approved: !!sub.approved
+      } : {
+        plan: 'none',
+        validUntil: null,
+        selectedAt: null,
+        freePlanUsed: false,
+        approved: false
+      },
+      subscriptionHistory: Array.isArray(sub?.history) ? sub.history : [],
+      lastAccess: prof?.updated_at || u.created_at || null,
+      createdAt: u.created_at || u.createdAt || new Date().toISOString()
+    };
+    normalizeUserSubscription(uObj, trialDays);
     return uObj;
   });
 }
@@ -2503,10 +1894,19 @@ async function auditSupabaseDatabaseSchema() {
 
 // Supabase Connection Status and Schema Info (Live Audit & Safe Differential Generator)
 app.get("/api/supabase-status", async (req, res) => {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
   const client = getSupabaseClient();
   let active = false;
   let message = "";
-  const url = process.env.SUPABASE_URL || cleanSupabaseUrl(readAllDiskEnvValues().SUPABASE_URL) || "";
+  const url = cleanSupabaseUrl(
+    process.env.SUPABASE_URL ||
+    process.env.supabase_url ||
+    process.env.VITE_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    ""
+  );
 
   if (client) {
     try {
@@ -2547,7 +1947,6 @@ app.get("/api/supabase-status", async (req, res) => {
     missingCount: audit.missingCount,
     missingTables: audit.missingTables,
     tables: audit.tables,
-    // By default, schema returns differentialSql so pasting into Supabase only creates what is missing
     schema: audit.missingCount > 0 ? audit.differentialSql : audit.fullSafeSql,
     differentialSql: audit.differentialSql,
     fullSafeSql: audit.fullSafeSql
@@ -2555,19 +1954,19 @@ app.get("/api/supabase-status", async (req, res) => {
 });
 
 // ---------------- AUTENTICAÇÃO E SESSÃO SEGURA (JWT) ----------------
-const JWT_SECRET = process.env.JWT_SECRET || 'finanfly_jwt_secret_key_2026_prod';
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
 
 function generateAuthToken(payload: { email: string; role: string }): string {
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
   const now = Math.floor(Date.now() / 1000);
   const exp = now + (30 * 24 * 60 * 60); // Válido por 30 dias
   const body = Buffer.from(JSON.stringify({ email: payload.email.toLowerCase().trim(), role: payload.role || "user", iat: now, exp })).toString("base64url");
-  
+
   const signature = crypto
     .createHmac("sha256", JWT_SECRET)
     .update(`${header}.${body}`)
     .digest("base64url");
-    
+
   return `${header}.${body}.${signature}`;
 }
 
@@ -2583,13 +1982,17 @@ function verifyAuthToken(token: string): { email: string; role: string; exp: num
     .update(`${header}.${body}`)
     .digest("base64url");
 
-  if (signature !== expectedSignature) return null;
-
   try {
+    const sigBuf = Buffer.from(signature, "utf-8");
+    const expBuf = Buffer.from(expectedSignature, "utf-8");
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return null;
+    }
+
     const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf-8"));
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) {
-      return null; // Expirado
+      return null;
     }
     return payload;
   } catch {
@@ -2599,60 +2002,78 @@ function verifyAuthToken(token: string): { email: string; role: string; exp: num
 
 function getAuthEmailFromReq(req: express.Request): string | null {
   const token = (req.headers["x-auth-token"] as string) || (req.headers["authorization"] as string);
-  if (token) {
-    const decoded = verifyAuthToken(token);
-    if (decoded && decoded.email) {
-      return decoded.email;
-    }
-  }
-  const emailHeader = req.headers["x-user-email"] as string;
-  if (emailHeader) {
-    return emailHeader.toLowerCase().trim();
+  if (!token) return null;
+  const decoded = verifyAuthToken(token);
+  if (decoded && decoded.email) {
+    return String(decoded.email).toLowerCase().trim();
   }
   return null;
 }
 
-// Endpoint de Verificação de Sessão Persistente (Boot do App)
+async function requireAuth(req: express.Request, res: express.Response): Promise<any | null> {
+  const email = getAuthEmailFromReq(req);
+  if (!email) {
+    res.status(401).json({ error: "Sessão ausente ou expirada. Faça login novamente." });
+    return null;
+  }
+
+  try {
+    const user = await getUserByEmail(email, { bypassCache: false, throwOnError: true });
+    if (!user) {
+      res.status(401).json({ error: "Usuário não encontrado ou sessão inválida." });
+      return null;
+    }
+    if (user.isBlocked) {
+      res.status(403).json({ error: "Acesso suspenso pelo administrador." });
+      return null;
+    }
+    return user;
+  } catch (err) {
+    console.error("Auth verification DB error:", err);
+    res.status(503).json({ error: "Banco de dados temporariamente indisponível. Tente novamente em instantes." });
+    return null;
+  }
+}
+
+async function requireAdmin(req: express.Request, res: express.Response): Promise<any | null> {
+  const email = getAuthEmailFromReq(req);
+  if (!email) {
+    res.status(401).json({ error: "Não autorizado. Token de sessão inválido ou expirado." });
+    return null;
+  }
+
+  try {
+    const adminUser = await getUserByEmail(email, { bypassCache: true, throwOnError: true });
+    if (!adminUser || adminUser.role !== "admin" || adminUser.isBlocked) {
+      res.status(403).json({ error: "Acesso restrito ao administrador." });
+      return null;
+    }
+    return adminUser;
+  } catch (err) {
+    console.error("Admin verification DB error:", err);
+    res.status(503).json({ error: "Banco de dados temporariamente indisponível." });
+    return null;
+  }
+}
+
+// Endpoint de Verificação de Sessão Persistente
 app.get("/api/auth/verify-session", async (req, res) => {
   const token = (req.headers["x-auth-token"] as string) || (req.headers["authorization"] as string) || (req.query.token as string);
-  const emailHeader = req.headers["x-user-email"] as string;
-
-  let verifiedEmail: string | null = null;
-
-  if (token) {
-    const decoded = verifyAuthToken(token);
-    if (decoded && decoded.email) {
-      verifiedEmail = decoded.email;
-    }
-  }
-
-  // Fallback para x-user-email para migração transparente de sessões salvas
-  if (!verifiedEmail && emailHeader) {
-    verifiedEmail = emailHeader.toLowerCase().trim();
-  }
+  const decoded = token ? verifyAuthToken(token) : null;
+  const verifiedEmail = decoded?.email ? String(decoded.email).toLowerCase().trim() : null;
 
   if (!verifiedEmail) {
     return res.status(401).json({ valid: false, error: "Token de sessão ausente ou inválido." });
   }
 
   try {
-    const user = await getUserByEmail(verifiedEmail);
+    const user = await getUserByEmail(verifiedEmail, { bypassCache: true, throwOnError: true });
     if (!user) {
       return res.status(401).json({ valid: false, error: "Sessão expirada ou usuário não encontrado." });
     }
 
     if (user.isBlocked) {
-      const lowerE = verifiedEmail.toLowerCase().trim();
-      const localDb = getDb();
-      const localU = localDb.users[lowerE];
-      const rawReason = (
-        (user.userMessage !== undefined ? user.userMessage : '') ||
-        (user.mensagemUsuario !== undefined ? user.mensagemUsuario : '') ||
-        (localU?.userMessage !== undefined ? localU.userMessage : '') ||
-        (localU?.mensagemUsuario !== undefined ? localU.mensagemUsuario : '') ||
-        ''
-      ).trim();
-
+      const rawReason = String(user.userMessage || user.mensagemUsuario || '').trim();
       return res.status(403).json({
         valid: false,
         isBlocked: true,
@@ -2674,35 +2095,33 @@ app.get("/api/auth/verify-session", async (req, res) => {
     });
   } catch (err) {
     console.error("Error verifying session:", err);
-    return res.status(500).json({ valid: false, error: "Erro interno ao verificar sessão." });
+    return res.status(503).json({ valid: false, error: "Falha temporária de conexão com o banco de dados." });
   }
 });
 
-// Login
+// Login (direto no Supabase sem cache local obsoleto + migração transparente para hash scrypt)
 app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
+  const rawEmail = req.body?.email;
+  const rawPassword = req.body?.password;
+  if (!rawEmail || !rawPassword || typeof rawEmail !== "string" || typeof rawPassword !== "string") {
     return res.status(400).json({ error: "E-mail e senha são obrigatórios." });
   }
 
+  const normalizedEmail = rawEmail.toLowerCase().trim();
+
   try {
-    const user = await getUserByEmail(email);
-    if (!user || user.password !== password) {
+    const user = await getUserByEmail(normalizedEmail, { bypassCache: true, throwOnError: true });
+    if (!user) {
+      return res.status(401).json({ error: "E-mail ou senha incorretos." });
+    }
+
+    const { valid, needsUpgrade } = verifyPassword(rawPassword, user.password || "");
+    if (!valid) {
       return res.status(401).json({ error: "E-mail ou senha incorretos." });
     }
 
     if (user.isBlocked) {
-      const lowerE = email.toLowerCase().trim();
-      const localDb = getDb();
-      const localU = localDb.users[lowerE];
-      const rawReason = (
-        (user.userMessage !== undefined ? user.userMessage : '') ||
-        (user.mensagemUsuario !== undefined ? user.mensagemUsuario : '') ||
-        (localU?.userMessage !== undefined ? localU.userMessage : '') ||
-        (localU?.mensagemUsuario !== undefined ? localU.mensagemUsuario : '') ||
-        ''
-      ).trim();
-
+      const rawReason = String(user.userMessage || user.mensagemUsuario || '').trim();
       return res.status(403).json({
         isBlocked: true,
         title: "Usuário bloqueado",
@@ -2713,44 +2132,44 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
+    // Migra senha legada em texto plano para hash scrypt no Supabase
+    if (needsUpgrade) {
+      const upgradedHash = hashPassword(rawPassword);
+      const supabase = requireSupabase();
+      const { error: upgradeErr } = await supabase
+        .from('users')
+        .update({ password: upgradedHash })
+        .eq('email', normalizedEmail);
+      if (!upgradeErr) {
+        user.password = upgradedHash;
+      }
+    }
+
     user.lastAccess = new Date().toISOString();
-    const lowerE = user.email.toLowerCase().trim();
-    userCache.set(lowerE, { data: user, timestamp: Date.now() });
+    userCache.set(normalizedEmail, { data: user, timestamp: Date.now() });
 
-    // Asynchronously update last access in background without blocking login response
-    setTimeout(() => {
-      try {
-        const curDb = getDb();
-        if (curDb.users[lowerE]) {
-          curDb.users[lowerE].lastAccess = user.lastAccess;
-          saveDb(curDb);
-        }
-      } catch (e) {}
-    }, 0);
-
-    // Load fresh user workspace data directly from database (Zero Cache)
-    const freshUserData = await getUserDataByEmail(lowerE);
-    const safeUserData = freshUserData ? ensureUserHasDefaults(freshUserData) : getDefaultUserData();
+    const freshUserData = await getUserDataByEmail(normalizedEmail, { bypassCache: true, throwOnError: true });
+    const safeUserData = ensureUserHasDefaults(freshUserData);
 
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
     res.json({ user: userProfile, token, userData: safeUserData });
   } catch (err) {
     console.error("Login error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Instabilidade temporária ao conectar ao banco de dados. Aguarde alguns instantes e tente novamente." });
   }
 });
 
 // Register
 app.post("/api/auth/register", async (req, res) => {
   const { email, password, name, address, phone, city, state, cpf } = req.body;
-  if (!email || !password || !name) {
+  if (!email || !password || !name || typeof email !== "string" || typeof password !== "string") {
     return res.status(400).json({ error: "Nome, E-mail e senha são obrigatórios." });
   }
 
   try {
     const lowerEmail = email.toLowerCase().trim();
-    const existingUser = await getUserByEmail(lowerEmail);
+    const existingUser = await getUserByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
 
     if (existingUser) {
       return res.status(400).json({ error: "Este e-mail já está cadastrado." });
@@ -2761,7 +2180,7 @@ app.post("/api/auth/register", async (req, res) => {
     let validUntil: string | null = null;
     let initialPlan: 'gratis' | 'none' = 'none';
     let isApproved = false;
-    let isFreeUsed = checkHistory.blacklisted;
+    const isFreeUsed = checkHistory.blacklisted;
 
     if (!checkHistory.blacklisted) {
       const trialEndDate = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
@@ -2769,24 +2188,23 @@ app.post("/api/auth/register", async (req, res) => {
       validUntil = trialEndDate.toISOString();
       initialPlan = 'gratis';
       isApproved = true;
-      isFreeUsed = true;
     }
 
-    const newUser = {
+    const newUser: any = {
       email: lowerEmail,
-      name,
+      name: String(name).trim(),
       address: address || "",
       city: city || "",
       state: state || "",
       phone: phone || "",
       cpf: cpf || "",
       role: "user",
-      password,
+      password: hashPassword(password),
       subscription: {
         plan: initialPlan,
         validUntil,
         selectedAt: new Date().toISOString(),
-        freePlanUsed: isFreeUsed,
+        freePlanUsed: isFreeUsed || initialPlan === 'gratis',
         freePlanUsedReason: checkHistory.blacklisted ? checkHistory.reason : undefined,
         approved: isApproved,
       },
@@ -2806,11 +2224,10 @@ app.post("/api/auth/register", async (req, res) => {
       createdAt: newUser.createdAt
     });
 
-    normalizeUserSubscription(newUser);
+    normalizeUserSubscription(newUser, trialDays);
     await saveUser(newUser);
 
     const defaultData = getDefaultUserData();
-
     await saveUserDataByEmail(lowerEmail, defaultData);
 
     const { password: _, ...userProfile } = newUser;
@@ -2818,11 +2235,11 @@ app.post("/api/auth/register", async (req, res) => {
     res.json({ user: userProfile, token, userData: defaultData });
   } catch (err) {
     console.error("Registration error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao concluir cadastro no banco de dados. Tente novamente." });
   }
 });
 
-// Remember Password
+// Remember Password (sem expor senhas em logs)
 app.post("/api/auth/remember-password", async (req, res) => {
   const { email } = req.body;
   if (!email || typeof email !== "string" || !email.trim()) {
@@ -2831,39 +2248,31 @@ app.post("/api/auth/remember-password", async (req, res) => {
 
   try {
     const lowerEmail = email.toLowerCase().trim();
-    const user = await getUserByEmail(lowerEmail);
+    const user = await getUserByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
 
     if (!user) {
       return res.status(404).json({ error: "O e-mail digitado é diferente do e-mail cadastrado na conta ou não existe no banco de dados." });
     }
 
-    const userPassword = user.password;
     const userName = user.name || lowerEmail.split('@')[0];
+    const isEncrypted = typeof user.password === "string" && user.password.startsWith("scrypt$");
 
-    const emailSubject = "Finanfly - Sua Senha de Acesso Cadastrada";
-    const emailBody = `
-Olá, ${userName}!
+    if (isEncrypted) {
+      return res.json({
+        success: true,
+        message: "Sua conta utiliza proteção criptográfica irreversível de senha. Para definir uma nova senha, entre em contato com o administrador do sistema.",
+        emailSubject: "FinanFly - Solicitação de Redefinição de Senha",
+        user: {
+          name: userName,
+          email: user.email
+        }
+      });
+    }
 
-Recebemos uma solicitação para lembrar a senha de acesso da sua conta Finanfly (${lowerEmail}).
-
-Sua senha cadastrada no sistema é:
-👉 ${userPassword} 👈
-
-Dicas de Segurança:
-• Utilize esta senha para realizar seu login.
-• Se você não solicitou este lembrete, acesse sua conta e altere sua senha no menu "Dados Pessoais".
-• Mantenha seus dados de acesso confidenciais.
-
-Atenciosamente,
-Equipe Finanfly - Controle Financeiro Inteligente
-    `.trim();
-
-    console.log(`\n================ [EMAIL DISPATCH - RECUPERAÇÃO DE SENHA] ================\nPara: ${lowerEmail}\nAssunto: ${emailSubject}\n\n${emailBody}\n=========================================================================\n`);
-
-    res.json({ 
-      success: true, 
-      message: `E-mail de recuperação enviado com sucesso para ${lowerEmail}.`,
-      emailSubject,
+    res.json({
+      success: true,
+      message: `Solicitação registrada para ${lowerEmail}. Como não há servidor de e-mail SMTP configurado nesta instância, contate o administrador para redefinir sua senha com segurança.`,
+      emailSubject: "FinanFly - Recuperação de Acesso",
       user: {
         name: userName,
         email: user.email
@@ -2871,114 +2280,96 @@ Equipe Finanfly - Controle Financeiro Inteligente
     });
   } catch (err) {
     console.error("Remember password error:", err);
-    res.status(500).json({ error: "Erro interno no servidor ao tentar recuperar a senha." });
+    res.status(503).json({ error: "Erro ao consultar banco de dados para recuperação de senha." });
   }
 });
 
 // Change Password
 app.post("/api/auth/change-password", async (req, res) => {
-  const { email, oldPassword, newPassword } = req.body;
-  if (!email || !oldPassword || !newPassword) {
-    return res.status(400).json({ error: "E-mail, senha antiga e senha nova são obrigatórios." });
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword || typeof newPassword !== "string" || newPassword.length < 4) {
+    return res.status(400).json({ error: "Senha atual e nova senha válida são obrigatórias." });
   }
 
   try {
-    const lowerEmail = email.toLowerCase().trim();
-    const user = await getUserByEmail(lowerEmail);
-
-    if (!user) {
+    const freshUser = await getUserByEmail(authUser.email, { bypassCache: true, throwOnError: true });
+    if (!freshUser) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    if (user.password !== oldPassword) {
+    const { valid } = verifyPassword(String(oldPassword), freshUser.password || "");
+    if (!valid) {
       return res.status(400).json({ error: "A senha antiga está incorreta." });
     }
 
-    user.password = newPassword;
-    await saveUser(user);
+    freshUser.password = hashPassword(newPassword);
+    await saveUser(freshUser);
+    invalidateUserCache(freshUser.email);
 
     res.json({ success: true, message: "Senha alterada com sucesso!" });
   } catch (err) {
     console.error("Change password error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao salvar nova senha no banco de dados." });
   }
 });
 
 // Self Delete Account
 app.post("/api/auth/delete-account", async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: "E-mail é obrigatório." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
-    const lowerEmail = email.toLowerCase().trim();
-    const user = await getUserByEmail(lowerEmail);
+    const lowerEmail = authUser.email.toLowerCase().trim();
+    const user = await getUserByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    const db = getDb();
-    const userCpf = user.cpf || db.userData?.[lowerEmail]?.cpf || (db.users?.[lowerEmail] as any)?.cpf || '';
-    if (userCpf) {
-      await recordTrialHistory(lowerEmail, userCpf);
+    if (user.cpf) {
+      await recordTrialHistory(lowerEmail, user.cpf);
     }
 
-    // Delete from local DB
-    if (db.users[lowerEmail]) {
-      delete db.users[lowerEmail];
-    }
-    if (db.userData[lowerEmail]) {
-      delete db.userData[lowerEmail];
-    }
-    saveDb(db);
+    const supabase = requireSupabase();
+    const tablesToClear = [
+      'subscriptions', 'profiles', 'users', 'receipt_types', 'receipt_statuses',
+      'payment_types', 'payment_statuses', 'income_categories', 'expense_categories',
+      'incomes', 'expenses', 'annual_planning', 'shopping_list', 'action_plans',
+      'deficit_actions', 'trips', 'wishes', 'investments', 'investment_types',
+      'investment_statuses', 'user_data'
+    ];
 
-    // Delete from Supabase if connected
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        await Promise.all([
-          supabase.from('subscriptions').delete().eq('email', lowerEmail),
-          supabase.from('profiles').delete().eq('email', lowerEmail),
-          supabase.from('users').delete().eq('email', lowerEmail),
-          supabase.from('payment_types').delete().eq('email', lowerEmail),
-          supabase.from('payment_statuses').delete().eq('email', lowerEmail),
-          supabase.from('income_categories').delete().eq('email', lowerEmail),
-          supabase.from('expense_categories').delete().eq('email', lowerEmail),
-          supabase.from('incomes').delete().eq('email', lowerEmail),
-          supabase.from('expenses').delete().eq('email', lowerEmail),
-          supabase.from('annual_planning').delete().eq('email', lowerEmail),
-          supabase.from('shopping_list').delete().eq('email', lowerEmail),
-          supabase.from('action_plans').delete().eq('email', lowerEmail),
-          supabase.from('deficit_actions').delete().eq('email', lowerEmail),
-          supabase.from('trips').delete().eq('email', lowerEmail),
-          supabase.from('wishes').delete().eq('email', lowerEmail),
-          supabase.from('investments').delete().eq('email', lowerEmail),
-          supabase.from('investment_types').delete().eq('email', lowerEmail),
-          supabase.from('investment_statuses').delete().eq('email', lowerEmail),
-          supabase.from('user_data').delete().eq('email', lowerEmail)
-        ]);
-      } catch (subErr) {
-        console.error("Error deleting from Supabase on self-delete:", subErr);
-      }
+    const deleteResults = await Promise.all(
+      tablesToClear.map(async (tbl) => ({
+        table: tbl,
+        res: await supabase.from(tbl).delete().eq('email', lowerEmail)
+      }))
+    );
+
+    const fatalErr = deleteResults.find(r => r.res.error && !isMissingTableOrColumnError(r.res.error));
+    if (fatalErr) {
+      throw new Error(`Erro ao excluir registros em ${fatalErr.table}: ${fatalErr.res.error.message}`);
     }
+
+    invalidateUserCache(lowerEmail);
+    invalidateUserDataCache(lowerEmail);
 
     res.json({ success: true, message: "Sua conta foi excluída com sucesso." });
   } catch (err) {
     console.error("Self delete account error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao excluir conta no banco de dados." });
   }
 });
 
 // Get User Profile
 app.get("/api/user/profile", async (req, res) => {
-  const email = getAuthEmailFromReq(req);
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
-    const user = await getUserByEmail(email);
+    const user = await getUserByEmail(authUser.email, { bypassCache: true, throwOnError: true });
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
@@ -2987,20 +2378,18 @@ app.get("/api/user/profile", async (req, res) => {
     res.json({ user: userProfile });
   } catch (err) {
     console.error("Profile get error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Falha temporária ao carregar perfil do banco de dados." });
   }
 });
 
 // Update User Profile (Dados Pessoais)
 app.post("/api/user/profile", async (req, res) => {
-  const email = getAuthEmailFromReq(req);
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
     const { name, address, phone, city, state, cpf } = req.body;
-    const user = await getUserByEmail(email);
+    const user = await getUserByEmail(authUser.email, { bypassCache: true, throwOnError: true });
 
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
@@ -3012,9 +2401,8 @@ app.post("/api/user/profile", async (req, res) => {
     user.city = city !== undefined ? city : user.city;
     user.state = state !== undefined ? state : user.state;
     user.cpf = cpf !== undefined ? cpf : user.cpf;
-    // Note: userMessage and isBlocked are strictly restricted to admin modifications only
 
-    const checkHistory = await checkIsBlacklisted(email, user.cpf);
+    const checkHistory = await checkIsBlacklisted(user.email, user.cpf);
     if (checkHistory.blacklisted) {
       if (!user.subscription) {
         user.subscription = {
@@ -3035,48 +2423,45 @@ app.post("/api/user/profile", async (req, res) => {
     res.json({ user: userProfile });
   } catch (err) {
     console.error("Profile update error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao atualizar perfil no banco de dados." });
   }
 });
 
 // Get Subscription History
 app.get("/api/user/subscription-history", async (req, res) => {
-  const email = getAuthEmailFromReq(req);
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
-    const user = await getUserByEmail(email);
+    const user = await getUserByEmail(authUser.email, { bypassCache: true, throwOnError: true });
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    normalizeUserSubscription(user);
-    res.json({ 
+    const trialDays = await getFreeTrialDays().catch(() => 60);
+    normalizeUserSubscription(user, trialDays);
+    res.json({
       history: user.subscriptionHistory || [],
       currentSubscription: user.subscription
     });
   } catch (err) {
     console.error("Subscription history get error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao consultar histórico de assinatura." });
   }
 });
 
 // Update Subscription
 app.post("/api/user/subscription", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
-  const { plan } = req.body; // 'gratis' | 'mensal' | 'anual'
+  const { plan } = req.body;
   if (!["gratis", "mensal", "anual"].includes(plan)) {
     return res.status(400).json({ error: "Plano inválido." });
   }
 
   try {
-    const user = await getUserByEmail(email);
+    const user = await getUserByEmail(authUser.email, { bypassCache: true, throwOnError: true });
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
@@ -3091,9 +2476,8 @@ app.post("/api/user/subscription", async (req, res) => {
       };
     }
 
+    const trialDays = await getFreeTrialDays();
     if (plan === "gratis") {
-      const dbInstance = getDb();
-      const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
       if (user.subscription.freePlanUsed) {
         return res.status(400).json({ error: `Você já utilizou o período grátis de ${trialDays} dias anteriormente.` });
       }
@@ -3123,10 +2507,10 @@ app.post("/api/user/subscription", async (req, res) => {
     }
 
     const currentPrices = await getPlanPrices();
-    const priceFormatted = plan === "gratis" 
-      ? "Grátis" 
-      : plan === "mensal" 
-      ? `R$ ${currentPrices.mensal_por}/mês` 
+    const priceFormatted = plan === "gratis"
+      ? "Grátis"
+      : plan === "mensal"
+      ? `R$ ${currentPrices.mensal_por}/mês`
       : `R$ ${currentPrices.anual_por}/ano`;
 
     addSubscriptionHistoryEntry(user, {
@@ -3140,23 +2524,22 @@ app.post("/api/user/subscription", async (req, res) => {
         : `Assinatura Plano ${plan === "mensal" ? "Mensal" : "Anual"}`
     });
 
-    normalizeUserSubscription(user);
+    normalizeUserSubscription(user, trialDays);
     await saveUser(user);
 
     const { password: _, ...userProfile } = user;
     res.json({ user: userProfile });
   } catch (err) {
     console.error("Subscription update error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao atualizar assinatura no banco de dados." });
   }
 });
 
 // Create Mercado Pago Payment Preference
 app.post("/api/payment/create-preference", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+  const email = authUser.email;
 
   const { planName, price } = req.body;
   if (!["mensal", "anual"].includes(planName)) {
@@ -3210,14 +2593,14 @@ app.post("/api/payment/create-preference", async (req, res) => {
               quantity: 1,
               unit_price: unitPrice,
               currency_id: "BRL",
-              category_id: "services"
+            category_id: "services"
             }
           ],
           payer: {
             email: email
           },
           back_urls: {
-            success: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved`,
+            success: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved&sig=${crypto.createHmac("sha256", JWT_SECRET).update(`${email}:${planName}`).digest("hex")}`,
             failure: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&status=failed`,
             pending: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&status=pending`
           },
@@ -3245,18 +2628,19 @@ app.post("/api/payment/create-preference", async (req, res) => {
     }
   }
 
-  // Simulation mode (Fallback when ACCESS_TOKEN is missing or sandbox is preferred)
+  // Simulation mode (Fallback when ACCESS_TOKEN is missing)
   console.log(`[PAYMENT SIMULATION] Criando checkout simulado de Mercado Pago para ${email} (Plano: ${planName})`);
-  const simulationUrl = `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved&simulated=true`;
+  const simSig = crypto.createHmac("sha256", JWT_SECRET).update(`${email}:${planName}`).digest("hex");
+  const simulationUrl = `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved&simulated=true&sig=${simSig}`;
   res.json({ init_point: simulationUrl });
 });
 
 // Mercado Pago Payment Callback Handler
 app.get("/api/payment/callback", async (req, res) => {
-  const { email, plan, status, simulated } = req.query;
+  const { email, plan, status, simulated, sig } = req.query;
 
-  if (!email || !status) {
-    return res.send(`
+  if (!email || !status || typeof email !== "string" || typeof status !== "string") {
+    return res.status(400).send(`
       <html>
         <head>
           <title>Pagamento FinanFly</title>
@@ -3279,20 +2663,39 @@ app.get("/api/payment/callback", async (req, res) => {
     `);
   }
 
-  const targetEmail = (email as string).toLowerCase().trim();
+  const targetEmail = email.toLowerCase().trim();
+  const safePlan = plan === "mensal" || plan === "anual" ? plan : null;
+  const isSimulated = simulated === "true";
+  const hasRealToken = Boolean(
+    process.env.MERCADO_PAGO_ACCESS_TOKEN &&
+    process.env.MERCADO_PAGO_ACCESS_TOKEN.trim() !== "" &&
+    process.env.MERCADO_PAGO_ACCESS_TOKEN.trim() !== "YOUR_ACCESS_TOKEN"
+  );
 
-  if (status === "approved" && plan) {
+  let isValidSignature = false;
+  if (safePlan && typeof sig === "string") {
+    const expectedSig = crypto.createHmac("sha256", JWT_SECRET).update(`${targetEmail}:${safePlan}`).digest("hex");
     try {
-      const user = await getUserByEmail(targetEmail);
+      const a = Buffer.from(sig, "utf-8");
+      const b = Buffer.from(expectedSig, "utf-8");
+      isValidSignature = a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch {
+      isValidSignature = false;
+    }
+  }
+
+  if (status === "approved" && safePlan && isValidSignature && !(isSimulated && hasRealToken)) {
+    try {
+      const user = await getUserByEmail(targetEmail, { bypassCache: true, throwOnError: true });
       if (user) {
         const currentPrices = await getPlanPrices();
-        const priceFormatted = plan === "mensal" ? `R$ ${currentPrices.mensal_por}` : `R$ ${currentPrices.anual_por}`;
-        const newValidUntil = plan === "mensal" 
+        const priceFormatted = safePlan === "mensal" ? `R$ ${currentPrices.mensal_por}` : `R$ ${currentPrices.anual_por}`;
+        const newValidUntil = safePlan === "mensal"
           ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
           : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
 
         user.subscription = {
-          plan: plan as string,
+          plan: safePlan,
           validUntil: newValidUntil,
           selectedAt: new Date().toISOString(),
           freePlanUsed: user.subscription?.freePlanUsed || false,
@@ -3300,21 +2703,23 @@ app.get("/api/payment/callback", async (req, res) => {
         };
 
         addSubscriptionHistoryEntry(user, {
-          plan: plan as string,
+          plan: safePlan,
           validUntil: newValidUntil,
-          source: simulated ? 'Mercado Pago (Simulado)' : 'Mercado Pago',
+          source: isSimulated ? 'Mercado Pago (Simulado)' : 'Mercado Pago',
           status: 'Ativo',
           price: priceFormatted,
-          description: `Pagamento Aprovado - Plano ${plan === 'mensal' ? 'Mensal' : 'Anual'}`
+          description: `Pagamento Aprovado - Plano ${safePlan === 'mensal' ? 'Mensal' : 'Anual'}`
         });
 
         normalizeUserSubscription(user);
         await saveUser(user);
+        invalidateUserCache(targetEmail);
       }
     } catch (err) {
       console.error("Callback subscription activation error:", err);
     }
 
+    const planLabel = safePlan === "mensal" ? "MENSAL" : "ANUAL";
     return res.send(`
       <html>
         <head>
@@ -3331,9 +2736,9 @@ app.get("/api/payment/callback", async (req, res) => {
         </head>
         <body>
           <div class="card">
-            <div class="badge">${simulated ? "Simulação Concluída" : "Transação Concluída"}</div>
+            <div class="badge">${isSimulated ? "Simulação Concluída" : "Transação Concluída"}</div>
             <h1>Pagamento Confirmado!</h1>
-            <p>Sua assinatura do plano <strong>${(plan as string).toUpperCase()}</strong> foi ativada com sucesso e sua conta do <strong>FinanFly</strong> já está liberada!</p>
+            <p>Sua assinatura do plano <strong>${planLabel}</strong> foi ativada com sucesso e sua conta do <strong>FinanFly</strong> já está liberada!</p>
             <p style="font-size:0.8rem; margin-top: 1rem;">Clique abaixo para retornar e explorar o painel.</p>
             <button onclick="window.location.href='/'">Entrar no FinanFly</button>
           </div>
@@ -3369,13 +2774,11 @@ app.get("/api/payment/callback", async (req, res) => {
 
 // Get User Data
 app.get("/api/user/data", async (req, res) => {
-  const email = getAuthEmailFromReq(req);
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
-    const userData = await getUserDataByEmail(email, { throwOnError: true });
+    const userData = await getUserDataByEmail(authUser.email, { throwOnError: true });
     if (!userData) {
       const defaultUserObj = getDefaultUserData();
       return res.json(defaultUserObj);
@@ -3388,12 +2791,10 @@ app.get("/api/user/data", async (req, res) => {
   }
 });
 
-// Update User Data
+// Update User Data (serializado por usuário para evitar sobrescrita concorrente)
 app.post("/api/user/data", async (req, res) => {
-  const email = getAuthEmailFromReq(req);
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   const newData = req.body;
   if (!newData || typeof newData !== "object" || Array.isArray(newData)) {
@@ -3401,57 +2802,77 @@ app.post("/api/user/data", async (req, res) => {
   }
 
   try {
-    const currentData = await getUserDataByEmail(email, { bypassCache: true, throwOnError: true });
-    if (!currentData || typeof currentData !== "object") {
-      return res.status(503).json({ error: "Não foi possível validar os dados atuais antes de salvar." });
-    }
+    const result = await withUserWriteLock(authUser.email, async () => {
+      const currentData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
+      if (!currentData || typeof currentData !== "object") {
+        return { status: 503, body: { error: "Não foi possível validar os dados atuais antes de salvar." } };
+      }
 
-    // Protect against accidental mass-wipe from stale/empty client payloads
-    if (
-      Array.isArray(newData.expenses) &&
-      newData.expenses.length === 0 &&
-      Array.isArray(currentData.expenses) &&
-      currentData.expenses.length > 1 &&
-      !newData._allowClearAll
-    ) {
-      return res.status(409).json({
-        error: "Operação bloqueada por segurança para evitar perda em massa de despesas. Atualize a página e tente novamente."
-      });
-    }
+      if (
+        Array.isArray(newData.expenses) &&
+        newData.expenses.length === 0 &&
+        Array.isArray(currentData.expenses) &&
+        currentData.expenses.length > 1 &&
+        !newData._allowClearAll
+      ) {
+        return {
+          status: 409,
+          body: { error: "Operação bloqueada por segurança para evitar perda em massa de despesas. Atualize a página e tente novamente." }
+        };
+      }
 
-    if (
-      Array.isArray(newData.incomes) &&
-      newData.incomes.length === 0 &&
-      Array.isArray(currentData.incomes) &&
-      currentData.incomes.length > 1 &&
-      !newData._allowClearAll
-    ) {
-      return res.status(409).json({
-        error: "Operação bloqueada por segurança para evitar perda em massa de receitas. Atualize a página e tente novamente."
-      });
-    }
+      if (
+        Array.isArray(newData.incomes) &&
+        newData.incomes.length === 0 &&
+        Array.isArray(currentData.incomes) &&
+        currentData.incomes.length > 1 &&
+        !newData._allowClearAll
+      ) {
+        return {
+          status: 409,
+          body: { error: "Operação bloqueada por segurança para evitar perda em massa de receitas. Atualize a página e tente novamente." }
+        };
+      }
 
-    if (
-      Array.isArray(newData.paymentStatuses) &&
-      newData.paymentStatuses.length === 0 &&
-      Array.isArray(currentData.paymentStatuses) &&
-      currentData.paymentStatuses.length > 0
-    ) {
-      return res.status(409).json({
-        error: "A lista de situações de pagamento não pode ficar vazia."
-      });
-    }
+      const protectedConfigKeys: Array<[string, string]> = [
+        ['paymentStatuses', 'situações de pagamento'],
+        ['paymentTypes', 'formas de pagamento'],
+        ['receiptStatuses', 'situações de recebimento'],
+        ['receiptTypes', 'tipos de recebimento'],
+        ['incomeCategories', 'categorias de receitas'],
+        ['expenseCategories', 'categorias de despesas'],
+        ['investmentTypes', 'tipos de investimentos'],
+        ['investmentStatuses', 'situações de investimentos'],
+        ['annualPlanning', 'planejamento anual']
+      ];
 
-    const { _allowClearAll, ...sanitizedNewData } = newData;
-    const changedKeys = Object.keys(sanitizedNewData);
+      for (const [key, label] of protectedConfigKeys) {
+        if (
+          Array.isArray(newData[key]) &&
+          newData[key].length === 0 &&
+          Array.isArray(currentData[key]) &&
+          currentData[key].length > 0
+        ) {
+          return {
+            status: 409,
+            body: { error: `A lista de ${label} não pode ficar vazia.` }
+          };
+        }
+      }
 
-    const updatedData = {
-      ...currentData,
-      ...sanitizedNewData,
-    };
+      const { _allowClearAll, ...sanitizedNewData } = newData;
+      const changedKeys = Object.keys(sanitizedNewData);
 
-    await saveUserDataByEmail(email, updatedData, changedKeys);
-    res.json({ success: true, data: updatedData });
+      const updatedData = {
+        ...currentData,
+        ...sanitizedNewData,
+      };
+
+      await saveUserDataByEmail(authUser.email, updatedData, changedKeys);
+      return { status: 200, body: { success: true, data: updatedData } };
+    });
+
+    res.status(result.status).json(result.body);
   } catch (err) {
     console.error("User data post error:", err);
     res.status(503).json({ error: "Erro ao salvar dados no banco. Seus registros anteriores foram preservados." });
@@ -3465,25 +2886,17 @@ app.get("/api/plan-prices", async (req, res) => {
     res.json(prices);
   } catch (err) {
     console.error("Error fetching plan prices:", err);
-    res.status(500).json({ error: "Erro ao obter valores dos planos." });
+    res.status(503).json({ error: "Erro ao obter valores dos planos no banco de dados." });
   }
 });
 
 // Update Plan Prices (Admin only)
 app.post("/api/admin/plan-prices", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { mensal_de, mensal_por, anual_de, anual_por } = req.body;
-    
     const currentPrices = await getPlanPrices();
     const updatedPrices = {
       mensal_de: String(mensal_de !== undefined ? mensal_de : currentPrices.mensal_de).trim(),
@@ -3497,7 +2910,7 @@ app.post("/api/admin/plan-prices", async (req, res) => {
     res.json({ message: "Valores salvos e atualizados com sucesso!", prices: updatedPrices });
   } catch (err) {
     console.error("Error updating plan prices:", err);
-    res.status(500).json({ error: "Erro interno ao atualizar valores." });
+    res.status(503).json({ error: "Erro ao atualizar valores no Supabase." });
   }
 });
 
@@ -3507,24 +2920,17 @@ app.get("/api/free-trial-days", async (req, res) => {
     const days = await getFreeTrialDays();
     res.json({ days });
   } catch (err) {
-    const db = getDb();
-    res.json({ days: db.freeTrialDays !== undefined ? db.freeTrialDays : 60 });
+    console.error("Error fetching free trial days:", err);
+    res.status(503).json({ error: "Erro ao consultar período gratuito no banco de dados." });
   }
 });
 
 // Update Free Trial Days (Admin only)
 app.post("/api/admin/free-trial-days", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { days } = req.body;
     if (days === undefined || isNaN(Number(days)) || Number(days) < 0) {
       return res.status(400).json({ error: "Quantidade de dias inválida." });
@@ -3533,37 +2939,30 @@ app.post("/api/admin/free-trial-days", async (req, res) => {
     const numericDays = Number(days);
     await saveFreeTrialDays(numericDays);
 
-    res.json({ message: "Limite de uso gratuito atualizado com sucesso no Supabase e servidor!", days: numericDays });
+    res.json({ message: "Limite de uso gratuito atualizado com sucesso no Supabase!", days: numericDays });
   } catch (err) {
     console.error("Error updating free trial days:", err);
-    res.status(500).json({ error: "Erro interno ao atualizar limite gratuito." });
+    res.status(503).json({ error: "Erro ao atualizar limite gratuito no Supabase." });
   }
 });
 
-// Get Home Notices (Public) - Persistido e buscado do Supabase
+// Get Home Notices (Public)
 app.get("/api/notices", async (req, res) => {
   try {
     const notices = await getHomeNotices();
     res.json(notices);
   } catch (err) {
     console.error("Error fetching notices:", err);
-    res.status(500).json({ error: "Erro ao buscar avisos da página inicial." });
+    res.status(503).json({ error: "Erro ao buscar avisos da página inicial." });
   }
 });
 
-// Update Home Notices (Admin only) - Salvo diretamente no Supabase e local
+// Update Home Notices (Admin only)
 app.post("/api/admin/notices", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { fluxoCaixa, resumosInteligentes, planejamentoObjetivos, rule50_30_20, weeklyCheck } = req.body;
     const currentNotices = await getHomeNotices();
 
@@ -3595,7 +2994,7 @@ app.post("/api/admin/notices", async (req, res) => {
     res.json({ message: "Avisos e cards atualizados e sincronizados com sucesso no Supabase!", notices: updatedNotices });
   } catch (err) {
     console.error("Error updating notices:", err);
-    res.status(500).json({ error: "Erro interno ao atualizar avisos." });
+    res.status(503).json({ error: "Erro ao atualizar avisos no Supabase." });
   }
 });
 
@@ -3603,17 +3002,10 @@ app.post("/api/admin/notices", async (req, res) => {
 
 // Get All Users (Admin only)
 app.get("/api/admin/users", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const list = await getAllUsersList();
     const sanitized = list.map(u => {
       const { password: _, ...rest } = u;
@@ -3622,25 +3014,18 @@ app.get("/api/admin/users", async (req, res) => {
     res.json({ users: sanitized });
   } catch (err) {
     console.error("Admin users error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao consultar usuários no Supabase." });
   }
 });
 
 // Approve user manually (Admin only)
 app.post("/api/admin/approve-user", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { targetEmail, approve } = req.body;
-    const targetUser = await getUserByEmail(targetEmail);
+    const targetUser = await getUserByEmail(targetEmail, { bypassCache: true, throwOnError: true });
     if (!targetUser) {
       return res.status(404).json({ error: "Usuário alvo não encontrado." });
     }
@@ -3674,38 +3059,34 @@ app.post("/api/admin/approve-user", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Admin approve-user error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao aprovar usuário no Supabase." });
   }
 });
 
 // Admin registers new user (Admin only)
 app.post("/api/admin/create-user", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    const { targetEmail, password, name, role, plan } = req.body;
+    if (!targetEmail || !name) {
+      return res.status(400).json({ error: "Nome e e-mail são obrigatórios." });
     }
 
-    const { targetEmail, password, name, role, plan } = req.body;
-    const lowerTargetEmail = targetEmail.toLowerCase().trim();
-    const existing = await getUserByEmail(lowerTargetEmail);
+    const lowerTargetEmail = String(targetEmail).toLowerCase().trim();
+    const existing = await getUserByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
 
     if (existing) {
       return res.status(400).json({ error: "Este e-mail já está cadastrado." });
     }
 
+    const trialDays = await getFreeTrialDays();
     let validUntil = null;
     let isBlocked = false;
     if (plan === "inativo") {
       isBlocked = true;
     } else if (plan === "gratis") {
-      const dbInstance = getDb();
-      const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
       validUntil = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
     } else if (plan === "mensal") {
       validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -3713,15 +3094,16 @@ app.post("/api/admin/create-user", async (req, res) => {
       validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     }
 
+    const rawPass = (password && typeof password === "string" && password.trim() !== "") ? password : crypto.randomBytes(8).toString("hex");
     const newUser = {
       email: lowerTargetEmail,
-      name,
+      name: String(name).trim(),
       address: "",
       city: "",
       state: "",
       phone: "",
       role: role || "user",
-      password: password || "user123",
+      password: hashPassword(rawPass),
       isBlocked,
       subscription: {
         plan: plan || "none",
@@ -3741,36 +3123,31 @@ app.post("/api/admin/create-user", async (req, res) => {
       description: `Usuário cadastrado com plano "${newUser.subscription.plan}" pelo administrador`
     });
 
-    normalizeUserSubscription(newUser);
+    normalizeUserSubscription(newUser, trialDays);
     await saveUser(newUser);
 
     const defaultData = getDefaultUserData();
-
     await saveUserDataByEmail(lowerTargetEmail, defaultData);
     res.json({ success: true });
   } catch (err) {
     console.error("Admin create-user error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao criar usuário no Supabase." });
   }
 });
 
 // Admin edits user profile and subscription (Admin only)
 app.post("/api/admin/edit-user", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
+    const { targetEmail, name, role, plan, password, address, phone, city, state, userMessage, mensagemUsuario, isBlocked } = req.body;
+    const lowerTargetEmail = String(targetEmail || '').toLowerCase().trim();
+    if (!lowerTargetEmail) {
+      return res.status(400).json({ error: "E-mail do usuário é obrigatório." });
     }
 
-    const { targetEmail, name, role, plan, password, address, phone, city, state, userMessage, mensagemUsuario, isBlocked } = req.body;
-    const lowerTargetEmail = targetEmail.toLowerCase().trim();
-
-    const user = await getUserByEmail(lowerTargetEmail);
+    const user = await getUserByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
@@ -3787,7 +3164,9 @@ app.post("/api/admin/edit-user", async (req, res) => {
 
     if (name !== undefined) user.name = name;
     if (role !== undefined) user.role = role;
-    if (password !== undefined && password.trim() !== "") user.password = password;
+    if (password !== undefined && typeof password === "string" && password.trim() !== "") {
+      user.password = hashPassword(password);
+    }
     if (address !== undefined) user.address = address;
     if (phone !== undefined) user.phone = phone;
     if (city !== undefined) user.city = city;
@@ -3802,11 +3181,8 @@ app.post("/api/admin/edit-user", async (req, res) => {
       await saveUserMessageToDatabase(lowerTargetEmail, mensagemUsuario);
     }
 
-    // Handle isBlocked flag change
     if (isBlocked !== undefined) {
       if (isBlocked) {
-        // ADMIN IS BLOCKING USER:
-        // Save previous plan before changing to inativo if it's not already inativo
         if (user.subscription.plan !== "inativo") {
           user.previousPlan = user.subscription.plan || "none";
           user.previousValidUntil = user.subscription.validUntil || null;
@@ -3816,12 +3192,10 @@ app.post("/api/admin/edit-user", async (req, res) => {
         user.isBlocked = true;
         user.subscription.plan = "inativo";
       } else {
-        // ADMIN IS UNBLOCKING USER:
         user.isBlocked = false;
         if (user.subscription.plan === "inativo") {
           const prevPlan = user.previousPlan || (user.previousSubscription ? user.previousSubscription.plan : null);
           if (prevPlan && prevPlan !== "inativo" && prevPlan !== "none") {
-            // Restore previous plan (gratis, mensal, anual, livre) with its existing expiration
             user.subscription.plan = prevPlan;
             user.subscription.validUntil = user.previousValidUntil !== undefined ? user.previousValidUntil : (user.previousSubscription ? user.previousSubscription.validUntil : null);
             user.subscription.approved = user.previousApproved !== undefined ? user.previousApproved : true;
@@ -3829,7 +3203,6 @@ app.post("/api/admin/edit-user", async (req, res) => {
               user.subscription.freePlanUsed = user.previousSubscription.freePlanUsed;
             }
           } else {
-            // If no plan was chosen before, reset to 'none' so user accesses and chooses a subscription
             user.subscription.plan = "none";
             user.subscription.validUntil = null;
           }
@@ -3837,7 +3210,7 @@ app.post("/api/admin/edit-user", async (req, res) => {
       }
     }
 
-    // Handle explicit plan change
+    const trialDays = await getFreeTrialDays();
     if (plan !== undefined) {
       if (plan === "inativo") {
         if (user.subscription.plan !== "inativo") {
@@ -3849,13 +3222,10 @@ app.post("/api/admin/edit-user", async (req, res) => {
         user.isBlocked = true;
         user.subscription.plan = "inativo";
       } else {
-        // If transitioning away from inativo or isBlocked
         user.isBlocked = false;
         user.subscription.plan = plan;
         let validUntil = null;
         if (plan === "gratis") {
-          const dbInstance = getDb();
-          const trialDays = dbInstance.freeTrialDays !== undefined ? dbInstance.freeTrialDays : 60;
           validUntil = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
           user.subscription.freePlanUsed = true;
         } else if (plan === "mensal") {
@@ -3879,36 +3249,29 @@ app.post("/api/admin/edit-user", async (req, res) => {
       });
     }
 
-    normalizeUserSubscription(user);
+    normalizeUserSubscription(user, trialDays);
     await saveUser(user);
     invalidateUserCache(lowerTargetEmail);
     res.json({ success: true });
   } catch (err) {
     console.error("Admin edit-user error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao atualizar usuário no Supabase." });
   }
 });
 
 // Admin extends user subscription expiration date (Estender Prazo)
 app.post("/api/admin/extend-subscription", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { targetEmail, newValidUntil, plan } = req.body;
     if (!targetEmail) {
       return res.status(400).json({ error: "E-mail do usuário obrigatório." });
     }
 
     const lowerTargetEmail = targetEmail.toLowerCase().trim();
-    const user = await getUserByEmail(lowerTargetEmail);
+    const user = await getUserByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
@@ -3931,7 +3294,6 @@ app.post("/api/admin/extend-subscription", async (req, res) => {
       user.subscription.approved = true;
     }
 
-    // Unblock and activate account if valid date set
     if (user.subscription.plan !== "inativo") {
       user.isBlocked = false;
     }
@@ -3949,26 +3311,21 @@ app.post("/api/admin/extend-subscription", async (req, res) => {
     normalizeUserSubscription(user);
     await saveUser(user);
     invalidateUserCache(lowerTargetEmail);
-    res.json({ success: true, user });
+
+    const { password: _, ...safeUser } = user;
+    res.json({ success: true, user: safeUser });
   } catch (err: any) {
     console.error("Admin extend-subscription error:", err);
-    res.status(500).json({ error: err.message || "Erro interno ao estender prazo da assinatura." });
+    res.status(503).json({ error: err.message || "Erro interno ao estender prazo da assinatura." });
   }
 });
 
 // Admin saves user custom message directly and persistently
 app.post("/api/admin/save-user-message", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { targetEmail, userMessage, mensagemUsuario } = req.body;
     if (!targetEmail) {
       return res.status(400).json({ error: "E-mail de destino obrigatório." });
@@ -3981,220 +3338,152 @@ app.post("/api/admin/save-user-message", async (req, res) => {
     res.json({ success: true, message: "Mensagem do usuário gravada no banco de dados com sucesso!" });
   } catch (err) {
     console.error("Admin save-user-message error:", err);
-    res.status(500).json({ error: "Erro interno ao salvar mensagem." });
+    res.status(503).json({ error: "Erro ao salvar mensagem no Supabase." });
   }
 });
 
-// Admin retrieves target user's password (Admin only)
+// Admin retrieves target user's password status (Admin only)
 app.get("/api/admin/retrieve-password/:targetEmail", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const targetEmail = req.params.targetEmail.toLowerCase().trim();
-    const targetUser = await getUserByEmail(targetEmail);
+    const targetUser = await getUserByEmail(targetEmail, { bypassCache: true, throwOnError: true });
     if (!targetUser) {
       return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    if (typeof targetUser.password === "string" && targetUser.password.startsWith("scrypt$")) {
+      return res.json({
+        protected: true,
+        message: "Senha protegida com criptografia irreversível (scrypt). Utilize 'Editar Usuário' para definir uma nova senha."
+      });
     }
 
     res.json({ password: targetUser.password });
   } catch (err) {
     console.error("Admin retrieve-password error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao consultar banco de dados." });
   }
 });
 
 // Admin views target user's direct financial records / lists (for administrative audit)
 app.get("/api/admin/user-details/:userEmail", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const targetEmail = req.params.userEmail.toLowerCase().trim();
-    const targetUser = await getUserByEmail(targetEmail);
-    const targetUserData = await getUserDataByEmail(targetEmail) || {};
+    const targetUser = await getUserByEmail(targetEmail, { bypassCache: true, throwOnError: true });
+    const targetUserData = await getUserDataByEmail(targetEmail, { bypassCache: true, throwOnError: true });
+    const { password: _, ...safeUserProfile } = targetUser || {};
 
     res.json({
-      userData: targetUserData,
-      userProfile: targetUser,
+      userData: targetUserData || {},
+      userProfile: targetUser ? safeUserProfile : null,
       lastAccess: targetUser?.lastAccess || targetUserData?.lastUpdated || targetUser?.createdAt || null,
       createdAt: targetUser?.createdAt || null
     });
   } catch (err) {
     console.error("Admin user-details error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao consultar detalhes do usuário no Supabase." });
   }
 });
 
 // Admin deletes user and all of their data (Admin only)
 app.post("/api/admin/delete-user", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { targetEmail } = req.body;
     if (!targetEmail) {
       return res.status(400).json({ error: "E-mail do usuário não informado." });
     }
 
     const lowerTargetEmail = targetEmail.toLowerCase().trim();
-
-    if (lowerTargetEmail === email.toLowerCase().trim()) {
+    if (lowerTargetEmail === adminUser.email.toLowerCase().trim()) {
       return res.status(400).json({ error: "Você não pode excluir o seu próprio usuário." });
     }
 
-    const db = getDb();
-    const targetUser = await getUserByEmail(lowerTargetEmail);
-    const targetCpf = targetUser?.cpf || db.userData?.[lowerTargetEmail]?.cpf || (db.users?.[lowerTargetEmail] as any)?.cpf || '';
-    if (targetCpf) {
-      await recordTrialHistory(lowerTargetEmail, targetCpf);
+    const targetUser = await getUserByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
+    if (targetUser?.cpf) {
+      await recordTrialHistory(lowerTargetEmail, targetUser.cpf);
     }
-    if (db.users[lowerTargetEmail]) {
-      delete db.users[lowerTargetEmail];
-    }
-    if (db.userData[lowerTargetEmail]) {
-      delete db.userData[lowerTargetEmail];
-    }
-    saveDb(db);
 
-    // Delete from Supabase if connected
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        await Promise.all([
-          supabase.from('subscriptions').delete().eq('email', lowerTargetEmail),
-          supabase.from('profiles').delete().eq('email', lowerTargetEmail),
-          supabase.from('users').delete().eq('email', lowerTargetEmail),
-          supabase.from('payment_types').delete().eq('email', lowerTargetEmail),
-          supabase.from('payment_statuses').delete().eq('email', lowerTargetEmail),
-          supabase.from('income_categories').delete().eq('email', lowerTargetEmail),
-          supabase.from('expense_categories').delete().eq('email', lowerTargetEmail),
-          supabase.from('incomes').delete().eq('email', lowerTargetEmail),
-          supabase.from('expenses').delete().eq('email', lowerTargetEmail),
-          supabase.from('annual_planning').delete().eq('email', lowerTargetEmail),
-          supabase.from('shopping_list').delete().eq('email', lowerTargetEmail),
-          supabase.from('action_plans').delete().eq('email', lowerTargetEmail),
-          supabase.from('deficit_actions').delete().eq('email', lowerTargetEmail),
-          supabase.from('trips').delete().eq('email', lowerTargetEmail),
-          supabase.from('wishes').delete().eq('email', lowerTargetEmail),
-          supabase.from('investments').delete().eq('email', lowerTargetEmail),
-          supabase.from('investment_types').delete().eq('email', lowerTargetEmail),
-          supabase.from('investment_statuses').delete().eq('email', lowerTargetEmail),
-          supabase.from('user_data').delete().eq('email', lowerTargetEmail)
-        ]);
-      } catch (subErr) {
-        console.error("Error deleting from Supabase:", subErr);
-      }
+    const supabase = requireSupabase();
+    const tablesToClear = [
+      'subscriptions', 'profiles', 'users', 'receipt_types', 'receipt_statuses',
+      'payment_types', 'payment_statuses', 'income_categories', 'expense_categories',
+      'incomes', 'expenses', 'annual_planning', 'shopping_list', 'action_plans',
+      'deficit_actions', 'trips', 'wishes', 'investments', 'investment_types',
+      'investment_statuses', 'user_data'
+    ];
+
+    const deleteResults = await Promise.all(
+      tablesToClear.map(async (tbl) => ({
+        table: tbl,
+        res: await supabase.from(tbl).delete().eq('email', lowerTargetEmail)
+      }))
+    );
+
+    const fatalErr = deleteResults.find(r => r.res.error && !isMissingTableOrColumnError(r.res.error));
+    if (fatalErr) {
+      throw new Error(`Erro ao excluir registros em ${fatalErr.table}: ${fatalErr.res.error.message}`);
     }
+
+    invalidateUserCache(lowerTargetEmail);
+    invalidateUserDataCache(lowerTargetEmail);
 
     res.json({ success: true });
   } catch (err) {
     console.error("Admin delete-user error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao excluir usuário no Supabase." });
   }
 });
 
-// Admin triggers email password reminder (Admin only)
+// Admin triggers password reminder / reset guidance (Admin only, without leaking secrets in logs)
 app.post("/api/admin/send-password-email", async (req, res) => {
-  const email = req.headers["x-user-email"] as string;
-  if (!email) {
-    return res.status(401).json({ error: "Não autorizado." });
-  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
 
   try {
-    const adminUser = await getUserByEmail(email);
-    if (!adminUser || adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Acesso restrito ao administrador." });
-    }
-
     const { targetEmail } = req.body;
     if (!targetEmail) {
       return res.status(400).json({ error: "E-mail do usuário não informado." });
     }
 
     const lowerTargetEmail = targetEmail.toLowerCase().trim();
-    const targetUser = await getUserByEmail(lowerTargetEmail);
+    const targetUser = await getUserByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
     if (!targetUser) {
       return res.status(404).json({ error: "O e-mail digitado é diferente do e-mail cadastrado na conta ou não existe no banco de dados." });
     }
 
-    const userPassword = targetUser.password;
-    const userName = targetUser.name || lowerTargetEmail;
+    if (typeof targetUser.password === "string" && targetUser.password.startsWith("scrypt$")) {
+      return res.status(400).json({
+        error: "A senha deste usuário está protegida com criptografia irreversível. Utilize 'Editar Usuário' para definir uma nova senha temporária."
+      });
+    }
 
-    const emailSubject = "Finanfly - Lembrete de Senha de Acesso";
-    const emailBody = `
-Olá, ${userName}!
-
-Sua senha de acesso cadastrada no sistema Finanfly é:
-👉 ${userPassword} 👈
-
-Atenciosamente,
-Equipe Finanfly - Suporte ao Usuário
-    `.trim();
-
-    console.log(`\n================ [EMAIL DISPATCH - ADMIN] ================\nPara: ${lowerTargetEmail}\nAssunto: ${emailSubject}\n\n${emailBody}\n=========================================================================\n`);
-
-    res.json({ success: true, message: `E-mail de senha enviado com sucesso para ${lowerTargetEmail}.` });
+    res.json({
+      success: true,
+      message: `Não há servidor SMTP configurado nesta instância. Como esta conta ainda possui senha legada, recomenda-se redefinir a senha em 'Editar Usuário' para ativar a criptografia.`
+    });
   } catch (err) {
     console.error("Admin send-password-email error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao consultar dados no Supabase." });
   }
 });
 
-
-async function warmupUserCache() {
-  try {
-    const localDb = getDb();
-    if (localDb.users) {
-      for (const [email, u] of Object.entries<any>(localDb.users)) {
-        userCache.set(email.toLowerCase().trim(), { data: u, timestamp: Date.now() });
-      }
-    }
-    if (localDb.userData) {
-      for (const [email, ud] of Object.entries<any>(localDb.userData)) {
-        userDataCache.set(email.toLowerCase().trim(), { data: ud, timestamp: Date.now() });
-      }
-    }
-    // Sync home notices, plan prices, and free trial days from Supabase into memory and local db
-    Promise.all([
-      getHomeNotices(),
-      getPlanPrices(),
-      getFreeTrialDays()
-    ]).catch(e => console.warn("[Supabase] Warmup system settings error:", e));
-
-    // Quietly sync all users list from Supabase in background
-    getAllUsersList().then(users => {
-      for (const u of users) {
-        userCache.set(u.email.toLowerCase().trim(), { data: u, timestamp: Date.now() });
-      }
-    }).catch(() => {});
-  } catch (err) {}
-}
-
 // Serve static assets in production, hook Vite dev middleware in development
 async function startServer() {
-  warmupUserCache();
+  // Pré-carregamento leve apenas de configurações globais no Supabase (sem db.json local)
+  Promise.all([
+    getHomeNotices(),
+    getPlanPrices(),
+    getFreeTrialDays()
+  ]).catch(e => console.warn("[Supabase] Falha inicial ao consultar configurações globais:", e?.message || e));
 
   // Explicit static serving for public folder icons and PWA assets
   const publicDir = path.join(process.cwd(), "public");

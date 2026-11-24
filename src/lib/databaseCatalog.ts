@@ -1,4 +1,4 @@
-// Catalog of all 21 application tables in Supabase for Finanfly
+// Catalog of all 23 application tables in Supabase for Finanfly
 // All schemas are 100% non-destructive: NO DROP TABLE, NO DATA LOSS!
 
 export interface SchemaTableDefinition {
@@ -89,6 +89,40 @@ CREATE POLICY "Acesso total - trial_history" ON trial_history FOR ALL USING (tru
     rlsPolicySql: `ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - subscriptions" ON subscriptions;
 CREATE POLICY "Acesso total - subscriptions" ON subscriptions FOR ALL USING (true) WITH CHECK (true);`
+  },
+  {
+    name: 'receipt_types',
+    category: 'finances',
+    description: 'Tipos de recebimento customizados (ex: Pix, Transferência, Dinheiro)',
+    createSql: `CREATE TABLE IF NOT EXISTS receipt_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);`,
+    indexesSql: [
+      `CREATE INDEX IF NOT EXISTS idx_receipt_types_email ON receipt_types(email);`
+    ],
+    rlsPolicySql: `ALTER TABLE receipt_types ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Acesso total - receipt_types" ON receipt_types;
+CREATE POLICY "Acesso total - receipt_types" ON receipt_types FOR ALL USING (true) WITH CHECK (true);`
+  },
+  {
+    name: 'receipt_statuses',
+    category: 'finances',
+    description: 'Situações de recebimento customizadas (ex: Recebido, Pendente, Atrasado)',
+    createSql: `CREATE TABLE IF NOT EXISTS receipt_statuses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (email, name)
+);`,
+    indexesSql: [
+      `CREATE INDEX IF NOT EXISTS idx_receipt_statuses_email ON receipt_statuses(email);`
+    ],
+    rlsPolicySql: `ALTER TABLE receipt_statuses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Acesso total - receipt_statuses" ON receipt_statuses;
+CREATE POLICY "Acesso total - receipt_statuses" ON receipt_statuses FOR ALL USING (true) WITH CHECK (true);`
   },
   {
     name: 'payment_types',
@@ -436,7 +470,7 @@ export function generateSafeSchemaScripts(existingSet: Set<string>, missingTable
 -- O comando abaixo é 100% inofensivo e apenas confirma o status de sincronização:
 
 DO $$ BEGIN
-  RAISE NOTICE 'Todas as 21 tabelas do Finanfly já estão criadas e operacionais no Supabase!';
+  RAISE NOTICE 'Todas as ${DATABASE_SCHEMA_CATALOG.length} tabelas do Finanfly já estão criadas e operacionais no Supabase!';
 END $$;
 `;
   } else {
@@ -471,7 +505,7 @@ END $$;
     diffSql += `${alterStmt}\n`;
   }
 
-  // 2. Script Completo Seguro (Todas as 21 tabelas com CREATE TABLE IF NOT EXISTS - SEM NENHUM DROP)
+  // 2. Script Completo Seguro (Todas as tabelas com CREATE TABLE IF NOT EXISTS - SEM NENHUM DROP)
   let fullSql = `-- ============================================================================
 -- SCRIPT COMPLETO SEGURO DE TABELAS DO SUPABASE (SQL EDITOR)
 -- Finanfly - Sistema Financeiro Inteligente

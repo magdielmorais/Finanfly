@@ -4,6 +4,7 @@ import { FinanFlyLogo } from './FinanFlyLogo';
 import loginLogo from '../assets/images/logo_oficial_finanfly.png';
 import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { isUserSubscriptionActive } from '../utils/subscriptionUtils';
+import { setAuthToken } from '../utils/authToken';
 
 interface LoginProps {
   onLoginSuccess: (user: UserProfile, initialUserData?: any) => void;
@@ -52,7 +53,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
       const response = await fetch('/api/auth/remember-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: rememberEmail }),
+        body: JSON.stringify({ email: rememberEmail.trim().toLowerCase() }),
       });
 
       let data: any = null;
@@ -117,11 +118,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           return;
         }
         setLoading(true);
+        const normalizedEmail = email.trim().toLowerCase();
         // Register flow
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name, cpf }),
+          body: JSON.stringify({ email: normalizedEmail, password, name, cpf }),
         });
 
         const data = await parseSafeJson(response);
@@ -130,7 +132,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         }
 
         if (data?.token) {
-          localStorage.setItem('finanfly_token', data.token);
+          setAuthToken(data.token);
         }
 
         // If user has active trial days upon registration, log in directly
@@ -141,11 +143,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         }
       } else {
         setLoading(true);
+        const normalizedEmail = email.trim().toLowerCase();
         // Login flow
         const response = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: normalizedEmail, password }),
         });
 
         const data = await parseSafeJson(response);
@@ -176,7 +179,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         }
 
         if (data?.token) {
-          localStorage.setItem('finanfly_token', data.token);
+          setAuthToken(data.token);
         }
 
         const user: UserProfile = data.user;
