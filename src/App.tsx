@@ -142,6 +142,13 @@ export default function App() {
   const settingsSectionRef = useRef<HTMLDivElement>(null);
   const dadosSectionRef = useRef<HTMLDivElement>(null);
   const skipNextFetchUserDataRef = useRef<boolean>(false);
+  const userDataRef = useRef<UserData | null>(null);
+  const dataMutationVersionRef = useRef<number>(0);
+
+  const updateUserDataState = (nextData: UserData | null) => {
+    userDataRef.current = nextData;
+    setUserData(nextData);
+  };
 
   const scrollToSection = (elementRef: React.RefObject<HTMLDivElement>) => {
     setTimeout(() => {
@@ -303,7 +310,7 @@ export default function App() {
         if (cachedStr) {
           const parsed = JSON.parse(cachedStr);
           if (parsed && typeof parsed === 'object') {
-            setUserData(parsed);
+            updateUserDataState(parsed);
           }
         }
       } catch (e) {
@@ -311,7 +318,7 @@ export default function App() {
       }
       fetchUserData(currentUser.email);
     } else {
-      setUserData(null);
+      updateUserDataState(null);
     }
   }, [currentUser]);
 
@@ -354,6 +361,7 @@ export default function App() {
   };
 
   const fetchUserData = async (email: string) => {
+    const requestVersion = dataMutationVersionRef.current;
     try {
       const token = localStorage.getItem('finanfly_token') || '';
       const res = await fetch('/api/user/data', {
@@ -381,8 +389,8 @@ export default function App() {
         return;
       }
 
-      if (res.ok && data) {
-        setUserData(data);
+      if (res.ok && data && dataMutationVersionRef.current === requestVersion) {
+        updateUserDataState(data);
         try {
           localStorage.setItem(`finanfly_data_${email.toLowerCase().trim()}`, JSON.stringify(data));
         } catch (e) {}
@@ -393,12 +401,16 @@ export default function App() {
   };
 
   const handleUpdateUserData = async (newData: Partial<UserData>) => {
-    if (!currentUser || !userData) return;
+    const baseData = userDataRef.current || userData;
+    if (!currentUser || !baseData) return;
 
-    const merged = { ...userData, ...newData };
-    setUserData(merged); // Optimistic UI update
+    const writeVersion = ++dataMutationVersionRef.current;
+    const storageKey = `finanfly_data_${currentUser.email.toLowerCase().trim()}`;
+    const merged = { ...baseData, ...newData };
+
+    updateUserDataState(merged); // Optimistic UI update using latest ref
     try {
-      localStorage.setItem(`finanfly_data_${currentUser.email.toLowerCase().trim()}`, JSON.stringify(merged));
+      localStorage.setItem(storageKey, JSON.stringify(merged));
     } catch (e) {}
 
     try {
@@ -431,7 +443,24 @@ export default function App() {
         return;
       }
 
-      if (!res.ok) throw new Error(data?.error || 'Erro ao salvar dados.');
+      if (!res.ok) {
+        if (res.status === 409) {
+          await fetchUserData(currentUser.email);
+        } else if (dataMutationVersionRef.current === writeVersion) {
+          updateUserDataState(baseData);
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(baseData));
+          } catch (e) {}
+        }
+        throw new Error(data?.error || 'Erro ao salvar dados.');
+      }
+
+      if (data?.data && dataMutationVersionRef.current === writeVersion) {
+        updateUserDataState(data.data);
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(data.data));
+        } catch (e) {}
+      }
     } catch (err: any) {
       console.error('Error saving user data:', err);
     }
@@ -463,7 +492,7 @@ export default function App() {
     const performLogout = () => {
       clearTimeout(timer);
       setCurrentUser(null);
-      setUserData(null);
+      updateUserDataState(null);
       localStorage.removeItem('finanfly_user');
       localStorage.removeItem('finanfy_user');
       localStorage.removeItem('finanfly_token');
@@ -523,7 +552,11 @@ export default function App() {
   const handleLoginSuccess = (user: UserProfile, initialUserData?: UserData) => {
     if (initialUserData) {
       skipNextFetchUserDataRef.current = true;
-      setUserData(initialUserData);
+      dataMutationVersionRef.current += 1;
+      updateUserDataState(initialUserData);
+      try {
+        localStorage.setItem(`finanfly_data_${user.email.toLowerCase().trim()}`, JSON.stringify(initialUserData));
+      } catch (e) {}
     }
     setCurrentUser(user);
     localStorage.setItem('finanfly_user', JSON.stringify(user));
@@ -549,7 +582,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    setUserData(null);
+    updateUserDataState(null);
     localStorage.removeItem('finanfly_user');
     localStorage.removeItem('finanfly_token');
     localStorage.removeItem('finanfy_user');

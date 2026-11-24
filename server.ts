@@ -1610,8 +1610,31 @@ function ensureUserHasDefaults(data: any) {
   };
 }
 
-// Get user workspace data from relational tables in parallel without stale memory caching (Zero Cache)
-async function getUserDataByEmail(email: string, bypassCache = false): Promise<any> {
+function isMissingTableOrColumnError(err: any): boolean {
+  if (!err) return false;
+  return err.code === '42P01' || err.code === 'PGRST205' || String(err.message || '').includes('schema cache');
+}
+
+function hasSupabaseQueryError(res: any): boolean {
+  return Boolean(res && res.error && !isMissingTableOrColumnError(res.error));
+}
+
+function pickNonEmptyArray(primary: any[] | null | undefined, ...fallbacks: Array<any[] | null | undefined>): any[] {
+  if (Array.isArray(primary) && primary.length > 0) return primary;
+  for (const fb of fallbacks) {
+    if (Array.isArray(fb) && fb.length > 0) return fb;
+  }
+  return Array.isArray(primary) ? primary : [];
+}
+
+// Get user workspace data from relational tables in parallel with error-safe fallback protection
+async function getUserDataByEmail(
+  email: string,
+  options: boolean | { bypassCache?: boolean; throwOnError?: boolean } = false
+): Promise<any> {
+  const bypassCache = typeof options === 'boolean' ? options : Boolean(options?.bypassCache);
+  const throwOnError = typeof options === 'boolean' ? false : Boolean(options?.throwOnError);
+
   const lowerEmail = email.toLowerCase().trim();
   const supabase = getSupabaseClient();
   const db = getDb();
@@ -1680,43 +1703,76 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
           userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
           return completedData;
         }
+
+        if (error) {
+          throw new Error(`Erro ao ler fallback user_data: ${error.message || error.code}`);
+        }
         
         const freshDefault = getDefaultUserData();
         userDataCache.set(lowerEmail, { data: freshDefault, timestamp: Date.now() });
         return freshDefault;
       }
 
-      // Map relational results to application structures (never falling back to db.json local file)
-      const responseData: any = {
-        receiptTypes: (backupUserDataRes?.data?.data?.receiptTypes && backupUserDataRes.data.data.receiptTypes.length > 0)
-          ? backupUserDataRes.data.data.receiptTypes
-          : [...DEFAULT_RECEIPT_TYPES],
-        receiptStatuses: (backupUserDataRes?.data?.data?.receiptStatuses && backupUserDataRes.data.data.receiptStatuses.length > 0)
-          ? backupUserDataRes.data.data.receiptStatuses
-          : [...DEFAULT_RECEIPT_STATUSES],
-        paymentTypes: (pTypesRes.data && pTypesRes.data.length > 0)
-          ? pTypesRes.data.map((r: any) => r.name)
-          : [...DEFAULT_PAYMENT_TYPES],
-        paymentStatuses: (pStatusesRes.data && pStatusesRes.data.length > 0)
-          ? pStatusesRes.data.map((r: any) => r.name)
-          : [...DEFAULT_PAYMENT_STATUSES],
-        incomeCategories: (incCatsRes.data && incCatsRes.data.length > 0)
-          ? incCatsRes.data.map((r: any) => r.name)
-          : [...DEFAULT_INCOME_CATEGORIES],
-        expenseCategories: (expCatsRes.data && expCatsRes.data.length > 0)
-          ? expCatsRes.data.map((r: any) => r.name)
-          : [...DEFAULT_EXPENSE_CATEGORIES],
-        incomes: incomesRes.data ? incomesRes.data.map((r: any) => ({
-          id: r.id,
-          date: r.date,
-          description: r.description,
-          value: Number(r.value),
-          category: r.category,
-          status: r.status,
-          paymentType: r.payment_type
-        })) : [],
-        expenses: expensesRes.data ? expensesRes.data.map((r: any) => {
-          const backupExp = backupUserDataRes?.data?.data?.expenses?.find((b: any) => b.id === r.id);
+      const queryChecks: Array<[string, any]> = [
+        ['payment_types', pTypesRes],
+        ['payment_statuses', pStatusesRes],
+        ['income_categories', incCatsRes],
+        ['expense_categories', expCatsRes],
+        ['incomes', incomesRes],
+        ['expenses', expensesRes],
+        ['annual_planning', annualRes],
+        ['shopping_list', shopRes],
+        ['action_plans', actPlansRes],
+        ['deficit_actions', defActionsRes],
+        ['trips', tripsRes],
+        ['wishes', wishesRes],
+        ['investments', investRes],
+        ['investment_types', invTypesRes],
+        ['investment_statuses', invStatusesRes]
+      ];
+
+      const failedTables = queryChecks.filter(([, r]) => hasSupabaseQueryError(r)).map(([name]) => name);
+      const backupError = hasSupabaseQueryError(backupUserDataRes);
+      const backupData = !backupError ? backupUserDataRes?.data?.data : null;
+
+      if (failedTables.length > 0) {
+        console.warn(`[getUserDataByEmail] Erros parciais ao consultar Supabase para ${lowerEmail}:`, failedTables.join(', '));
+        if (throwOnError && !backupData && !cached?.data) {
+          throw new Error(`Falha ao consultar tabelas no Supabase (${failedTables.join(', ')}).`);
+        }
+      }
+
+      // Helper to resolve list of names (config tables): relational -> backup -> cache -> local -> defaults
+      const resolveNameList = (res: any, backupArr: any, cacheArr: any, localArr: any, defaultArr: string[]): string[] => {
+        if (!hasSupabaseQueryError(res) && Array.isArray(res?.data) && res.data.length > 0) {
+          return res.data.map((r: any) => r.name);
+        }
+        const recovered = pickNonEmptyArray(backupArr, hasSupabaseQueryError(res) ? cacheArr : undefined, hasSupabaseQueryError(res) ? localArr : undefined);
+        if (recovered.length > 0) {
+          return recovered;
+        }
+        return [...defaultArr];
+      };
+
+      // Helper to resolve entity arrays: never replace an errored query or unexpected empty relational table with [] if user_data backup still has records
+      const resolveEntityList = <T>(res: any, mapper: (r: any) => T, backupArr: any, cacheArr: any, localArr: any): T[] => {
+        if (!hasSupabaseQueryError(res) && Array.isArray(res?.data)) {
+          if (res.data.length > 0) {
+            return res.data.map(mapper);
+          }
+          // If relational table has 0 rows while user_data backup still has rows, recover from backup instead of losing records
+          if (Array.isArray(backupArr) && backupArr.length > 0) {
+            return backupArr;
+          }
+          return [];
+        }
+        return pickNonEmptyArray(backupArr, cacheArr, localArr);
+      };
+
+      const mappedExpenses = resolveEntityList(
+        expensesRes,
+        (r: any) => {
+          const backupExp = backupData?.expenses?.find((b: any) => b.id === r.id);
           const rawClass = (backupExp && backupExp.classification !== undefined && backupExp.classification !== null && backupExp.classification !== '')
             ? backupExp.classification
             : (r.classification !== undefined && r.classification !== null && r.classification !== '')
@@ -1734,73 +1790,151 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
             paymentType: r.payment_type,
             classification: rawClass || undefined
           };
-        }) : [],
-        annualPlanning: (annualRes.data && annualRes.data.length > 0) ? annualRes.data.map((r: any) => ({
-          year: r.year,
-          monthlyBudgets: r.monthly_budgets
-        })) : [
-          {
-            year: 2026,
-            monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-              month: i,
-              incomeBudget: 0,
-              expenseBudget: 0
-            }))
-          }
-        ],
-        shoppingList: shopRes.data ? shopRes.data.map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          quantity: Number(r.quantity),
-          price: Number(r.price),
-          category: r.category,
-          checked: !!r.checked,
-          date: r.date || undefined
-        })) : [],
-        actionPlans: actPlansRes.data ? actPlansRes.data.map((r: any) => ({
-          id: r.id,
-          title: r.title,
-          description: r.description,
-          targetDate: r.target_date,
-          value: Number(r.value),
-          status: r.status
-        })) : [],
-        deficitActions: defActionsRes.data ? defActionsRes.data.map((r: any) => ({
-          id: r.id,
-          costCenter: r.cost_center,
-          reason: r.reason,
-          correctionAction: r.correction_action,
-          responsible: r.responsible,
-          date: r.date,
-          status: r.status
-        })) : [],
-        trips: (tripsRes?.data && tripsRes.data.length > 0)
-          ? tripsRes.data.map((r: any) => ({ id: r.id, name: r.name, expenses: r.expenses || [] }))
-          : (backupUserDataRes?.data?.data?.trips || []),
-        wishes: (wishesRes?.data && wishesRes.data.length > 0)
-          ? wishesRes.data.map((r: any) => ({ id: r.id, title: r.title, description: r.description, targetDate: r.target_date, value: Number(r.value), status: r.status }))
-          : (backupUserDataRes?.data?.data?.wishes || []),
-        investments: (investRes?.data && investRes.data.length > 0)
-          ? investRes.data.map((r: any) => ({ id: r.id, name: r.name, type: r.type, date: r.date, value: Number(r.value), status: r.status, notes: r.notes }))
-          : (backupUserDataRes?.data?.data?.investments || []),
-        investmentTypes: (invTypesRes?.data && invTypesRes.data.length > 0)
-          ? invTypesRes.data.map((r: any) => r.name)
-          : (backupUserDataRes?.data?.data?.investmentTypes || [...DEFAULT_INVESTMENT_TYPES]),
-        investmentStatuses: (invStatusesRes?.data && invStatusesRes.data.length > 0)
-          ? invStatusesRes.data.map((r: any) => r.name)
-          : (backupUserDataRes?.data?.data?.investmentStatuses || [...DEFAULT_INVESTMENT_STATUSES])
+        },
+        backupData?.expenses,
+        cached?.data?.expenses,
+        localData?.expenses
+      );
+
+      const responseData: any = {
+        receiptTypes: (backupData?.receiptTypes && backupData.receiptTypes.length > 0)
+          ? backupData.receiptTypes
+          : (cached?.data?.receiptTypes && cached.data.receiptTypes.length > 0)
+            ? cached.data.receiptTypes
+            : [...DEFAULT_RECEIPT_TYPES],
+        receiptStatuses: (backupData?.receiptStatuses && backupData.receiptStatuses.length > 0)
+          ? backupData.receiptStatuses
+          : (cached?.data?.receiptStatuses && cached.data.receiptStatuses.length > 0)
+            ? cached.data.receiptStatuses
+            : [...DEFAULT_RECEIPT_STATUSES],
+        paymentTypes: resolveNameList(pTypesRes, backupData?.paymentTypes, cached?.data?.paymentTypes, localData?.paymentTypes, DEFAULT_PAYMENT_TYPES),
+        paymentStatuses: resolveNameList(pStatusesRes, backupData?.paymentStatuses, cached?.data?.paymentStatuses, localData?.paymentStatuses, DEFAULT_PAYMENT_STATUSES),
+        incomeCategories: resolveNameList(incCatsRes, backupData?.incomeCategories, cached?.data?.incomeCategories, localData?.incomeCategories, DEFAULT_INCOME_CATEGORIES),
+        expenseCategories: resolveNameList(expCatsRes, backupData?.expenseCategories, cached?.data?.expenseCategories, localData?.expenseCategories, DEFAULT_EXPENSE_CATEGORIES),
+        incomes: resolveEntityList(
+          incomesRes,
+          (r: any) => ({
+            id: r.id,
+            date: r.date,
+            description: r.description,
+            value: Number(r.value),
+            category: r.category,
+            status: r.status,
+            paymentType: r.payment_type
+          }),
+          backupData?.incomes,
+          cached?.data?.incomes,
+          localData?.incomes
+        ),
+        expenses: mappedExpenses,
+        annualPlanning: (!hasSupabaseQueryError(annualRes) && Array.isArray(annualRes?.data) && annualRes.data.length > 0)
+          ? annualRes.data.map((r: any) => ({ year: r.year, monthlyBudgets: r.monthly_budgets }))
+          : pickNonEmptyArray(
+              backupData?.annualPlanning,
+              hasSupabaseQueryError(annualRes) ? cached?.data?.annualPlanning : undefined,
+              hasSupabaseQueryError(annualRes) ? localData?.annualPlanning : undefined
+            ).length > 0
+            ? pickNonEmptyArray(
+                backupData?.annualPlanning,
+                hasSupabaseQueryError(annualRes) ? cached?.data?.annualPlanning : undefined,
+                hasSupabaseQueryError(annualRes) ? localData?.annualPlanning : undefined
+              )
+            : [
+                {
+                  year: 2026,
+                  monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
+                    month: i,
+                    incomeBudget: 0,
+                    expenseBudget: 0
+                  }))
+                }
+              ],
+        shoppingList: resolveEntityList(
+          shopRes,
+          (r: any) => ({
+            id: r.id,
+            name: r.name,
+            quantity: Number(r.quantity),
+            price: Number(r.price),
+            category: r.category,
+            checked: !!r.checked,
+            date: r.date || undefined
+          }),
+          backupData?.shoppingList,
+          cached?.data?.shoppingList,
+          localData?.shoppingList
+        ),
+        actionPlans: resolveEntityList(
+          actPlansRes,
+          (r: any) => ({
+            id: r.id,
+            title: r.title,
+            description: r.description,
+            targetDate: r.target_date,
+            value: Number(r.value),
+            status: r.status
+          }),
+          backupData?.actionPlans,
+          cached?.data?.actionPlans,
+          localData?.actionPlans
+        ),
+        deficitActions: resolveEntityList(
+          defActionsRes,
+          (r: any) => ({
+            id: r.id,
+            costCenter: r.cost_center,
+            reason: r.reason,
+            correctionAction: r.correction_action,
+            responsible: r.responsible,
+            date: r.date,
+            status: r.status
+          }),
+          backupData?.deficitActions,
+          cached?.data?.deficitActions,
+          localData?.deficitActions
+        ),
+        trips: resolveEntityList(
+          tripsRes,
+          (r: any) => ({ id: r.id, name: r.name, expenses: r.expenses || [] }),
+          backupData?.trips,
+          cached?.data?.trips,
+          localData?.trips
+        ),
+        wishes: resolveEntityList(
+          wishesRes,
+          (r: any) => ({ id: r.id, title: r.title, description: r.description, targetDate: r.target_date, value: Number(r.value), status: r.status }),
+          backupData?.wishes,
+          cached?.data?.wishes,
+          localData?.wishes
+        ),
+        investments: resolveEntityList(
+          investRes,
+          (r: any) => ({ id: r.id, name: r.name, type: r.type, date: r.date, value: Number(r.value), status: r.status, notes: r.notes }),
+          backupData?.investments,
+          cached?.data?.investments,
+          localData?.investments
+        ),
+        investmentTypes: resolveNameList(invTypesRes, backupData?.investmentTypes, cached?.data?.investmentTypes, localData?.investmentTypes, DEFAULT_INVESTMENT_TYPES),
+        investmentStatuses: resolveNameList(invStatusesRes, backupData?.investmentStatuses, cached?.data?.investmentStatuses, localData?.investmentStatuses, DEFAULT_INVESTMENT_STATUSES)
       };
 
       const finalResponse = ensureUserHasDefaults(responseData);
-      userDataCache.set(lowerEmail, { data: finalResponse, timestamp: Date.now() });
-      try {
-        const dbLocal = getDb();
-        if (!dbLocal.userData) dbLocal.userData = {};
-        dbLocal.userData[lowerEmail] = finalResponse;
-        saveDb(dbLocal);
-      } catch (e) {
-        // ignore
+
+      // Only update in-memory cache and db.json if reads had no transient errors (or were safely backed by user_data)
+      if (failedTables.length === 0 || backupData) {
+        userDataCache.set(lowerEmail, { data: finalResponse, timestamp: Date.now() });
+        if (failedTables.length === 0) {
+          try {
+            const dbLocal = getDb();
+            if (!dbLocal.userData) dbLocal.userData = {};
+            dbLocal.userData[lowerEmail] = finalResponse;
+            saveDb(dbLocal);
+          } catch (e) {
+            // ignore
+          }
+        }
       }
+
       return finalResponse;
     } catch (err: any) {
       console.warn("Aviso ao ler dados relacionais no Supabase (acionando fallback seguro):", err?.message || err);
@@ -1832,6 +1966,13 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
         userDataCache.set(lowerEmail, { data: finalLocal, timestamp: Date.now() });
         return finalLocal;
       }
+
+      if (throwOnError) {
+        throw err;
+      }
+
+      // CRITICAL: Do NOT cache empty default data in userDataCache after a timeout/failure
+      return getDefaultUserData();
     }
   }
 
@@ -1847,15 +1988,268 @@ async function getUserDataByEmail(email: string, bypassCache = false): Promise<a
   return defaultUserObj;
 }
 
-// Save/Update user workspace data by syncing modified lists to their relational tables in Supabase
-async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
+// Helper: Diff-based sync for name-list tables (avoids wiping custom statuses/categories if insert fails)
+async function syncNameListTable(supabase: any, table: string, lowerEmail: string, desiredNames: string[]) {
+  const uniqueDesired = Array.from(new Set(desiredNames.map((n: any) => String(n || '').trim()).filter(Boolean)));
+  const { data: existingRows, error: fetchErr } = await supabase.from(table).select('id, name').eq('email', lowerEmail);
+  if (fetchErr) {
+    if (isMissingTableOrColumnError(fetchErr)) return;
+    throw new Error(`[${table}] Erro ao ler registros atuais: ${fetchErr.message}`);
+  }
+
+  const existingList = existingRows || [];
+  const existingNames = new Set(existingList.map((r: any) => r.name));
+  const desiredSet = new Set(uniqueDesired);
+
+  const toInsert = uniqueDesired.filter(name => !existingNames.has(name)).map(name => ({ email: lowerEmail, name }));
+  if (toInsert.length > 0) {
+    const { error: insErr } = await supabase.from(table).insert(toInsert);
+    if (insErr) {
+      throw new Error(`[${table}] Erro ao inserir novos registros: ${insErr.message}`);
+    }
+  }
+
+  const idsToDelete = existingList.filter((r: any) => !desiredSet.has(r.name)).map((r: any) => r.id).filter(Boolean);
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from(table).delete().eq('email', lowerEmail).in('id', idsToDelete);
+    if (delErr) {
+      throw new Error(`[${table}] Erro ao remover registros antigos: ${delErr.message}`);
+    }
+  }
+}
+
+// Helper: Upsert-first sync for ID-based tables (never deletes existing rows if upsert fails)
+async function syncIdEntityTable(
+  supabase: any,
+  table: string,
+  lowerEmail: string,
+  rows: any[],
+  mapFallbackRow?: (row: any) => any
+) {
+  const { data: existingRows, error: fetchErr } = await supabase.from(table).select('id').eq('email', lowerEmail);
+  if (fetchErr) {
+    if (isMissingTableOrColumnError(fetchErr)) return;
+    throw new Error(`[${table}] Erro ao consultar IDs existentes: ${fetchErr.message}`);
+  }
+
+  if (rows.length > 0) {
+    let { error: upErr } = await supabase.from(table).upsert(rows, { onConflict: 'id' });
+    if (upErr && mapFallbackRow && (upErr.code === '42703' || upErr.code === 'PGRST204' || String(upErr.message || '').includes('classification'))) {
+      const safeRows = rows.map(mapFallbackRow);
+      const retry = await supabase.from(table).upsert(safeRows, { onConflict: 'id' });
+      upErr = retry.error;
+    }
+    if (upErr) {
+      throw new Error(`[${table}] Erro ao salvar registros (upsert): ${upErr.message}`);
+    }
+  }
+
+  const desiredIds = new Set(rows.map((r: any) => r.id));
+  const idsToDelete = (existingRows || []).map((r: any) => r.id).filter((id: any) => id && !desiredIds.has(id));
+  if (idsToDelete.length > 0) {
+    const { error: delErr } = await supabase.from(table).delete().eq('email', lowerEmail).in('id', idsToDelete);
+    if (delErr) {
+      throw new Error(`[${table}] Erro ao remover registros excluídos: ${delErr.message}`);
+    }
+  }
+}
+
+// Save/Update user workspace data by syncing only modified lists safely to Supabase
+async function saveUserDataByEmail(email: string, data: any, changedKeys?: string[]): Promise<boolean> {
   const lowerEmail = email.toLowerCase().trim();
   const supabase = getSupabaseClient();
+  const shouldSync = (key: string) => Boolean(data[key]) && (!changedKeys || changedKeys.includes(key));
 
-  // Update in-memory cache immediately
+  if (supabase) {
+    try {
+      const promises: Promise<any>[] = [];
+
+      // 1. Sync paymentTypes
+      if (shouldSync('paymentTypes')) {
+        promises.push(syncNameListTable(supabase, 'payment_types', lowerEmail, data.paymentTypes));
+      }
+
+      // 2. Sync paymentStatuses
+      if (shouldSync('paymentStatuses')) {
+        promises.push(syncNameListTable(supabase, 'payment_statuses', lowerEmail, data.paymentStatuses));
+      }
+
+      // 3. Sync incomeCategories
+      if (shouldSync('incomeCategories')) {
+        promises.push(syncNameListTable(supabase, 'income_categories', lowerEmail, data.incomeCategories));
+      }
+
+      // 4. Sync expenseCategories
+      if (shouldSync('expenseCategories')) {
+        promises.push(syncNameListTable(supabase, 'expense_categories', lowerEmail, data.expenseCategories));
+      }
+
+      // 5. Sync incomes
+      if (shouldSync('incomes')) {
+        const rows = data.incomes.map((inc: any) => ({
+          id: inc.id,
+          email: lowerEmail,
+          date: inc.date,
+          description: inc.description,
+          value: Number(inc.value),
+          category: inc.category,
+          status: inc.status,
+          payment_type: inc.paymentType
+        }));
+        promises.push(syncIdEntityTable(supabase, 'incomes', lowerEmail, rows));
+      }
+
+      // 6. Sync expenses
+      if (shouldSync('expenses')) {
+        const rows = data.expenses.map((exp: any) => ({
+          id: exp.id,
+          email: lowerEmail,
+          date: exp.date,
+          description: exp.description,
+          value: Number(exp.value),
+          category: exp.category,
+          status: exp.status,
+          payment_type: exp.paymentType,
+          classification: exp.classification || null
+        }));
+        promises.push(
+          syncIdEntityTable(supabase, 'expenses', lowerEmail, rows, ({ classification, ...rest }: any) => rest)
+        );
+      }
+
+      // 7. Sync annualPlanning
+      if (shouldSync('annualPlanning')) {
+        promises.push((async () => {
+          for (const plan of data.annualPlanning) {
+            const { error: planErr } = await supabase.from('annual_planning').upsert({
+              email: lowerEmail,
+              year: Number(plan.year),
+              monthly_budgets: plan.monthlyBudgets
+            }, { onConflict: 'email,year' });
+            if (planErr && !isMissingTableOrColumnError(planErr)) {
+              throw new Error(`[annual_planning] Erro ao salvar planejamento anual: ${planErr.message}`);
+            }
+          }
+        })());
+      }
+
+      // 8. Sync shoppingList
+      if (shouldSync('shoppingList')) {
+        const rows = data.shoppingList.map((item: any) => ({
+          id: item.id,
+          email: lowerEmail,
+          name: item.name,
+          quantity: Number(item.quantity),
+          price: Number(item.price),
+          category: item.category,
+          checked: !!item.checked,
+          date: item.date || null
+        }));
+        promises.push(syncIdEntityTable(supabase, 'shopping_list', lowerEmail, rows));
+      }
+
+      // 9. Sync actionPlans
+      if (shouldSync('actionPlans')) {
+        const rows = data.actionPlans.map((plan: any) => ({
+          id: plan.id,
+          email: lowerEmail,
+          title: plan.title,
+          description: plan.description,
+          target_date: plan.targetDate,
+          value: Number(plan.value),
+          status: plan.status
+        }));
+        promises.push(syncIdEntityTable(supabase, 'action_plans', lowerEmail, rows));
+      }
+
+      // 10. Sync deficitActions
+      if (shouldSync('deficitActions')) {
+        const rows = data.deficitActions.map((action: any) => ({
+          id: action.id,
+          email: lowerEmail,
+          cost_center: action.costCenter,
+          reason: action.reason,
+          correction_action: action.correctionAction,
+          responsible: action.responsible,
+          date: action.date,
+          status: action.status
+        }));
+        promises.push(syncIdEntityTable(supabase, 'deficit_actions', lowerEmail, rows));
+      }
+
+      // 11. Sync trips
+      if (shouldSync('trips')) {
+        const rows = data.trips.map((trip: any) => ({
+          id: trip.id,
+          email: lowerEmail,
+          name: trip.name,
+          expenses: trip.expenses || []
+        }));
+        promises.push(syncIdEntityTable(supabase, 'trips', lowerEmail, rows));
+      }
+
+      // 12. Sync wishes
+      if (shouldSync('wishes')) {
+        const rows = data.wishes.map((wish: any) => ({
+          id: wish.id,
+          email: lowerEmail,
+          title: wish.title,
+          description: wish.description || '',
+          target_date: wish.targetDate || null,
+          value: Number(wish.value || 0),
+          status: wish.status || 'Pendente'
+        }));
+        promises.push(syncIdEntityTable(supabase, 'wishes', lowerEmail, rows));
+      }
+
+      // 13. Sync investments
+      if (shouldSync('investments')) {
+        const rows = data.investments.map((inv: any) => ({
+          id: inv.id,
+          email: lowerEmail,
+          name: inv.name,
+          type: inv.type,
+          date: inv.date,
+          value: Number(inv.value || 0),
+          status: inv.status,
+          notes: inv.notes || null
+        }));
+        promises.push(syncIdEntityTable(supabase, 'investments', lowerEmail, rows));
+      }
+
+      // 14. Sync investmentTypes
+      if (shouldSync('investmentTypes')) {
+        promises.push(syncNameListTable(supabase, 'investment_types', lowerEmail, data.investmentTypes));
+      }
+
+      // 15. Sync investmentStatuses
+      if (shouldSync('investmentStatuses')) {
+        promises.push(syncNameListTable(supabase, 'investment_statuses', lowerEmail, data.investmentStatuses));
+      }
+
+      await Promise.all(promises);
+
+      // Only update user_data backup in Supabase after all relational syncs succeed
+      const { error: backupErr } = await supabase.from('user_data').upsert({
+        email: lowerEmail,
+        data: data,
+        updated_at: new Date().toISOString()
+      });
+      if (backupErr) {
+        console.error("Erro ao atualizar backup user_data no Supabase:", backupErr.message);
+      }
+    } catch (err: any) {
+      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
+        markSupabaseKeyAsInvalid("Invalid API key");
+      } else {
+        console.error("Erro ao salvar dados relacionais no Supabase:", err);
+      }
+      throw err;
+    }
+  }
+
+  // Update in-memory cache and local db.json only after Supabase sync succeeds (or offline)
   userDataCache.set(lowerEmail, { data: { ...data }, timestamp: Date.now() });
-
-  // Mantém sempre uma cópia local atualizada em db.json como rede de segurança offline
   try {
     const db = getDb();
     if (!db.userData) db.userData = {};
@@ -1865,278 +2259,6 @@ async function saveUserDataByEmail(email: string, data: any): Promise<boolean> {
     // ignore
   }
 
-  if (supabase) {
-    try {
-      const promises: Promise<any>[] = [];
-
-      // 1. Sync paymentTypes
-      if (data.paymentTypes) {
-        promises.push((async () => {
-          await supabase.from('payment_types').delete().eq('email', lowerEmail);
-          if (data.paymentTypes.length > 0) {
-            const rows = data.paymentTypes.map((name: string) => ({ email: lowerEmail, name }));
-            await supabase.from('payment_types').insert(rows);
-          }
-        })());
-      }
-
-      // 2. Sync paymentStatuses
-      if (data.paymentStatuses) {
-        promises.push((async () => {
-          await supabase.from('payment_statuses').delete().eq('email', lowerEmail);
-          if (data.paymentStatuses.length > 0) {
-            const rows = data.paymentStatuses.map((name: string) => ({ email: lowerEmail, name }));
-            await supabase.from('payment_statuses').insert(rows);
-          }
-        })());
-      }
-
-      // 3. Sync incomeCategories
-      if (data.incomeCategories) {
-        promises.push((async () => {
-          await supabase.from('income_categories').delete().eq('email', lowerEmail);
-          if (data.incomeCategories.length > 0) {
-            const rows = data.incomeCategories.map((name: string) => ({ email: lowerEmail, name }));
-            await supabase.from('income_categories').insert(rows);
-          }
-        })());
-      }
-
-      // 4. Sync expenseCategories
-      if (data.expenseCategories) {
-        promises.push((async () => {
-          await supabase.from('expense_categories').delete().eq('email', lowerEmail);
-          if (data.expenseCategories.length > 0) {
-            const rows = data.expenseCategories.map((name: string) => ({ email: lowerEmail, name }));
-            await supabase.from('expense_categories').insert(rows);
-          }
-        })());
-      }
-
-      // 5. Sync incomes
-      if (data.incomes) {
-        promises.push((async () => {
-          await supabase.from('incomes').delete().eq('email', lowerEmail);
-          if (data.incomes.length > 0) {
-            const rows = data.incomes.map((inc: any) => ({
-              id: inc.id,
-              email: lowerEmail,
-              date: inc.date,
-              description: inc.description,
-              value: Number(inc.value),
-              category: inc.category,
-              status: inc.status,
-              payment_type: inc.paymentType
-            }));
-            await supabase.from('incomes').insert(rows);
-          }
-        })());
-      }
-
-      // 6. Sync expenses
-      if (data.expenses) {
-        promises.push((async () => {
-          await supabase.from('expenses').delete().eq('email', lowerEmail);
-          if (data.expenses.length > 0) {
-            const rows = data.expenses.map((exp: any) => ({
-              id: exp.id,
-              email: lowerEmail,
-              date: exp.date,
-              description: exp.description,
-              value: Number(exp.value),
-              category: exp.category,
-              status: exp.status,
-              payment_type: exp.paymentType,
-              classification: exp.classification || null
-            }));
-            let { error: expErr } = await supabase.from('expenses').insert(rows);
-            if (expErr && (expErr.code === '42703' || expErr.message?.includes('classification'))) {
-              const safeRows = rows.map(({ classification, ...rest }: any) => rest);
-              await supabase.from('expenses').insert(safeRows);
-            }
-          }
-        })());
-      }
-
-      // 7. Sync annualPlanning
-      if (data.annualPlanning) {
-        promises.push((async () => {
-          for (const plan of data.annualPlanning) {
-            await supabase.from('annual_planning').upsert({
-              email: lowerEmail,
-              year: Number(plan.year),
-              monthly_budgets: plan.monthlyBudgets
-            }, { onConflict: 'email,year' });
-          }
-        })());
-      }
-
-      // 8. Sync shoppingList
-      if (data.shoppingList) {
-        promises.push((async () => {
-          await supabase.from('shopping_list').delete().eq('email', lowerEmail);
-          if (data.shoppingList.length > 0) {
-            const rows = data.shoppingList.map((item: any) => ({
-              id: item.id,
-              email: lowerEmail,
-              name: item.name,
-              quantity: Number(item.quantity),
-              price: Number(item.price),
-              category: item.category,
-              checked: !!item.checked,
-              date: item.date || null
-            }));
-            await supabase.from('shopping_list').insert(rows);
-          }
-        })());
-      }
-
-      // 9. Sync actionPlans
-      if (data.actionPlans) {
-        promises.push((async () => {
-          await supabase.from('action_plans').delete().eq('email', lowerEmail);
-          if (data.actionPlans.length > 0) {
-            const rows = data.actionPlans.map((plan: any) => ({
-              id: plan.id,
-              email: lowerEmail,
-              title: plan.title,
-              description: plan.description,
-              target_date: plan.targetDate,
-              value: Number(plan.value),
-              status: plan.status
-            }));
-            await supabase.from('action_plans').insert(rows);
-          }
-        })());
-      }
-
-      // 10. Sync deficitActions
-      if (data.deficitActions) {
-        promises.push((async () => {
-          await supabase.from('deficit_actions').delete().eq('email', lowerEmail);
-          if (data.deficitActions.length > 0) {
-            const rows = data.deficitActions.map((action: any) => ({
-              id: action.id,
-              email: lowerEmail,
-              cost_center: action.costCenter,
-              reason: action.reason,
-              correction_action: action.correctionAction,
-              responsible: action.responsible,
-              date: action.date,
-              status: action.status
-            }));
-            await supabase.from('deficit_actions').insert(rows);
-          }
-        })());
-      }
-
-      // 11. Sync trips
-      if (data.trips) {
-        promises.push((async () => {
-          await supabase.from('trips').delete().eq('email', lowerEmail);
-          if (data.trips.length > 0) {
-            const rows = data.trips.map((trip: any) => ({
-              id: trip.id,
-              email: lowerEmail,
-              name: trip.name,
-              expenses: trip.expenses || []
-            }));
-            await supabase.from('trips').insert(rows);
-          }
-        })());
-      }
-
-      // 12. Sync wishes
-      if (data.wishes) {
-        promises.push((async () => {
-          await supabase.from('wishes').delete().eq('email', lowerEmail);
-          if (data.wishes.length > 0) {
-            const rows = data.wishes.map((wish: any) => ({
-              id: wish.id,
-              email: lowerEmail,
-              title: wish.title,
-              description: wish.description || '',
-              target_date: wish.targetDate || null,
-              value: Number(wish.value || 0),
-              status: wish.status || 'Pendente'
-            }));
-            await supabase.from('wishes').insert(rows);
-          }
-        })());
-      }
-
-      // 13. Sync investments
-      if (data.investments) {
-        promises.push((async () => {
-          await supabase.from('investments').delete().eq('email', lowerEmail);
-          if (data.investments.length > 0) {
-            const rows = data.investments.map((inv: any) => ({
-              id: inv.id,
-              email: lowerEmail,
-              name: inv.name,
-              type: inv.type,
-              date: inv.date,
-              value: Number(inv.value || 0),
-              status: inv.status,
-              notes: inv.notes || null
-            }));
-            await supabase.from('investments').insert(rows);
-          }
-        })());
-      }
-
-      // 14. Sync investmentTypes
-      if (data.investmentTypes) {
-        promises.push((async () => {
-          await supabase.from('investment_types').delete().eq('email', lowerEmail);
-          if (data.investmentTypes.length > 0) {
-            const rows = data.investmentTypes.map((name: string) => ({ email: lowerEmail, name }));
-            await supabase.from('investment_types').insert(rows);
-          }
-        })());
-      }
-
-      // 15. Sync investmentStatuses
-      if (data.investmentStatuses) {
-        promises.push((async () => {
-          await supabase.from('investment_statuses').delete().eq('email', lowerEmail);
-          if (data.investmentStatuses.length > 0) {
-            const rows = data.investmentStatuses.map((name: string) => ({ email: lowerEmail, name }));
-            await supabase.from('investment_statuses').insert(rows);
-          }
-        })());
-      }
-
-      await Promise.all(promises);
-
-      // Also upsert to user_data table in Supabase for backup
-      await supabase.from('user_data').upsert({
-        email: lowerEmail,
-        data: data,
-        updated_at: new Date().toISOString()
-      });
-
-      return true;
-    } catch (err: any) {
-      if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
-        markSupabaseKeyAsInvalid("Invalid API key");
-      } else {
-        console.error("Erro ao salvar dados relacionais no Supabase:", err);
-      }
-      try {
-        const sup = getSupabaseClient();
-        if (sup) {
-          await sup.from('user_data').upsert({
-            email: lowerEmail,
-            data: data,
-            updated_at: new Date().toISOString()
-          });
-        }
-      } catch (fallbackErr) {
-        // ignore fallback errors
-      }
-    }
-  }
   return true;
 }
 
@@ -3253,7 +3375,7 @@ app.get("/api/user/data", async (req, res) => {
   }
 
   try {
-    const userData = await getUserDataByEmail(email);
+    const userData = await getUserDataByEmail(email, { throwOnError: true });
     if (!userData) {
       const defaultUserObj = getDefaultUserData();
       return res.json(defaultUserObj);
@@ -3262,7 +3384,7 @@ app.get("/api/user/data", async (req, res) => {
     res.json(ensureUserHasDefaults(userData));
   } catch (err) {
     console.error("User data get error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Falha temporária ao carregar dados do banco. Tente atualizar novamente." });
   }
 });
 
@@ -3273,19 +3395,66 @@ app.post("/api/user/data", async (req, res) => {
     return res.status(401).json({ error: "Não autorizado." });
   }
 
+  const newData = req.body;
+  if (!newData || typeof newData !== "object" || Array.isArray(newData)) {
+    return res.status(400).json({ error: "Payload de dados inválido." });
+  }
+
   try {
-    const newData = req.body;
-    const currentData = await getUserDataByEmail(email) || {};
+    const currentData = await getUserDataByEmail(email, { bypassCache: true, throwOnError: true });
+    if (!currentData || typeof currentData !== "object") {
+      return res.status(503).json({ error: "Não foi possível validar os dados atuais antes de salvar." });
+    }
+
+    // Protect against accidental mass-wipe from stale/empty client payloads
+    if (
+      Array.isArray(newData.expenses) &&
+      newData.expenses.length === 0 &&
+      Array.isArray(currentData.expenses) &&
+      currentData.expenses.length > 1 &&
+      !newData._allowClearAll
+    ) {
+      return res.status(409).json({
+        error: "Operação bloqueada por segurança para evitar perda em massa de despesas. Atualize a página e tente novamente."
+      });
+    }
+
+    if (
+      Array.isArray(newData.incomes) &&
+      newData.incomes.length === 0 &&
+      Array.isArray(currentData.incomes) &&
+      currentData.incomes.length > 1 &&
+      !newData._allowClearAll
+    ) {
+      return res.status(409).json({
+        error: "Operação bloqueada por segurança para evitar perda em massa de receitas. Atualize a página e tente novamente."
+      });
+    }
+
+    if (
+      Array.isArray(newData.paymentStatuses) &&
+      newData.paymentStatuses.length === 0 &&
+      Array.isArray(currentData.paymentStatuses) &&
+      currentData.paymentStatuses.length > 0
+    ) {
+      return res.status(409).json({
+        error: "A lista de situações de pagamento não pode ficar vazia."
+      });
+    }
+
+    const { _allowClearAll, ...sanitizedNewData } = newData;
+    const changedKeys = Object.keys(sanitizedNewData);
+
     const updatedData = {
       ...currentData,
-      ...newData,
+      ...sanitizedNewData,
     };
 
-    await saveUserDataByEmail(email, updatedData);
+    await saveUserDataByEmail(email, updatedData, changedKeys);
     res.json({ success: true, data: updatedData });
   } catch (err) {
     console.error("User data post error:", err);
-    res.status(500).json({ error: "Erro interno no servidor." });
+    res.status(503).json({ error: "Erro ao salvar dados no banco. Seus registros anteriores foram preservados." });
   }
 });
 
