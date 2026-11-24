@@ -19,9 +19,32 @@ import {
   RETENTION_YEARS,
   TRASH_RETENTION_DAYS,
   TRASH_RETENTION_MS,
+  BACKUP_RETENTION_DAYS,
+  BACKUP_RETENTION_MS,
   applyThreeYearRetention,
   isWithinTrashRestoreWindow,
+  isWithinBackupRestoreWindow,
+  summarizeUserDataSnapshot,
 } from "./src/server/retention";
+import {
+  ForeignRowOwnershipError,
+  pickAllowedUserDataFields,
+  sanitizePostgrestEmailFilter,
+  assertNoForeignRowOwnership,
+  remapCollidingImportIds,
+  mergeScopedYearUserData,
+} from "./src/server/isolation";
+import {
+  verifyMercadoPagoWebhookSignature,
+  isPaymentSimulationAllowed,
+} from "./src/server/paymentSecurity";
+import {
+  PASSWORD_RESET_SETTING_PREFIX,
+  generatePasswordResetToken,
+  hashPasswordResetToken,
+  isPasswordResetTokenActive,
+  buildPasswordResetEmailPayload,
+} from "./src/server/passwordReset";
 
 // Define _dirname de forma segura para ambientes ES Module (ESM) e CommonJS (CJS)
 const _dirname = typeof __dirname !== "undefined"
@@ -1442,7 +1465,8 @@ async function getUserDataByEmail(
       ),
       investmentTypes: resolveNameList(invTypesRes, backupData?.investmentTypes, cached?.data?.investmentTypes),
       investmentStatuses: resolveNameList(invStatusesRes, backupData?.investmentStatuses, cached?.data?.investmentStatuses),
-      _version: (!backupError && backupUserDataRes?.data?.updated_at) ? String(backupUserDataRes.data.updated_at) : undefined
+      _version: (!backupError && backupUserDataRes?.data?.updated_at) ? String(backupUserDataRes.data.updated_at) : undefined,
+      ...(filterYear ? { _loadedYear: filterYear } : {})
     };
 
     const responseData = !filterYear
@@ -1525,6 +1549,79 @@ async function archiveDeletedItemsToTrash(
   }
 }
 
+type BackupTriggerType = 'auto' | 'manual' | 'pre_restore' | 'user_restore';
+const AUTO_BACKUP_THROTTLE_MS = 15 * 60 * 1000;
+const lastAutoBackupAt = new Map<string, number>();
+
+async function createUserBackupSnapshot(
+  supabase: any,
+  email: string,
+  data: any,
+  triggerType: BackupTriggerType = 'auto',
+  options?: { respectThrottle?: boolean; allowEmpty?: boolean }
+): Promise<{ created: boolean; tableMissing?: boolean; backupId?: string; skippedReason?: string }> {
+  const lowerEmail = email.toLowerCase().trim();
+  if (!lowerEmail || !data || typeof data !== 'object') {
+    return { created: false, skippedReason: 'invalid_input' };
+  }
+
+  const now = Date.now();
+  if (options?.respectThrottle) {
+    const lastTs = lastAutoBackupAt.get(lowerEmail) || 0;
+    if (now - lastTs < AUTO_BACKUP_THROTTLE_MS) {
+      return { created: false, skippedReason: 'throttled' };
+    }
+  }
+
+  const { _version, _expectedVersion, _allowClearAll, ...rawSnapshot } = data;
+  const retention = applyThreeYearRetention(rawSnapshot);
+  const cleanSnapshot = retention.prunedData;
+  const summary = summarizeUserDataSnapshot(cleanSnapshot);
+
+  if (!options?.allowEmpty && summary.totalRecords === 0 && summary.categoriesCount === 0) {
+    return { created: false, skippedReason: 'empty_workspace' };
+  }
+
+  const cutoffIso = new Date(now - BACKUP_RETENTION_MS).toISOString();
+  const createdAtIso = new Date(now).toISOString();
+  const expiresAtIso = new Date(now + BACKUP_RETENTION_MS).toISOString();
+  const backupId = `bkp_${now}_${crypto.randomBytes(5).toString('hex')}`;
+
+  try {
+    await supabase
+      .from('user_backups')
+      .delete()
+      .eq('email', lowerEmail)
+      .lt('created_at', cutoffIso);
+
+    const { error } = await supabase.from('user_backups').insert({
+      id: backupId,
+      email: lowerEmail,
+      trigger_type: triggerType,
+      summary,
+      snapshot: cleanSnapshot,
+      created_at: createdAtIso,
+      expires_at: expiresAtIso,
+    });
+
+    if (error) {
+      if (isMissingTableOrColumnError(error)) {
+        return { created: false, tableMissing: true };
+      }
+      console.warn(`[user_backups] Falha ao gravar snapshot (${triggerType}) para ${lowerEmail}:`, error.message);
+      return { created: false, skippedReason: error.message };
+    }
+
+    if (triggerType === 'auto') {
+      lastAutoBackupAt.set(lowerEmail, now);
+    }
+    return { created: true, backupId };
+  } catch (err: any) {
+    console.warn(`[user_backups] Exceção ao gravar snapshot para ${lowerEmail}:`, err?.message || err);
+    return { created: false, skippedReason: err?.message || 'error' };
+  }
+}
+
 // Helper: Diff-based sync for name-list tables (paginated + strictly throws on any error)
 async function syncNameListTable(supabase: any, table: string, lowerEmail: string, desiredNames: string[]) {
   const uniqueDesired = Array.from(new Set(desiredNames.map((n: any) => String(n || '').trim()).filter(Boolean)));
@@ -1589,6 +1686,13 @@ async function syncIdEntityTable(
 
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
+    await assertNoForeignRowOwnership(
+      supabase,
+      table,
+      lowerEmail,
+      chunk.map((r: any) => String(r?.id || '').trim()).filter(Boolean),
+      withSupabaseRetry
+    );
     let { error: upErr } = await withSupabaseRetry<any>(
       () => supabase.from(table).upsert(chunk, { onConflict: 'id' }),
       `syncIdEntityTable:upsert:${table}`
@@ -1647,7 +1751,7 @@ async function saveUserDataByEmail(
   data: any,
   changedKeys?: string[],
   prevVersion?: string,
-  options?: { skipTrash?: boolean; previousData?: any }
+  options?: { skipTrash?: boolean; skipAutoBackup?: boolean; previousData?: any }
 ): Promise<string> {
   const lowerEmail = email.toLowerCase().trim();
   const supabase = requireSupabase();
@@ -1922,6 +2026,10 @@ async function saveUserDataByEmail(
       throw new Error(`Erro ao atualizar snapshot user_data no Supabase: ${backupErr.message}`);
     }
 
+    if (!options?.skipAutoBackup) {
+      await createUserBackupSnapshot(supabase, lowerEmail, cleanPayload, 'auto', { respectThrottle: true });
+    }
+
     const versionedData = { ...cleanPayload, _version: newVersion };
     userDataCache.set(lowerEmail, { data: versionedData, timestamp: Date.now() });
     return newVersion;
@@ -2062,10 +2170,12 @@ async function saveGranularEntityMutation(
 
   let updatedList: any[];
   if (action === 'upsert') {
-    if (!item || !item.id) {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || typeof item.id !== 'string' || !item.id.trim()) {
       throw new Error('Registro inválido para atualização incremental.');
     }
-    const row = meta.mapRow(lowerEmail, item);
+    const cleanId = item.id.trim();
+    await assertNoForeignRowOwnership(supabase, meta.table, lowerEmail, [cleanId], withSupabaseRetry);
+    const row = meta.mapRow(lowerEmail, { ...item, id: cleanId });
     let { error: upErr } = await withSupabaseRetry<any>(
       () => supabase.from(meta.table).upsert(row, { onConflict: 'id' }),
       `granular:upsert:${meta.table}`
@@ -2140,6 +2250,8 @@ async function saveGranularEntityMutation(
   if (backupErr) {
     throw new Error(`Erro ao sincronizar snapshot incremental: ${backupErr.message}`);
   }
+
+  await createUserBackupSnapshot(supabase, lowerEmail, nextCleanData, 'auto', { respectThrottle: true });
 
   const nextVersioned = { ...nextCleanData, _version: newVersion };
   userDataCache.set(lowerEmail, { data: nextVersioned, timestamp: Date.now() });
@@ -2548,7 +2660,7 @@ async function requireAdmin(req: express.Request, res: express.Response): Promis
 
 // Endpoint de Verificação de Sessão Persistente
 app.get("/api/auth/verify-session", async (req, res) => {
-  const token = (req.headers["x-auth-token"] as string) || (req.headers["authorization"] as string) || (req.query.token as string);
+  const token = (req.headers["x-auth-token"] as string) || (req.headers["authorization"] as string);
   const decoded = token ? verifyAuthToken(token) : null;
   const verifiedEmail = decoded?.email ? String(decoded.email).toLowerCase().trim() : null;
 
@@ -2718,6 +2830,9 @@ app.post("/api/auth/register", authSensitiveLimiter, async (req, res) => {
   if (!email || !password || !name || typeof email !== "string" || typeof password !== "string") {
     return res.status(400).json({ error: "Nome, E-mail e senha são obrigatórios." });
   }
+  if (password.length < 4) {
+    return res.status(400).json({ error: "A senha deve ter pelo menos 4 caracteres." });
+  }
 
   try {
     const lowerEmail = email.toLowerCase().trim();
@@ -2796,8 +2911,35 @@ app.post("/api/auth/register", authSensitiveLimiter, async (req, res) => {
   }
 });
 
-// Remember Password (sem expor senhas em logs)
-app.post("/api/auth/remember-password", authSensitiveLimiter, async (req, res) => {
+function hasRealResendKey(): boolean {
+  const key = process.env.RESEND_API_KEY;
+  return Boolean(key && key.trim() !== "" && !isPlaceholderValue(key));
+}
+
+function resolveRequestAppUrl(req: express.Request): string {
+  let appUrl = (process.env.APP_URL || "").trim();
+  if (!appUrl) {
+    const host = req.headers.host || "";
+    const protocol = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
+    let origin = "";
+    try {
+      origin = (req.headers.origin as string) || (req.headers.referer ? new URL(req.headers.referer).origin : "");
+    } catch {
+      origin = "";
+    }
+    if (origin) {
+      appUrl = origin;
+    } else if (host) {
+      appUrl = `${protocol}://${host}`;
+    } else {
+      appUrl = "http://localhost:3000";
+    }
+  }
+  return appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+}
+
+// Self-Service Password Recovery (envia link temporário de uso único quando RESEND_API_KEY está configurado)
+const handlePasswordRecoveryRequest = async (req: express.Request, res: express.Response) => {
   const { email } = req.body;
   if (!email || typeof email !== "string" || !email.trim()) {
     return res.status(400).json({ error: "O e-mail é obrigatório para recuperar a senha." });
@@ -2807,45 +2949,209 @@ app.post("/api/auth/remember-password", authSensitiveLimiter, async (req, res) =
     const lowerEmail = email.toLowerCase().trim();
     const user = await getUserByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
 
-    if (!user) {
-      return res.status(404).json({ error: "O e-mail digitado é diferente do e-mail cadastrado na conta ou não existe no banco de dados." });
+    if (!hasRealResendKey()) {
+      if (user) {
+        await logAuditEvent({
+          actorEmail: lowerEmail,
+          action: "PASSWORD_RECOVERY_REQUEST",
+          entity: "auth",
+          status: "warning",
+          req
+        });
+      }
+      return res.json({
+        success: true,
+        emailConfigured: false,
+        message: "O envio automático de e-mails (RESEND_API_KEY) ainda não foi ativado neste servidor. Solicite ao administrador uma redefinição temporária de senha.",
+        user: {
+          name: user?.name || lowerEmail.split("@")[0],
+          email: lowerEmail
+        }
+      });
+    }
+
+    const genericSuccessMessage =
+      "Se este e-mail estiver cadastrado, você receberá em instantes um link temporário (válido por 30 minutos) para criar uma nova senha.";
+
+    if (!user || user.isBlocked) {
+      await logAuditEvent({
+        actorEmail: lowerEmail,
+        action: "PASSWORD_RECOVERY_IGNORED",
+        entity: "auth",
+        status: "blocked",
+        req
+      });
+      return res.json({
+        success: true,
+        emailConfigured: true,
+        message: genericSuccessMessage,
+        user: { name: lowerEmail.split("@")[0], email: lowerEmail }
+      });
+    }
+
+    const supabase = requireSupabase();
+    const { rawToken, settingKey, expiresAt } = generatePasswordResetToken();
+    const nowIso = new Date().toISOString();
+
+    // Limpeza oportunista de tokens expirados na tabela system_settings
+    const { data: oldResetRows } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .like("key", `${PASSWORD_RESET_SETTING_PREFIX}%`)
+      .limit(50);
+
+    const staleKeys = (oldResetRows || [])
+      .filter((row: any) => !isPasswordResetTokenActive(row?.value))
+      .map((row: any) => row.key);
+    if (staleKeys.length > 0) {
+      await supabase.from("system_settings").delete().in("key", staleKeys);
+    }
+
+    const { error: storeErr } = await supabase.from("system_settings").upsert({
+      key: settingKey,
+      value: {
+        email: lowerEmail,
+        expiresAt,
+        used: false,
+        createdAt: nowIso
+      },
+      updated_at: nowIso
+    });
+
+    if (storeErr) {
+      console.error("Failed to persist password reset token:", storeErr.message);
+      return res.status(503).json({ error: "Não foi possível gerar o token de redefinição no momento." });
+    }
+
+    const appUrl = resolveRequestAppUrl(req);
+    const resetUrl = `${appUrl}/?resetToken=${encodeURIComponent(rawToken)}`;
+    const fromAddress = (process.env.EMAIL_FROM || "").trim() || "FinanFly <onboarding@resend.dev>";
+    const mailPayload = buildPasswordResetEmailPayload({
+      to: lowerEmail,
+      userName: user.name || lowerEmail.split("@")[0],
+      resetUrl,
+      from: fromAddress
+    });
+
+    const mailRes = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${String(process.env.RESEND_API_KEY).trim()}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(mailPayload)
+    });
+
+    if (!mailRes.ok) {
+      const errBody = await mailRes.text().catch(() => "");
+      console.error("[Password Reset Email] Resend error:", mailRes.status, errBody.slice(0, 200));
+      await supabase.from("system_settings").delete().eq("key", settingKey);
+      return res.status(503).json({
+        error: "Falha ao disparar o e-mail de redefinição. Verifique a configuração do remetente e tente novamente."
+      });
     }
 
     await logAuditEvent({
       actorEmail: lowerEmail,
-      action: "PASSWORD_RECOVERY_REQUEST",
+      action: "PASSWORD_RESET_EMAIL_SENT",
       entity: "auth",
       status: "success",
       req
     });
 
-    const userName = user.name || lowerEmail.split('@')[0];
-    const isEncrypted = typeof user.password === "string" && user.password.startsWith("scrypt$");
-
-    if (isEncrypted) {
-      return res.json({
-        success: true,
-        message: "Sua conta utiliza proteção criptográfica irreversível de senha. Para definir uma nova senha, entre em contato com o administrador do sistema.",
-        emailSubject: "FinanFly - Solicitação de Redefinição de Senha",
-        user: {
-          name: userName,
-          email: user.email
-        }
-      });
-    }
-
-    res.json({
+    return res.json({
       success: true,
-      message: `Solicitação registrada para ${lowerEmail}. Como não há servidor de e-mail SMTP configurado nesta instância, contate o administrador para redefinir sua senha com segurança.`,
-      emailSubject: "FinanFly - Recuperação de Acesso",
+      emailConfigured: true,
+      message: genericSuccessMessage,
       user: {
-        name: userName,
-        email: user.email
+        name: user.name || lowerEmail.split("@")[0],
+        email: lowerEmail
       }
     });
   } catch (err) {
     console.error("Remember password error:", err);
-    res.status(503).json({ error: "Erro ao consultar banco de dados para recuperação de senha." });
+    res.status(503).json({ error: "Erro ao processar solicitação de redefinição de senha." });
+  }
+};
+
+app.post("/api/auth/remember-password", authSensitiveLimiter, handlePasswordRecoveryRequest);
+app.post("/api/auth/forgot-password", authSensitiveLimiter, handlePasswordRecoveryRequest);
+
+// Complete Password Reset using single-use token
+app.post("/api/auth/reset-password", authSensitiveLimiter, async (req, res) => {
+  const { token, newPassword } = req.body || {};
+  if (typeof token !== "string" || token.trim().length < 16) {
+    return res.status(400).json({ error: "Link de redefinição inválido ou expirado." });
+  }
+  if (typeof newPassword !== "string" || newPassword.length < 4) {
+    return res.status(400).json({ error: "A nova senha deve ter pelo menos 4 caracteres." });
+  }
+
+  try {
+    const supabase = requireSupabase();
+    const settingKey = `${PASSWORD_RESET_SETTING_PREFIX}${hashPasswordResetToken(token)}`;
+
+    const { data: row, error: fetchErr } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", settingKey)
+      .maybeSingle();
+
+    if (fetchErr) {
+      return res.status(503).json({ error: "Falha temporária ao validar o token de redefinição." });
+    }
+
+    const record = row?.value;
+    if (!isPasswordResetTokenActive(record)) {
+      await logAuditEvent({
+        actorEmail: typeof record?.email === "string" ? record.email : "unknown",
+        action: "PASSWORD_RESET_INVALID_TOKEN",
+        entity: "auth",
+        status: "blocked",
+        req
+      });
+      return res.status(400).json({
+        error: "Este link de redefinição é inválido, já foi utilizado ou expirou. Solicite um novo link."
+      });
+    }
+
+    const targetEmail = String(record.email).toLowerCase().trim();
+    const user = await getUserByEmail(targetEmail, { bypassCache: true, throwOnError: true });
+    if (!user || user.isBlocked) {
+      return res.status(400).json({ error: "Conta não encontrada ou bloqueada para redefinição." });
+    }
+
+    // Marca o token como utilizado antes de salvar a senha para impedir reutilização
+    const nowIso = new Date().toISOString();
+    await supabase.from("system_settings").upsert({
+      key: settingKey,
+      value: {
+        ...record,
+        used: true,
+        usedAt: nowIso
+      },
+      updated_at: nowIso
+    });
+
+    user.password = hashPassword(newPassword);
+    await saveUser(user);
+    invalidateUserCache(targetEmail);
+
+    await logAuditEvent({
+      actorEmail: targetEmail,
+      action: "PASSWORD_RESET_COMPLETED",
+      entity: "auth",
+      status: "success",
+      req
+    });
+
+    return res.json({
+      success: true,
+      message: "Sua senha foi redefinida com sucesso! Agora você já pode entrar com a nova senha."
+    });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    return res.status(503).json({ error: "Erro ao redefinir senha no banco de dados." });
   }
 });
 
@@ -2917,7 +3223,7 @@ app.post("/api/auth/delete-account", authSensitiveLimiter, async (req, res) => {
       'payment_types', 'payment_statuses', 'income_categories', 'expense_categories',
       'incomes', 'expenses', 'annual_planning', 'shopping_list', 'action_plans',
       'deficit_actions', 'trips', 'wishes', 'investments', 'investment_types',
-      'investment_statuses', 'user_data', 'trash_items'
+      'investment_statuses', 'user_data', 'trash_items', 'user_backups'
     ];
 
     const deleteResults = await Promise.all(
@@ -3113,6 +3419,19 @@ function hasRealMercadoPagoToken(): boolean {
   );
 }
 
+function hasRealMercadoPagoWebhookSecret(): boolean {
+  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+  return Boolean(secret && secret.trim() !== "" && !isPlaceholderValue(secret));
+}
+
+function canSimulateMercadoPago(): boolean {
+  return isPaymentSimulationAllowed({
+    hasRealToken: hasRealMercadoPagoToken(),
+    nodeEnv: process.env.NODE_ENV,
+    allowSimulationEnv: process.env.ALLOW_PAYMENT_SIMULATION,
+  });
+}
+
 async function activatePaidSubscriptionFromPayment(params: {
   targetEmail: string;
   plan: "mensal" | "anual";
@@ -3306,7 +3625,21 @@ app.post("/api/payment/create-preference", async (req, res) => {
     }
   }
 
-  // Simulation mode (Fallback exclusively when ACCESS_TOKEN is absent)
+  if (!canSimulateMercadoPago()) {
+    await logAuditEvent({
+      actorEmail: email,
+      action: "PAYMENT_CHECKOUT_BLOCKED_NO_KEY",
+      entity: "subscriptions",
+      status: "blocked",
+      req,
+      details: { plan: planName }
+    });
+    return res.status(503).json({
+      error: "Pagamento online via Mercado Pago aguardando configuração da chave de produção. Solicite ao administrador ou tente novamente em breve."
+    });
+  }
+
+  // Simulation mode (Only outside production or when ALLOW_PAYMENT_SIMULATION=true without a real token)
   console.log(`[PAYMENT SIMULATION] Criando checkout simulado de Mercado Pago para ${email} (Plano: ${planName})`);
   const simSig = crypto.createHmac("sha256", JWT_SECRET).update(`${email}:${planName}`).digest("hex");
   const simulationUrl = `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved&simulated=true&sig=${simSig}`;
@@ -3328,6 +3661,26 @@ app.post("/api/payment/webhook", async (req, res) => {
 
     if (!hasRealMercadoPagoToken()) {
       return res.status(200).json({ received: true, skipped: "no_token" });
+    }
+
+    if (hasRealMercadoPagoWebhookSecret()) {
+      const sigCheck = verifyMercadoPagoWebhookSignature({
+        xSignature: req.headers["x-signature"],
+        xRequestId: req.headers["x-request-id"],
+        dataId: String(rawPaymentId),
+        secret: process.env.MERCADO_PAGO_WEBHOOK_SECRET,
+      });
+      if (!sigCheck.valid) {
+        await logAuditEvent({
+          actorEmail: "webhook:mercadopago",
+          action: "PAYMENT_WEBHOOK_INVALID_SIGNATURE",
+          entity: "subscriptions",
+          status: "blocked",
+          req,
+          details: { reason: sigCheck.reason, paymentId: String(rawPaymentId) }
+        });
+        return res.status(401).json({ received: false, error: "Assinatura de webhook inválida." });
+      }
     }
 
     const verification = await verifyMercadoPagoPaymentById(String(rawPaymentId));
@@ -3417,7 +3770,7 @@ app.get("/api/payment/callback", async (req, res) => {
         console.error("Callback Mercado Pago verification error:", err);
       }
     }
-  } else {
+  } else if (canSimulateMercadoPago()) {
     confirmedApproved = status === "approved" && Boolean(safePlan) && isValidSignature;
   }
 
@@ -3576,6 +3929,20 @@ app.post("/api/user/data", async (req, res) => {
       }
 
       const activeCurrent = applyThreeYearRetention(currentData).prunedData;
+      const sanitizedNewData = pickAllowedUserDataFields(newData);
+      const changedKeys = Object.keys(sanitizedNewData);
+      if (changedKeys.length === 0) {
+        return { status: 400, body: { error: "Nenhum campo financeiro válido informado para atualização." } };
+      }
+
+      const rawScopedYear = newData._scopedYear !== undefined ? Number(newData._scopedYear) : undefined;
+      const scopedYear =
+        rawScopedYear && Number.isInteger(rawScopedYear) && rawScopedYear >= 2000 && rawScopedYear <= 2100
+          ? rawScopedYear
+          : undefined;
+      const effectiveNewData = scopedYear
+        ? mergeScopedYearUserData(currentData, sanitizedNewData, scopedYear)
+        : sanitizedNewData;
 
       const protectedEntityKeys: Array<[string, string]> = [
         ['expenses', 'despesas'],
@@ -3589,11 +3956,17 @@ app.post("/api/user/data", async (req, res) => {
       ];
 
       for (const [key, label] of protectedEntityKeys) {
+        const isYearFilteredEntity =
+          scopedYear && (key === 'expenses' || key === 'incomes' || key === 'investments' || key === 'deficitActions');
+        const prevCountForScope = isYearFilteredEntity && Array.isArray(activeCurrent[key])
+          ? activeCurrent[key].filter((it: any) => Number(String(it?.date || '').slice(0, 4)) === scopedYear).length
+          : Array.isArray(activeCurrent[key]) ? activeCurrent[key].length : 0;
+        const incomingArr = isYearFilteredEntity ? sanitizedNewData[key] : effectiveNewData[key];
+
         if (
-          Array.isArray(newData[key]) &&
-          newData[key].length === 0 &&
-          Array.isArray(activeCurrent[key]) &&
-          activeCurrent[key].length > 1 &&
+          Array.isArray(incomingArr) &&
+          incomingArr.length === 0 &&
+          prevCountForScope > 1 &&
           !newData._allowClearAll
         ) {
           await logAuditEvent({
@@ -3602,7 +3975,7 @@ app.post("/api/user/data", async (req, res) => {
             entity: key,
             status: "warning",
             req,
-            details: { previousCount: activeCurrent[key].length }
+            details: { previousCount: prevCountForScope, scopedYear: scopedYear || null }
           });
           return {
             status: 409,
@@ -3625,8 +3998,8 @@ app.post("/api/user/data", async (req, res) => {
 
       for (const [key, label, minProtectedLen] of protectedConfigKeys) {
         if (
-          Array.isArray(newData[key]) &&
-          newData[key].length === 0 &&
+          Array.isArray(effectiveNewData[key]) &&
+          effectiveNewData[key].length === 0 &&
           Array.isArray(activeCurrent[key]) &&
           activeCurrent[key].length > minProtectedLen &&
           !newData._allowClearAll
@@ -3646,13 +4019,10 @@ app.post("/api/user/data", async (req, res) => {
         }
       }
 
-      const { _allowClearAll, _expectedVersion, _version, ...sanitizedNewData } = newData;
-      const changedKeys = Object.keys(sanitizedNewData);
-
       const { _version: currentVersion, ...cleanCurrentData } = currentData;
       const mergedUpdatedData = {
         ...cleanCurrentData,
-        ...sanitizedNewData,
+        ...effectiveNewData,
       };
       const retentionResult = applyThreeYearRetention(mergedUpdatedData);
       const prunedUpdatedData = retentionResult.prunedData;
@@ -3680,7 +4050,18 @@ app.post("/api/user/data", async (req, res) => {
       res.setHeader("X-Data-Version", String((result as any).version));
     }
     res.status(result.status).json(result.body);
-  } catch (err) {
+  } catch (err: any) {
+    if (err instanceof ForeignRowOwnershipError) {
+      await logAuditEvent({
+        actorEmail: authUser.email,
+        action: "CROSS_USER_ID_BLOCKED",
+        entity: err.table,
+        status: "blocked",
+        req,
+        details: { conflictingIds: err.conflictingIds }
+      });
+      return res.status(403).json({ error: "Operação negada: identificador pertence a outra conta." });
+    }
     console.error("User data post error:", err);
     res.status(503).json({ error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." });
   }
@@ -3699,6 +4080,12 @@ app.post("/api/user/entity/:entity", async (req, res) => {
   const { action, item, id, _expectedVersion } = req.body || {};
   if (action !== "upsert" && action !== "delete") {
     return res.status(400).json({ error: "Ação incremental inválida. Use 'upsert' ou 'delete'." });
+  }
+  if (action === "upsert" && (!item || typeof item !== "object" || Array.isArray(item) || typeof item.id !== "string" || !item.id.trim())) {
+    return res.status(400).json({ error: "Registro inválido para gravação." });
+  }
+  if (action === "delete" && typeof (id || item?.id) !== "string") {
+    return res.status(400).json({ error: "ID do registro inválido para exclusão." });
   }
 
   try {
@@ -3732,7 +4119,18 @@ app.post("/api/user/entity/:entity", async (req, res) => {
       res.setHeader("X-Data-Version", String((result as any).version));
     }
     res.status(result.status).json(result.body);
-  } catch (err) {
+  } catch (err: any) {
+    if (err instanceof ForeignRowOwnershipError) {
+      await logAuditEvent({
+        actorEmail: authUser.email,
+        action: "CROSS_USER_ID_BLOCKED",
+        entity: err.table,
+        status: "blocked",
+        req,
+        details: { conflictingIds: err.conflictingIds }
+      });
+      return res.status(403).json({ error: "Operação negada: identificador pertence a outra conta." });
+    }
     console.error("Granular entity post error:", err);
     res.status(503).json({ error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." });
   }
@@ -3977,13 +4375,35 @@ app.post("/api/user/backup/restore", async (req, res) => {
   try {
     const result = await withUserWriteLock(authUser.email, async () => {
       const currentData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
-      const newVersion = await saveUserDataByEmail(
+      const supabase = requireSupabase();
+      const remapResult = await remapCollidingImportIds(
+        supabase,
         authUser.email,
         retentionResult.prunedData,
+        [
+          { key: 'incomes', table: 'incomes', prefix: 'inc' },
+          { key: 'expenses', table: 'expenses', prefix: 'exp' },
+          { key: 'investments', table: 'investments', prefix: 'inv' },
+          { key: 'trips', table: 'trips', prefix: 'trip' },
+          { key: 'wishes', table: 'wishes', prefix: 'wish' },
+          { key: 'actionPlans', table: 'action_plans', prefix: 'plan' },
+          { key: 'deficitActions', table: 'deficit_actions', prefix: 'deficit' },
+          { key: 'shoppingList', table: 'shopping_list', prefix: 'shop' }
+        ],
+        withSupabaseRetry
+      );
+      const safeRestoredData = remapResult.userData;
+      await createUserBackupSnapshot(supabase, authUser.email, currentData, 'pre_restore');
+
+      const newVersion = await saveUserDataByEmail(
+        authUser.email,
+        safeRestoredData,
         undefined,
         currentData?._version,
-        { skipTrash: true, previousData: currentData }
+        { skipTrash: true, skipAutoBackup: true, previousData: currentData }
       );
+
+      await createUserBackupSnapshot(supabase, authUser.email, safeRestoredData, 'user_restore', { allowEmpty: true });
 
       await logAuditEvent({
         actorEmail: authUser.email,
@@ -3992,7 +4412,8 @@ app.post("/api/user/backup/restore", async (req, res) => {
         status: "success",
         req,
         details: {
-          removedOlderThanThreeYears: retentionResult.totalRemoved
+          removedOlderThanThreeYears: retentionResult.totalRemoved,
+          remappedCollidingIds: remapResult.remappedCount
         }
       });
 
@@ -4003,7 +4424,7 @@ app.post("/api/user/backup/restore", async (req, res) => {
           success: true,
           _version: newVersion,
           removedOlderThanThreeYears: retentionResult.totalRemoved,
-          data: { ...retentionResult.prunedData, _version: newVersion }
+          data: { ...safeRestoredData, _version: newVersion }
         }
       };
     });
@@ -4525,14 +4946,10 @@ app.get("/api/admin/retrieve-password/:targetEmail", async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    if (typeof targetUser.password === "string" && targetUser.password.startsWith("scrypt$")) {
-      return res.json({
-        protected: true,
-        message: "Senha protegida com criptografia irreversível (scrypt). Utilize 'Editar Usuário' para definir uma nova senha."
-      });
-    }
-
-    res.json({ password: targetUser.password });
+    return res.json({
+      protected: true,
+      message: "Por segurança, nenhuma senha é retornada pela API. Utilize 'Editar Usuário' para definir uma nova senha."
+    });
   } catch (err) {
     console.error("Admin retrieve-password error:", err);
     res.status(503).json({ error: "Erro ao consultar banco de dados." });
@@ -4589,7 +5006,7 @@ app.post("/api/admin/delete-user", async (req, res) => {
       'payment_types', 'payment_statuses', 'income_categories', 'expense_categories',
       'incomes', 'expenses', 'annual_planning', 'shopping_list', 'action_plans',
       'deficit_actions', 'trips', 'wishes', 'investments', 'investment_types',
-      'investment_statuses', 'user_data', 'trash_items'
+      'investment_statuses', 'user_data', 'trash_items', 'user_backups'
     ];
 
     const deleteResults = await Promise.all(
@@ -4630,7 +5047,7 @@ app.get("/api/admin/audit-logs", async (req, res) => {
   try {
     const supabase = requireSupabase();
     const actionFilter = typeof req.query.action === "string" ? req.query.action.trim() : "";
-    const emailFilter = typeof req.query.email === "string" ? req.query.email.trim().toLowerCase() : "";
+    const emailFilter = sanitizePostgrestEmailFilter(req.query.email);
     const rawLimit = Number(req.query.limit || 150);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 10), 500) : 150;
 
@@ -4659,6 +5076,387 @@ app.get("/api/admin/audit-logs", async (req, res) => {
   } catch (err) {
     console.error("Admin audit-logs error:", err);
     res.status(503).json({ error: "Erro ao consultar logs de auditoria no Supabase." });
+  }
+});
+
+// ---------------- ADMIN USER BACKUPS (LAST 3 DAYS) ----------------
+
+// List all user backups within strictly the last 3 days (without heavy snapshot payloads)
+app.get("/api/admin/user-backups", async (req, res) => {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  try {
+    const supabase = requireSupabase();
+    const emailFilter = typeof req.query.email === "string" ? req.query.email.trim().toLowerCase() : "";
+    const triggerFilter = typeof req.query.triggerType === "string" ? req.query.triggerType.trim() : "";
+    const searchFilter = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+    const cutoffIso = new Date(Date.now() - BACKUP_RETENTION_MS).toISOString();
+
+    // Auto-purge expired backups older than 3 days
+    const { error: purgeErr } = await supabase
+      .from("user_backups")
+      .delete()
+      .lt("created_at", cutoffIso);
+
+    if (purgeErr) {
+      if (isMissingTableOrColumnError(purgeErr)) {
+        return res.json({ backups: [], tableMissing: true, retentionDays: BACKUP_RETENTION_DAYS });
+      }
+      throw new Error(purgeErr.message);
+    }
+
+    const [backupsRes, usersList] = await Promise.all([
+      fetchAllPaginatedRows(
+        (from, to) => {
+          let q = supabase
+            .from("user_backups")
+            .select("id, email, trigger_type, summary, created_at, expires_at")
+            .gte("created_at", cutoffIso);
+          if (emailFilter) {
+            q = q.eq("email", emailFilter);
+          }
+          if (triggerFilter) {
+            q = q.eq("trigger_type", triggerFilter);
+          }
+          return q.order("created_at", { ascending: false }).range(from, to);
+        },
+        "adminUserBackups:list"
+      ),
+      getAllUsersList().catch(() => [])
+    ]);
+
+    if (backupsRes.error) {
+      if (isMissingTableOrColumnError(backupsRes.error)) {
+        return res.json({ backups: [], tableMissing: true, retentionDays: BACKUP_RETENTION_DAYS });
+      }
+      throw new Error(backupsRes.error.message);
+    }
+
+    const userNameMap = new Map<string, string>();
+    for (const u of usersList || []) {
+      const e = String(u?.email || "").toLowerCase().trim();
+      if (e) userNameMap.set(e, String(u?.name || "").trim());
+    }
+
+    let backups = (backupsRes.data || [])
+      .filter((row: any) => isWithinBackupRestoreWindow(row.created_at))
+      .map((row: any) => {
+        const email = String(row.email || "").toLowerCase().trim();
+        return {
+          id: row.id,
+          email,
+          userName: userNameMap.get(email) || email.split("@")[0] || "Usuário",
+          triggerType: row.trigger_type || "auto",
+          summary: row.summary || summarizeUserDataSnapshot(null),
+          createdAt: row.created_at,
+          expiresAt: row.expires_at,
+        };
+      });
+
+    if (searchFilter) {
+      backups = backups.filter(
+        (b: any) =>
+          b.email.toLowerCase().includes(searchFilter) ||
+          b.userName.toLowerCase().includes(searchFilter)
+      );
+    }
+
+    res.json({
+      backups,
+      tableMissing: false,
+      retentionDays: BACKUP_RETENTION_DAYS,
+    });
+  } catch (err) {
+    console.error("Admin list user backups error:", err);
+    res.status(503).json({ error: "Erro ao consultar backups dos usuários no Supabase." });
+  }
+});
+
+// Get full details & snapshot payload of a specific backup (for inspect/preview or JSON download)
+app.get("/api/admin/user-backups/:backupId", async (req, res) => {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  const backupId = String(req.params.backupId || "").trim();
+  if (!backupId) {
+    return res.status(400).json({ error: "Identificador do backup inválido." });
+  }
+
+  try {
+    const supabase = requireSupabase();
+    const { data: row, error } = await supabase
+      .from("user_backups")
+      .select("*")
+      .eq("id", backupId)
+      .maybeSingle();
+
+    if (error) {
+      if (isMissingTableOrColumnError(error)) {
+        return res.status(400).json({ error: "Tabela user_backups ainda não criada no Supabase." });
+      }
+      throw new Error(error.message);
+    }
+
+    if (!row) {
+      return res.status(404).json({ error: "Backup não encontrado." });
+    }
+
+    if (!isWithinBackupRestoreWindow(row.created_at)) {
+      await supabase.from("user_backups").delete().eq("id", backupId);
+      return res.status(410).json({ error: `O prazo de ${BACKUP_RETENTION_DAYS} dias deste backup expirou.` });
+    }
+
+    const targetEmail = String(row.email || "").toLowerCase().trim();
+    const targetUser = await getUserByEmail(targetEmail, { bypassCache: false }).catch(() => null);
+
+    res.json({
+      backup: {
+        id: row.id,
+        email: targetEmail,
+        userName: targetUser?.name || targetEmail.split("@")[0] || "Usuário",
+        triggerType: row.trigger_type || "auto",
+        summary: row.summary || summarizeUserDataSnapshot(row.snapshot),
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        snapshot: row.snapshot || getEmptyUserData(),
+      }
+    });
+  } catch (err) {
+    console.error("Admin get user backup detail error:", err);
+    res.status(503).json({ error: "Erro ao carregar conteúdo do backup." });
+  }
+});
+
+// Create manual backup snapshot now (for a specific user or all users with data)
+app.post("/api/admin/user-backups/create", async (req, res) => {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  const { targetEmail, allUsers } = req.body || {};
+
+  try {
+    const supabase = requireSupabase();
+
+    if (allUsers) {
+      const usersList = await getAllUsersList();
+      let createdCount = 0;
+      let skippedEmptyCount = 0;
+      let tableMissing = false;
+
+      for (const u of usersList) {
+        const lowerEmail = String(u?.email || "").toLowerCase().trim();
+        if (!lowerEmail) continue;
+        const data = await getUserDataByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
+        const result = await createUserBackupSnapshot(supabase, lowerEmail, data, "manual", {
+          respectThrottle: false,
+          allowEmpty: false
+        });
+        if (result.tableMissing) {
+          tableMissing = true;
+          break;
+        }
+        if (result.created) {
+          createdCount++;
+        } else {
+          skippedEmptyCount++;
+        }
+      }
+
+      if (tableMissing) {
+        return res.status(400).json({
+          error: "Tabela user_backups ainda não criada no Supabase. Execute o Script Diferencial Seguro na aba Conexão."
+        });
+      }
+
+      await logAuditEvent({
+        actorEmail: adminUser.email,
+        action: "ADMIN_BACKUP_CREATED_ALL",
+        entity: "user_backups",
+        status: "success",
+        req,
+        details: { createdCount, skippedEmptyCount }
+      });
+
+      return res.json({
+        success: true,
+        createdCount,
+        skippedEmptyCount,
+        message: createdCount > 0
+          ? `Backup gerado para ${createdCount} usuário(s) com registros${skippedEmptyCount > 0 ? ` (${skippedEmptyCount} conta(s) vazia(s) ignorada(s))` : ""}.`
+          : "Nenhum usuário com registros financeiros encontrado para backup."
+      });
+    }
+
+    const lowerTargetEmail = String(targetEmail || "").toLowerCase().trim();
+    if (!lowerTargetEmail) {
+      return res.status(400).json({ error: "Selecione um usuário ou escolha gerar para todos." });
+    }
+
+    const targetUser = await getUserByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
+    if (!targetUser) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    const currentData = await getUserDataByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
+    const result = await createUserBackupSnapshot(supabase, lowerTargetEmail, currentData, "manual", {
+      respectThrottle: false,
+      allowEmpty: true
+    });
+
+    if (result.tableMissing) {
+      return res.status(400).json({
+        error: "Tabela user_backups ainda não criada no Supabase. Execute o Script Diferencial Seguro na aba Conexão."
+      });
+    }
+
+    if (!result.created) {
+      return res.status(503).json({ error: "Não foi possível gravar o backup do usuário." });
+    }
+
+    await logAuditEvent({
+      actorEmail: adminUser.email,
+      targetEmail: lowerTargetEmail,
+      action: "ADMIN_BACKUP_CREATED",
+      entity: "user_backups",
+      status: "success",
+      req,
+      details: { backupId: result.backupId }
+    });
+
+    res.json({
+      success: true,
+      backupId: result.backupId,
+      message: `Backup manual de ${targetUser.name || lowerTargetEmail} gerado com sucesso!`
+    });
+  } catch (err) {
+    console.error("Admin create user backup error:", err);
+    res.status(503).json({ error: "Erro ao gerar backup dos dados no Supabase." });
+  }
+});
+
+// Restore a specific user backup from the last 3 days
+app.post("/api/admin/user-backups/restore", async (req, res) => {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  const { backupId } = req.body || {};
+  if (!backupId || typeof backupId !== "string") {
+    return res.status(400).json({ error: "Identificador do backup inválido." });
+  }
+
+  try {
+    const supabase = requireSupabase();
+    const { data: backupRow, error: fetchErr } = await supabase
+      .from("user_backups")
+      .select("*")
+      .eq("id", backupId.trim())
+      .maybeSingle();
+
+    if (fetchErr) {
+      if (isMissingTableOrColumnError(fetchErr)) {
+        return res.status(400).json({ error: "Tabela user_backups ainda não criada no Supabase." });
+      }
+      throw new Error(fetchErr.message);
+    }
+
+    if (!backupRow) {
+      return res.status(404).json({ error: "Backup selecionado não encontrado." });
+    }
+
+    if (!isWithinBackupRestoreWindow(backupRow.created_at)) {
+      await supabase.from("user_backups").delete().eq("id", backupId.trim());
+      return res.status(410).json({
+        error: `O prazo de ${BACKUP_RETENTION_DAYS} dias para restaurar este backup expirou.`
+      });
+    }
+
+    const lowerTargetEmail = String(backupRow.email || "").toLowerCase().trim();
+    const targetUser = await getUserByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
+    if (!targetUser) {
+      return res.status(404).json({ error: "A conta de usuário associada a este backup não existe mais." });
+    }
+
+    const baseEmpty = getEmptyUserData();
+    const rawSnapshot = backupRow.snapshot && typeof backupRow.snapshot === "object" ? backupRow.snapshot : {};
+    const normalizedCandidate: Record<string, any> = { ...baseEmpty };
+    for (const key of Object.keys(baseEmpty)) {
+      if (Array.isArray(rawSnapshot[key])) {
+        normalizedCandidate[key] = rawSnapshot[key];
+      }
+    }
+
+    const retentionResult = applyThreeYearRetention(normalizedCandidate);
+    const restoredSummary = summarizeUserDataSnapshot(retentionResult.prunedData);
+
+    await withUserWriteLock(lowerTargetEmail, async () => {
+      const currentData = await getUserDataByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
+      await createUserBackupSnapshot(supabase, lowerTargetEmail, currentData, "pre_restore", {
+        respectThrottle: false,
+        allowEmpty: true
+      });
+
+      await saveUserDataByEmail(
+        lowerTargetEmail,
+        retentionResult.prunedData,
+        undefined,
+        currentData?._version,
+        { skipTrash: true, skipAutoBackup: true, previousData: currentData }
+      );
+      invalidateUserDataCache(lowerTargetEmail);
+    });
+
+    await logAuditEvent({
+      actorEmail: adminUser.email,
+      targetEmail: lowerTargetEmail,
+      action: "ADMIN_BACKUP_RESTORED",
+      entity: "user_backups",
+      status: "success",
+      req,
+      details: {
+        backupId: backupRow.id,
+        backupCreatedAt: backupRow.created_at,
+        triggerType: backupRow.trigger_type,
+        restoredSummary,
+        removedOlderThanThreeYears: retentionResult.totalRemoved,
+      }
+    });
+
+    res.json({
+      success: true,
+      restoredEmail: lowerTargetEmail,
+      userName: targetUser.name || lowerTargetEmail,
+      backupCreatedAt: backupRow.created_at,
+      removedOlderThanThreeYears: retentionResult.totalRemoved,
+      summary: restoredSummary,
+      message: `Backup de ${targetUser.name || lowerTargetEmail} (${new Date(backupRow.created_at).toLocaleString("pt-BR")}) restaurado com sucesso!`
+    });
+  } catch (err) {
+    console.error("Admin restore user backup error:", err);
+    res.status(503).json({ error: "Erro ao restaurar backup do usuário no Supabase." });
+  }
+});
+
+// Delete a specific backup snapshot manually (Admin only)
+app.delete("/api/admin/user-backups/:backupId", async (req, res) => {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  const backupId = String(req.params.backupId || "").trim();
+  if (!backupId) {
+    return res.status(400).json({ error: "Identificador inválido." });
+  }
+
+  try {
+    const supabase = requireSupabase();
+    const { error } = await supabase.from("user_backups").delete().eq("id", backupId);
+    if (error && !isMissingTableOrColumnError(error)) {
+      throw new Error(error.message);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Admin delete user backup error:", err);
+    res.status(503).json({ error: "Erro ao remover registro de backup." });
   }
 });
 

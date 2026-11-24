@@ -21,6 +21,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { UserData, Trip, TripExpense } from '../types';
+import { generateRecordId } from '../utils/id';
 import { HelpCard } from './Pages';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
@@ -162,7 +163,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       } else {
         // Create mode
         const newTrip: Trip = {
-          id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
+          id: generateRecordId('trip'),
           name: tripName.trim(),
           expenses: []
         };
@@ -238,7 +239,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
         } else {
           // Create new expense inside this trip
           const newExpense: TripExpense = {
-            id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
+            id: generateRecordId('tripexp'),
             description: expenseDescription.trim(),
             value: val,
             date: expenseDate,

@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import { UserProfile, UserData } from '../types';
 import { getUserInitials } from '../utils/userUtils';
 import { isUserSubscriptionActive, getSubscriptionDetails } from '../utils/subscriptionUtils';
-import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check, Calendar } from 'lucide-react';
+import { Shield, UserPlus, Users, BadgeAlert, Sparkles, FolderSync, Mail, Phone, MapPin, Eye, EyeOff, RefreshCw, KeyRound, Pencil, Trash2, Settings, DollarSign, Clock, Bell, FileText, Database, CheckCircle2, XCircle, Copy, AlertTriangle, MessageSquare, Save, Lock, Unlock, X, Download, Check, Calendar, RotateCcw } from 'lucide-react';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
+import { AdminBackupsTab } from './AdminBackupsTab';
 import { getAuthHeaders } from '../utils/authToken';
 
 interface AdminPageProps {
@@ -51,7 +52,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     differentialSql: '',
     fullSafeSql: '',
     rlsHardeningSql: '',
-    totalRequired: 25,
+    totalRequired: 26,
     existingCount: 0,
     missingCount: 0,
     missingTables: [],
@@ -80,8 +81,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         differentialSql: data.differentialSql || '',
         fullSafeSql: data.fullSafeSql || '',
         rlsHardeningSql: data.rlsHardeningSql || '',
-        totalRequired: data.totalRequired || 25,
-        existingCount: data.existingCount ?? (data.active ? 25 : 0),
+        totalRequired: data.totalRequired || 26,
+        existingCount: data.existingCount ?? (data.active ? 26 : 0),
         missingCount: data.missingCount ?? 0,
         missingTables: data.missingTables || [],
         tables: data.tables || []
@@ -102,9 +103,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         differentialSql: '',
         fullSafeSql: '',
         rlsHardeningSql: '',
-        totalRequired: 25,
+        totalRequired: 26,
         existingCount: 0,
-        missingCount: 25,
+        missingCount: 26,
         missingTables: [],
         tables: []
       });
@@ -153,7 +154,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   }, []);
 
   // Active Tab state
-  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios' | 'conexao' | 'auditoria'>('gestao');
+  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios' | 'conexao' | 'auditoria' | 'backups'>('gestao');
 
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<Array<{
@@ -1323,7 +1324,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         </button>
         <button
           onClick={() => setActiveTab('auditoria')}
-          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'auditoria'
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1331,6 +1332,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         >
           <Shield className="h-4 w-4" />
           Auditoria
+        </button>
+        <button
+          onClick={() => setActiveTab('backups')}
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
+            activeTab === 'backups'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <RotateCcw className="h-4 w-4" />
+          Backup de Dados
         </button>
       </div>
 
@@ -2845,7 +2857,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200 dark:border-amber-800/40'
                   }`}>
                     {(supabaseStatus.missingCount ?? 0) === 0
-                      ? ` ${supabaseStatus.existingCount || supabaseStatus.totalRequired || 25}/${supabaseStatus.totalRequired || 25} Tabelas 100% Sincronizadas`
+                      ? ` ${supabaseStatus.existingCount || supabaseStatus.totalRequired || 26}/${supabaseStatus.totalRequired || 26} Tabelas 100% Sincronizadas`
                       : ` ${supabaseStatus.missingCount} tabela(s) pendente(s)`}
                   </span>
                 )}
@@ -2956,7 +2968,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>
-                  <strong>Perfeito!</strong> Todas as {supabaseStatus.totalRequired || 25} tabelas do sistema estão presentes no Supabase e os dados dos usuários continuam 100% seguros e preservados.
+                  <strong>Perfeito!</strong> Todas as {supabaseStatus.totalRequired || 26} tabelas do sistema estão presentes no Supabase e os dados dos usuários continuam 100% seguros e preservados.
                 </span>
               </div>
             )}
@@ -2988,7 +3000,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                Script Completo Seguro ({supabaseStatus.totalRequired || 25} Tabelas)
+                Script Completo Seguro ({supabaseStatus.totalRequired || 26} Tabelas)
               </button>
               <button
                 type="button"
@@ -3051,7 +3063,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               onClick={() => setShowTableDetails(!showTableDetails)}
               className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
             >
-              <span>{showTableDetails ? ` Ocultar detalhes das ${supabaseStatus.totalRequired || 25} tabelas do sistema` : ` Ver catálogo e contagem de registros das ${supabaseStatus.totalRequired || 25} tabelas`}</span>
+              <span>{showTableDetails ? ` Ocultar detalhes das ${supabaseStatus.totalRequired || 26} tabelas do sistema` : ` Ver catálogo e contagem de registros das ${supabaseStatus.totalRequired || 26} tabelas`}</span>
             </button>
 
             {showTableDetails && (
@@ -3173,6 +3185,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                 <option value="ADMIN_EDIT_USER">Edição administrativa</option>
                 <option value="ADMIN_EXTEND_SUBSCRIPTION">Extensão de assinatura</option>
                 <option value="ADMIN_DELETE_USER">Exclusão de usuário</option>
+                <option value="ADMIN_BACKUP_CREATED">Backup manual gerado</option>
+                <option value="ADMIN_BACKUP_RESTORED">Restauração administrativa de backup</option>
+                <option value="BACKUP_RESTORED">Restauração de backup pelo usuário</option>
+                <option value="TRASH_ITEM_RESTORED">Item restaurado da lixeira</option>
               </select>
               <button
                 type="button"
@@ -3249,6 +3265,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tab: Backup de Dados (Lista e Restauração de Backups dos Últimos 3 dias) */}
+      {activeTab === 'backups' && (
+        <AdminBackupsTab
+          adminEmail={adminUser.email}
+          users={users}
+          onNavigateToConnection={() => setActiveTab('conexao')}
+        />
       )}
 
 

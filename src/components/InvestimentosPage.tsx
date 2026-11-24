@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Investment } from '../types';
+import { generateRecordId } from '../utils/id';
 import { HelpCard } from './Pages';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import {
@@ -144,7 +145,7 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
       } else {
         // Create
         const newInv: Investment = {
-          id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+          id: generateRecordId('inv'),
           name: name.trim(),
           type,
           status,

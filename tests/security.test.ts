@@ -13,20 +13,43 @@ import {
 import {
   applyThreeYearRetention,
   isWithinTrashRestoreWindow,
+  isWithinBackupRestoreWindow,
+  summarizeUserDataSnapshot,
   TRASH_RETENTION_DAYS,
+  BACKUP_RETENTION_DAYS,
   RETENTION_YEARS,
 } from "../src/server/retention";
 import { detectSingleGranularMutation } from "../src/utils/dataDiff";
+import {
+  ForeignRowOwnershipError,
+  pickAllowedUserDataFields,
+  sanitizePostgrestEmailFilter,
+  assertNoForeignRowOwnership,
+  remapCollidingImportIds,
+  mergeScopedYearUserData,
+} from "../src/server/isolation";
+import {
+  verifyMercadoPagoWebhookSignature,
+  isPaymentSimulationAllowed,
+} from "../src/server/paymentSecurity";
+import {
+  generatePasswordResetToken,
+  hashPasswordResetToken,
+  isPasswordResetTokenActive,
+  buildPasswordResetEmailPayload,
+} from "../src/server/passwordReset";
+import { generateRecordId } from "../src/utils/id";
 
 describe("FinanFly Schema Safety & Performance Catalog", () => {
-  it("contém 25 tabelas incluindo audit_logs, trash_items e índices compostos", () => {
+  it("contém 26 tabelas incluindo audit_logs, trash_items, user_backups e índices compostos", () => {
     const names = DATABASE_SCHEMA_CATALOG.map((t) => t.name);
-    assert.equal(DATABASE_SCHEMA_CATALOG.length, 25);
+    assert.equal(DATABASE_SCHEMA_CATALOG.length, 26);
     assert.ok(names.includes("audit_logs"), "audit_logs deve constar no catálogo");
     assert.ok(names.includes("trash_items"), "trash_items deve constar no catálogo");
+    assert.ok(names.includes("user_backups"), "user_backups deve constar no catálogo");
 
-    const existing = new Set(names.filter((n) => n !== "audit_logs" && n !== "trash_items"));
-    const scripts = generateSafeSchemaScripts(existing, ["audit_logs", "trash_items"]);
+    const existing = new Set(names.filter((n) => n !== "audit_logs" && n !== "trash_items" && n !== "user_backups"));
+    const scripts = generateSafeSchemaScripts(existing, ["audit_logs", "trash_items", "user_backups"]);
 
     const stripSqlComments = (sql: string) =>
       sql
@@ -43,14 +66,21 @@ describe("FinanFly Schema Safety & Performance Catalog", () => {
     assert.ok(scripts.differentialSql.includes("idx_investments_email_date"));
     assert.ok(scripts.differentialSql.includes("CREATE TABLE IF NOT EXISTS audit_logs"));
     assert.ok(scripts.differentialSql.includes("CREATE TABLE IF NOT EXISTS trash_items"));
+    assert.ok(scripts.differentialSql.includes("CREATE TABLE IF NOT EXISTS user_backups"));
     assert.ok(scripts.rlsHardeningSql.includes('CREATE POLICY "Restrito service_role - trash_items"'));
+    assert.ok(scripts.rlsHardeningSql.includes('CREATE POLICY "Restrito service_role - user_backups"'));
+    assert.ok(scripts.differentialSql.includes("finanfly_prevent_email_reassignment"));
+    assert.ok(scripts.differentialSql.includes("TG_OP = 'UPDATE'"));
+    assert.ok(scripts.differentialSql.includes("CREATE UNIQUE INDEX IF NOT EXISTS"));
+    assert.ok(scripts.fullSafeSql.includes("finanfly_prevent_email_reassignment"));
   });
 });
 
-describe("FinanFly 3-Year Data Retention & 3-Day Trash Restore Window", () => {
+describe("FinanFly 3-Year Data Retention & 3-Day Restore Windows", () => {
   it("mantém apenas dados dos últimos 3 anos e sobrescreve/remove registros mais antigos", () => {
     assert.equal(RETENTION_YEARS, 3);
     assert.equal(TRASH_RETENTION_DAYS, 3);
+    assert.equal(BACKUP_RETENTION_DAYS, 3);
 
     const refDate = new Date("2026-11-24T12:00:00.000Z");
     const sample = {
@@ -94,7 +124,7 @@ describe("FinanFly 3-Year Data Retention & 3-Day Trash Restore Window", () => {
     assert.equal(result.totalRemoved, 4);
   });
 
-  it("permite restaurar itens da lixeira somente nos últimos 3 dias (72 horas)", () => {
+  it("permite restaurar itens da lixeira e backups somente nos últimos 3 dias (72 horas)", () => {
     const now = new Date("2026-11-24T12:00:00.000Z");
     const withinWindow = new Date(now.getTime() - 70 * 60 * 60 * 1000).toISOString(); // 70h atrás
     const exactLimit = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString(); // 72h exatas
@@ -104,6 +134,22 @@ describe("FinanFly 3-Year Data Retention & 3-Day Trash Restore Window", () => {
     assert.equal(isWithinTrashRestoreWindow(exactLimit, now), true);
     assert.equal(isWithinTrashRestoreWindow(expired, now), false);
     assert.equal(isWithinTrashRestoreWindow("data-invalida", now), false);
+
+    assert.equal(isWithinBackupRestoreWindow(withinWindow, now), true);
+    assert.equal(isWithinBackupRestoreWindow(exactLimit, now), true);
+    assert.equal(isWithinBackupRestoreWindow(expired, now), false);
+    assert.equal(isWithinBackupRestoreWindow("data-invalida", now), false);
+
+    const summary = summarizeUserDataSnapshot({
+      incomes: [{ id: "1" }, { id: "2" }],
+      expenses: [{ id: "3" }],
+      incomeCategories: ["Salário"],
+      expenseCategories: ["Casa", "Lazer"],
+    });
+    assert.equal(summary.incomes, 2);
+    assert.equal(summary.expenses, 1);
+    assert.equal(summary.totalRecords, 3);
+    assert.equal(summary.categoriesCount, 3);
   });
 });
 
@@ -218,3 +264,227 @@ describe("FinanFly Security Headers, CORS & Rate Limiting", () => {
     }
   });
 });
+
+describe("FinanFly Multi-Tenant Row Isolation & Input Sanitization", () => {
+  it("bloqueia upsert quando um ID pertence a outro usuário e permite IDs próprios ou novos", async () => {
+    const fakeSupabase = {
+      from: (table: string) => ({
+        select: () => ({
+          in: async (_col: string, ids: string[]) => ({
+            data: [
+              { id: "exp-victim-1", email: "vitima@example.com" },
+              { id: "exp-own-1", email: "atacante@example.com" },
+            ].filter((r) => ids.includes(r.id)),
+            error: null,
+          }),
+        }),
+      }),
+    };
+
+    await assertNoForeignRowOwnership(fakeSupabase, "expenses", "atacante@example.com", [
+      "exp-own-1",
+      "exp-brand-new",
+    ]);
+
+    await assert.rejects(
+      () =>
+        assertNoForeignRowOwnership(fakeSupabase, "expenses", "atacante@example.com", [
+          "exp-own-1",
+          "exp-victim-1",
+        ]),
+      (err: any) => {
+        assert.ok(err instanceof ForeignRowOwnershipError);
+        assert.equal(err.statusCode, 403);
+        assert.deepEqual(err.conflictingIds, ["exp-victim-1"]);
+        return true;
+      }
+    );
+  });
+
+  it("remapeia IDs colidentes de terceiros na restauração de backup JSON", async () => {
+    const fakeSupabase = {
+      from: (_table: string) => ({
+        select: () => ({
+          in: async (_col: string, ids: string[]) => ({
+            data: [{ id: "inc-foreign", email: "outro@example.com" }].filter((r) =>
+              ids.includes(r.id)
+            ),
+            error: null,
+          }),
+        }),
+      }),
+    };
+
+    const result = await remapCollidingImportIds(
+      fakeSupabase,
+      "usuario@example.com",
+      {
+        incomes: [
+          { id: "inc-foreign", description: "Importado", value: 100 },
+          { id: "inc-mine", description: "Próprio", value: 200 },
+        ],
+      },
+      [{ key: "incomes", table: "incomes", prefix: "inc" }]
+    );
+
+    assert.equal(result.remappedCount, 1);
+    assert.notEqual(result.userData.incomes[0].id, "inc-foreign");
+    assert.ok(String(result.userData.incomes[0].id).startsWith("inc-"));
+    assert.equal(result.userData.incomes[1].id, "inc-mine");
+  });
+
+  it("filtra estritamente chaves permitidas em POST /api/user/data e sanitiza filtro de auditoria", () => {
+    const clean = pickAllowedUserDataFields({
+      expenses: [{ id: "e1" }],
+      incomes: "nao-array-invalido",
+      role: "admin",
+      isBlocked: false,
+      _allowClearAll: true,
+      extraInjected: { x: 1 },
+    });
+
+    assert.deepEqual(Object.keys(clean), ["expenses"]);
+    assert.equal(clean.expenses.length, 1);
+
+    assert.equal(
+      sanitizePostgrestEmailFilter("test@example.com,actor_email.eq.admin@finanfly.com"),
+      "test@example.comactor_email.eq.admin@finanfly.com"
+    );
+    assert.equal(sanitizePostgrestEmailFilter("  Maria.Silva+01@GMAIL.com "), "maria.silva+01@gmail.com");
+  });
+
+  it("gera IDs únicos criptograficamente aleatórios em sequência imediata", () => {
+    const generated = new Set<string>();
+    for (let i = 0; i < 500; i++) {
+      const id = generateRecordId("exp");
+      assert.ok(id.startsWith("exp-"));
+      assert.ok(id.length > 20);
+      assert.equal(generated.has(id), false);
+      generated.add(id);
+    }
+  });
+
+  it("preserva lançamentos e planejamentos de outros anos ao salvar em modo ?year=YYYY", () => {
+    const currentData = {
+      expenses: [
+        { id: "exp-2024", date: "2024-08-10", description: "Conta 2024", value: 120 },
+        { id: "exp-2026-keep", date: "2026-01-15", description: "Luz", value: 200 },
+        { id: "exp-2026-del", date: "2026-02-20", description: "Antiga 2026", value: 50 },
+      ],
+      annualPlanning: [
+        { year: 2025, monthlyBudgets: [] },
+        { year: 2026, monthlyBudgets: [{ month: 0, incomeBudget: 1000, expenseBudget: 500 }] },
+      ],
+    };
+
+    const incoming = {
+      expenses: [
+        { id: "exp-2026-keep", date: "2026-01-15", description: "Luz atualizada", value: 215 },
+        { id: "exp-2027-parcela", date: "2027-01-15", description: "Parcela", value: 100 },
+      ],
+      annualPlanning: [
+        { year: 2026, monthlyBudgets: [{ month: 0, incomeBudget: 2000, expenseBudget: 700 }] },
+      ],
+    };
+
+    const merged = mergeScopedYearUserData(currentData, incoming, 2026);
+    assert.deepEqual(
+      merged.expenses.map((e: any) => e.id).sort(),
+      ["exp-2024", "exp-2026-keep", "exp-2027-parcela"]
+    );
+    assert.deepEqual(
+      merged.annualPlanning.map((p: any) => p.year).sort(),
+      [2025, 2026]
+    );
+    assert.equal(merged.annualPlanning.find((p: any) => p.year === 2026)?.monthlyBudgets[0].incomeBudget, 2000);
+  });
+});
+
+describe("FinanFly Mercado Pago Webhook & Production Guard", () => {
+  it("valida assinatura HMAC x-signature do Mercado Pago e bloqueia payload adulterado", async () => {
+    const cryptoNode = await import("crypto");
+    const secret = "mp-webhook-secret-test";
+    const dataId = "123456789";
+    const reqId = "req-abc-999";
+    const ts = "1732480000";
+    const manifest = `id:${dataId};request-id:${reqId};ts:${ts};`;
+    const validHmac = cryptoNode.createHmac("sha256", secret).update(manifest).digest("hex");
+
+    const ok = verifyMercadoPagoWebhookSignature({
+      xSignature: `ts=${ts},v1=${validHmac}`,
+      xRequestId: reqId,
+      dataId,
+      secret,
+    });
+    assert.equal(ok.valid, true);
+
+    const tamperedId = verifyMercadoPagoWebhookSignature({
+      xSignature: `ts=${ts},v1=${validHmac}`,
+      xRequestId: reqId,
+      dataId: "999999999",
+      secret,
+    });
+    assert.equal(tamperedId.valid, false);
+
+    const missing = verifyMercadoPagoWebhookSignature({
+      xSignature: undefined,
+      xRequestId: reqId,
+      dataId,
+      secret,
+    });
+    assert.equal(missing.valid, false);
+  });
+
+  it("bloqueia simulação de pagamento quando token real está ativo ou em produção sem opt-in", () => {
+    assert.equal(
+      isPaymentSimulationAllowed({ hasRealToken: true, nodeEnv: "development", allowSimulationEnv: "true" }),
+      false
+    );
+    assert.equal(
+      isPaymentSimulationAllowed({ hasRealToken: false, nodeEnv: "production" }),
+      false
+    );
+    assert.equal(
+      isPaymentSimulationAllowed({ hasRealToken: false, nodeEnv: "production", allowSimulationEnv: "true" }),
+      true
+    );
+    assert.equal(
+      isPaymentSimulationAllowed({ hasRealToken: false, nodeEnv: "development" }),
+      true
+    );
+    assert.equal(
+      isPaymentSimulationAllowed({ hasRealToken: false, nodeEnv: "development", allowSimulationEnv: "false" }),
+      false
+    );
+  });
+});
+
+describe("FinanFly Self-Service Password Reset Tokens", () => {
+  it("gera token SHA-256 único, valida expiração/uso único e escapa HTML no e-mail", () => {
+    const now = Date.parse("2026-11-24T12:00:00.000Z");
+    const generated = generatePasswordResetToken(now);
+    assert.ok(generated.rawToken.length >= 32);
+    assert.equal(generated.tokenHash, hashPasswordResetToken(generated.rawToken));
+    assert.ok(generated.settingKey.startsWith("password_reset:"));
+
+    const activeRecord = {
+      email: "usuario@example.com",
+      expiresAt: generated.expiresAt,
+      used: false,
+      createdAt: new Date(now).toISOString(),
+    };
+    assert.equal(isPasswordResetTokenActive(activeRecord, now + 10 * 60 * 1000), true);
+    assert.equal(isPasswordResetTokenActive(activeRecord, now + 31 * 60 * 1000), false);
+    assert.equal(isPasswordResetTokenActive({ ...activeRecord, used: true }, now + 1000), false);
+
+    const payload = buildPasswordResetEmailPayload({
+      to: "usuario@example.com",
+      userName: "<script>alert(1)</script>",
+      resetUrl: "https://app.finanfly.test/?resetToken=abc",
+      from: "FinanFly <onboarding@resend.dev>",
+    });
+    assert.equal(payload.html.includes("<script>"), false);
+    assert.ok(payload.html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
+  });
+});
+

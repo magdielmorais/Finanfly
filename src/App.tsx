@@ -145,6 +145,17 @@ export default function App() {
   const userDataRef = useRef<UserData | null>(null);
   const dataVersionRef = useRef<string | null>(null);
   const dataMutationVersionRef = useRef<number>(0);
+  const fullHistoryLoadedRef = useRef<boolean>(false);
+  const activeScopedYearRef = useRef<number | null>(null);
+  const historyHydrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeSessionEmailRef = useRef<string | null>(null);
+
+  const cancelPendingHistoryHydration = () => {
+    if (historyHydrationTimerRef.current) {
+      clearTimeout(historyHydrationTimerRef.current);
+      historyHydrationTimerRef.current = null;
+    }
+  };
 
   const updateUserDataState = (nextData: UserData | null) => {
     if (nextData && typeof nextData._version === 'string' && nextData._version.trim() !== '') {
@@ -275,15 +286,46 @@ export default function App() {
   // Sync user data exclusively from Supabase when currentUser changes
   useEffect(() => {
     if (currentUser) {
+      activeSessionEmailRef.current = currentUser.email.toLowerCase().trim();
       if (skipNextFetchUserDataRef.current) {
         skipNextFetchUserDataRef.current = false;
         return;
       }
       fetchUserData(currentUser.email);
     } else {
+      activeSessionEmailRef.current = null;
+      cancelPendingHistoryHydration();
+      fullHistoryLoadedRef.current = false;
+      activeScopedYearRef.current = null;
       updateUserDataState(null);
     }
+    return () => {
+      cancelPendingHistoryHydration();
+    };
   }, [currentUser]);
+
+  // Hydrate full 3-year history immediately if user visits multi-year pages before background sync finishes
+  useEffect(() => {
+    if (!currentUser || fullHistoryLoadedRef.current) return;
+    const multiYearPages = new Set([
+      'Painel',
+      'Dashboard',
+      'Resumo Anual',
+      'Resumo anual',
+      'Planejamento Anual',
+      'Planejamento anual',
+      'Investimentos',
+      'Ações de Déficit',
+      'Ações corretivas',
+      'Dados pessoais',
+      'Lixeira',
+      'Backup e Restauração',
+    ]);
+    if (multiYearPages.has(currentPage)) {
+      cancelPendingHistoryHydration();
+      fetchUserData(currentUser.email, { full: true, silent: true });
+    }
+  }, [currentPage, currentUser]);
 
   const refreshProfile = async (email: string) => {
     try {
@@ -319,10 +361,20 @@ export default function App() {
     }
   };
 
-  const fetchUserData = async (email: string) => {
+  const fetchUserData = async (
+    email: string,
+    options?: { year?: number; full?: boolean; silent?: boolean }
+  ) => {
+    const normalizedEmail = email.toLowerCase().trim();
     const requestVersion = dataMutationVersionRef.current;
+    const shouldLoadFull = Boolean(options?.full);
+    const targetYear = !shouldLoadFull
+      ? (options?.year ?? new Date().getFullYear())
+      : undefined;
+    const endpoint = targetYear ? `/api/user/data?year=${targetYear}` : '/api/user/data';
+
     try {
-      const res = await fetch('/api/user/data', {
+      const res = await fetch(endpoint, {
         headers: getAuthHeaders({
           'x-user-email': email
         })
@@ -347,17 +399,49 @@ export default function App() {
       }
 
       if (!res.ok) {
-        setSaveError(data?.error || 'Não foi possível carregar os dados do Supabase. Tente atualizar novamente.');
+        if (!options?.silent) {
+          setSaveError(data?.error || 'Não foi possível carregar os dados do Supabase. Tente atualizar novamente.');
+        }
+        return;
+      }
+
+      if (activeSessionEmailRef.current !== normalizedEmail) {
         return;
       }
 
       if (data && dataMutationVersionRef.current === requestVersion) {
-        setSaveError('');
-        updateUserDataState(data);
+        if (!options?.silent) {
+          setSaveError('');
+        }
+        if (targetYear && data._loadedYear) {
+          fullHistoryLoadedRef.current = false;
+          activeScopedYearRef.current = Number(data._loadedYear);
+          updateUserDataState(data);
+          cancelPendingHistoryHydration();
+          historyHydrationTimerRef.current = setTimeout(() => {
+            if (activeSessionEmailRef.current === normalizedEmail && !fullHistoryLoadedRef.current) {
+              fetchUserData(email, { full: true, silent: true });
+            }
+          }, 900);
+        } else {
+          fullHistoryLoadedRef.current = true;
+          activeScopedYearRef.current = null;
+          updateUserDataState(data);
+        }
+      } else if (!targetYear && data && dataMutationVersionRef.current !== requestVersion) {
+        // An edit occurred while hydrating in background; retry once mutations settle
+        cancelPendingHistoryHydration();
+        historyHydrationTimerRef.current = setTimeout(() => {
+          if (activeSessionEmailRef.current === normalizedEmail && !fullHistoryLoadedRef.current) {
+            fetchUserData(email, { full: true, silent: true });
+          }
+        }, 1500);
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
-      setSaveError('Falha de conexão ao buscar dados no servidor.');
+      if (!options?.silent) {
+        setSaveError('Falha de conexão ao buscar dados no servidor.');
+      }
     }
   };
 
@@ -379,6 +463,10 @@ export default function App() {
       const endpoint = granularMutation
         ? `/api/user/entity/${granularMutation.entity}`
         : '/api/user/data';
+      const scopedYearToSend =
+        !granularMutation && !fullHistoryLoadedRef.current && activeScopedYearRef.current !== null
+          ? activeScopedYearRef.current
+          : undefined;
       const payloadToSend = granularMutation
         ? {
             action: granularMutation.action,
@@ -386,9 +474,11 @@ export default function App() {
             id: granularMutation.id,
             ...(dataVersionRef.current ? { _expectedVersion: dataVersionRef.current } : {})
           }
-        : (dataVersionRef.current
-            ? { ...newData, _expectedVersion: dataVersionRef.current }
-            : newData);
+        : {
+            ...newData,
+            ...(dataVersionRef.current ? { _expectedVersion: dataVersionRef.current } : {}),
+            ...(scopedYearToSend ? { _scopedYear: scopedYearToSend } : {})
+          };
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -412,19 +502,21 @@ export default function App() {
         data = null;
       }
 
-      if (res.status === 401 || res.status === 403 || data?.isBlocked) {
+      if (res.status === 401 || data?.isBlocked || (res.status === 403 && !String(data?.error || '').includes('identificador'))) {
         handleLogout();
         throw new Error(data?.error || 'Sessão expirada. Faça login novamente.');
       }
 
       if (!res.ok) {
         if (res.status === 409) {
-          await fetchUserData(currentUser.email);
+          await fetchUserData(currentUser.email, { full: true });
         } else if (dataMutationVersionRef.current === writeVersion) {
           updateUserDataState(baseData);
         }
         const msg = res.status === 409
           ? (data?.error || 'Conflito de atualização detectado. Os dados foram recarregados do banco; tente gravar novamente.')
+          : res.status === 403
+          ? (data?.error || 'Operação negada por segurança.')
           : 'Houve uma falha na gravação por instabilidade de conexão com o banco de dados. Por favor, tente gravar novamente.';
         setSaveError(msg);
         setSaveFailurePopup({
@@ -435,6 +527,10 @@ export default function App() {
       }
 
       if (data?.data && dataMutationVersionRef.current === writeVersion) {
+        if (!data.data._loadedYear) {
+          fullHistoryLoadedRef.current = true;
+          activeScopedYearRef.current = null;
+        }
         updateUserDataState(data.data);
       } else if (data?._version) {
         dataVersionRef.current = data._version;
@@ -444,7 +540,7 @@ export default function App() {
       if (dataMutationVersionRef.current === writeVersion) {
         updateUserDataState(baseData);
       }
-      const msg = err?.message && (err.message.includes('instabilidade') || err.message.includes('Conflito'))
+      const msg = err?.message && (err.message.includes('instabilidade') || err.message.includes('Conflito') || err.message.includes('negada'))
         ? err.message
         : 'Houve uma falha na gravação por instabilidade de conexão com o banco de dados. Por favor, tente gravar novamente.';
       setSaveError(msg);
@@ -480,6 +576,10 @@ export default function App() {
 
     const performLogout = () => {
       clearTimeout(timer);
+      cancelPendingHistoryHydration();
+      activeSessionEmailRef.current = null;
+      fullHistoryLoadedRef.current = false;
+      activeScopedYearRef.current = null;
       clearAuthToken();
       clearLegacyLocalData();
       setCurrentUser(null);
@@ -535,10 +635,17 @@ export default function App() {
 
   const handleLoginSuccess = (user: UserProfile, initialUserData?: UserData) => {
     clearLegacyLocalData();
+    cancelPendingHistoryHydration();
+    activeSessionEmailRef.current = user.email.toLowerCase().trim();
     if (initialUserData) {
       skipNextFetchUserDataRef.current = true;
       dataMutationVersionRef.current += 1;
+      fullHistoryLoadedRef.current = !initialUserData._loadedYear;
+      activeScopedYearRef.current = initialUserData._loadedYear ?? null;
       updateUserDataState(initialUserData);
+    } else {
+      fullHistoryLoadedRef.current = false;
+      activeScopedYearRef.current = null;
     }
     setCurrentUser(user);
     setSubscriptionWarning('');
@@ -554,6 +661,8 @@ export default function App() {
 
   const handleRedirectToSubscription = (user: UserProfile) => {
     clearLegacyLocalData();
+    cancelPendingHistoryHydration();
+    activeSessionEmailRef.current = user.email.toLowerCase().trim();
     setCurrentUser(user);
     setSubscriptionWarning('Sua assinatura não está ativa ou expirou! Por favor, ative um plano.');
     setInactivityNotice('');
@@ -562,6 +671,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    cancelPendingHistoryHydration();
+    activeSessionEmailRef.current = null;
+    fullHistoryLoadedRef.current = false;
+    activeScopedYearRef.current = null;
     clearAuthToken();
     clearLegacyLocalData();
     setCurrentUser(null);
@@ -1315,7 +1428,7 @@ export default function App() {
           onRefresh={async () => {
             if (currentUser) {
               await Promise.all([
-                fetchUserData(currentUser.email),
+                fetchUserData(currentUser.email, { full: true }),
                 refreshProfile(currentUser.email)
               ]);
             }
@@ -1338,7 +1451,7 @@ export default function App() {
               </button>
             </div>
           )}
-          <Suspense fallback={<PageLoadingFallback />}>
+          <Suspense key={currentUser.email} fallback={<PageLoadingFallback />}>
             {renderPageContent()}
           </Suspense>
         </PullToRefresh>

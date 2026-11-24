@@ -1,6 +1,22 @@
 export const RETENTION_YEARS = 3;
 export const TRASH_RETENTION_DAYS = 3;
 export const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+export const BACKUP_RETENTION_DAYS = 3;
+export const BACKUP_RETENTION_MS = BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+export interface UserBackupSummary {
+  incomes: number;
+  expenses: number;
+  investments: number;
+  trips: number;
+  wishes: number;
+  shoppingList: number;
+  actionPlans: number;
+  deficitActions: number;
+  annualPlanning: number;
+  categoriesCount: number;
+  totalRecords: number;
+}
 
 export interface RetentionCutoff {
   cutoffDate: Date;
@@ -43,6 +59,63 @@ export function isWithinTrashRestoreWindow(deletedAt: string | Date, referenceDa
   }
   const elapsedMs = referenceDate.getTime() - deletedMs;
   return elapsedMs >= 0 && elapsedMs <= TRASH_RETENTION_MS;
+}
+
+export function isWithinBackupRestoreWindow(createdAt: string | Date, referenceDate: Date = new Date()): boolean {
+  const createdMs = createdAt instanceof Date ? createdAt.getTime() : new Date(createdAt).getTime();
+  if (!Number.isFinite(createdMs)) {
+    return false;
+  }
+  const elapsedMs = referenceDate.getTime() - createdMs;
+  return elapsedMs >= 0 && elapsedMs <= BACKUP_RETENTION_MS;
+}
+
+export function summarizeUserDataSnapshot(data: Record<string, any> | null | undefined): UserBackupSummary {
+  const safe = data && typeof data === 'object' ? data : {};
+  const arrLen = (key: string) => (Array.isArray(safe[key]) ? safe[key].length : 0);
+  const incomes = arrLen('incomes');
+  const expenses = arrLen('expenses');
+  const investments = arrLen('investments');
+  const trips = arrLen('trips');
+  const wishes = arrLen('wishes');
+  const shoppingList = arrLen('shoppingList');
+  const actionPlans = arrLen('actionPlans');
+  const deficitActions = arrLen('deficitActions');
+  const annualPlanning = arrLen('annualPlanning');
+  const categoriesCount =
+    arrLen('receiptTypes') +
+    arrLen('paymentTypes') +
+    arrLen('receiptStatuses') +
+    arrLen('paymentStatuses') +
+    arrLen('incomeCategories') +
+    arrLen('expenseCategories') +
+    arrLen('investmentTypes') +
+    arrLen('investmentStatuses');
+
+  const totalRecords =
+    incomes +
+    expenses +
+    investments +
+    trips +
+    wishes +
+    shoppingList +
+    actionPlans +
+    deficitActions +
+    annualPlanning;
+
+  return {
+    incomes,
+    expenses,
+    investments,
+    trips,
+    wishes,
+    shoppingList,
+    actionPlans,
+    deficitActions,
+    annualPlanning,
+    categoriesCount,
+    totalRecords,
+  };
 }
 
 export function applyThreeYearRetention<T extends Record<string, any>>(

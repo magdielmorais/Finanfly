@@ -1,4 +1,4 @@
-// Catalog of all 25 application tables in Supabase for Finanfly
+// Catalog of all 26 application tables in Supabase for Finanfly
 // All schemas are 100% non-destructive: NO DROP TABLE, NO DATA LOSS!
 
 export interface SchemaTableDefinition {
@@ -501,8 +501,94 @@ CREATE POLICY "Acesso total - audit_logs" ON audit_logs FOR ALL USING (true) WIT
     rlsPolicySql: `ALTER TABLE trash_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - trash_items" ON trash_items;
 CREATE POLICY "Acesso total - trash_items" ON trash_items FOR ALL USING (true) WITH CHECK (true);`
+  },
+  {
+    name: 'user_backups',
+    category: 'system',
+    description: 'Snapshots completos de backup dos dados dos usuários (retenção dos últimos 3 dias para restauração administrativa)',
+    createSql: `CREATE TABLE IF NOT EXISTS user_backups (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  trigger_type TEXT NOT NULL DEFAULT 'auto',
+  summary JSONB DEFAULT '{}'::jsonb,
+  snapshot JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);`,
+    indexesSql: [
+      `CREATE INDEX IF NOT EXISTS idx_user_backups_email_created ON user_backups(email, created_at DESC);`,
+      `CREATE INDEX IF NOT EXISTS idx_user_backups_created_at ON user_backups(created_at DESC);`,
+      `CREATE INDEX IF NOT EXISTS idx_user_backups_expires_at ON user_backups(expires_at);`
+    ],
+    rlsPolicySql: `ALTER TABLE user_backups ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Acesso total - user_backups" ON user_backups;
+CREATE POLICY "Acesso total - user_backups" ON user_backups FOR ALL USING (true) WITH CHECK (true);`
   }
 ];
+
+export const OWNER_LOCKED_USER_TABLES = [
+  'incomes',
+  'expenses',
+  'shopping_list',
+  'action_plans',
+  'deficit_actions',
+  'trips',
+  'wishes',
+  'investments',
+  'trash_items',
+  'user_backups',
+  'annual_planning',
+  'receipt_types',
+  'receipt_statuses',
+  'payment_types',
+  'payment_statuses',
+  'income_categories',
+  'expense_categories',
+  'investment_types',
+  'investment_statuses'
+] as const;
+
+export const OWNER_LOCK_TRIGGER_SQL = `-- ----------------------------------------------------------------------------
+-- TRAVA DE ISOLAMENTO NO POSTGRESQL (IMPEDE TROCA DE PROPRIETÁRIO EM REGISTROS)
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION finanfly_prevent_email_reassignment()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.email IS NULL OR btrim(NEW.email) = '' THEN
+    RAISE EXCEPTION 'Registro na tabela % exige email de proprietário válido', TG_TABLE_NAME;
+  END IF;
+  IF TG_OP = 'UPDATE' AND OLD.email IS NOT NULL AND lower(NEW.email) <> lower(OLD.email) THEN
+    RAISE EXCEPTION 'Violação de isolamento entre contas na tabela %: transferência de % para % bloqueada', TG_TABLE_NAME, OLD.email, NEW.email;
+  END IF;
+  NEW.email := lower(NEW.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+DECLARE
+  tbl TEXT;
+  locked_tables TEXT[] := ARRAY[
+    'incomes', 'expenses', 'shopping_list', 'action_plans',
+    'deficit_actions', 'trips', 'wishes', 'investments',
+    'trash_items', 'user_backups', 'annual_planning',
+    'receipt_types', 'receipt_statuses', 'payment_types',
+    'payment_statuses', 'income_categories', 'expense_categories',
+    'investment_types', 'investment_statuses'
+  ];
+BEGIN
+  FOREACH tbl IN ARRAY locked_tables LOOP
+    IF to_regclass('public.' || tbl) IS NOT NULL THEN
+      EXECUTE format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I (email, id);', 'idx_' || tbl || '_email_id_lock', tbl);
+      EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I;', 'trg_lock_owner_' || tbl, tbl);
+      EXECUTE format(
+        'CREATE TRIGGER %I BEFORE INSERT OR UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION finanfly_prevent_email_reassignment();',
+        'trg_lock_owner_' || tbl,
+        tbl
+      );
+    END IF;
+  END LOOP;
+END $$;`;
 
 export function generateSafeSchemaScripts(existingSet: Set<string>, missingTables: string[]) {
   // 1. Script Diferencial Seguro (Apenas o que está faltando + colunas/índices não destrutivos, SEM DROP TABLE)
@@ -519,7 +605,7 @@ export function generateSafeSchemaScripts(existingSet: Set<string>, missingTable
 
   if (missingTables.length === 0) {
     diffSql += `\n-- TODAS AS ${DATABASE_SCHEMA_CATALOG.length} TABELAS JÁ ESTÃO CRIADAS NO SUPABASE.
--- Abaixo serão aplicados apenas ajustes não destrutivos de colunas e índices de performance.
+-- Abaixo serão aplicados apenas ajustes não destrutivos de colunas, índices e travas de isolamento.
 `;
   } else {
     diffSql += `\n-- TABELAS IDENTIFICADAS PARA CRIAÇÃO (${missingTables.length} tabela(s)):
@@ -563,6 +649,8 @@ export function generateSafeSchemaScripts(existingSet: Set<string>, missingTable
     }
   }
 
+  diffSql += `\n${OWNER_LOCK_TRIGGER_SQL}\n`;
+
   // 2. Script Completo Seguro (Todas as tabelas com CREATE TABLE IF NOT EXISTS - SEM NENHUM DROP TABLE)
   let fullSql = `-- ============================================================================
 -- SCRIPT COMPLETO SEGURO DE TABELAS DO SUPABASE (SQL EDITOR)
@@ -593,6 +681,8 @@ export function generateSafeSchemaScripts(existingSet: Set<string>, missingTable
       fullSql += `${def.rlsPolicySql}\n\n`;
     }
   }
+
+  fullSql += `\n${OWNER_LOCK_TRIGGER_SQL}\n`;
 
   // 3. Script RLS Restritivo para Produção (Acesso exclusivo via SUPABASE_SERVICE_ROLE_KEY no servidor)
   let rlsHardeningSql = `-- ============================================================================

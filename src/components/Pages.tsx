@@ -13,6 +13,7 @@ import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { getMonthWeeksCount } from '../utils/dateUtils';
 import { getAuthHeaders } from '../utils/authToken';
+import { generateRecordId } from '../utils/id';
 
 dayjs.extend(isoWeek);
 // dayjs('2026-09-01').isoWeek(); // Retorna 36
@@ -491,7 +492,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       } else {
         // Create mode
         const newIncome: Income = {
-          id: 'inc-' + Date.now(),
+          id: generateRecordId('inc'),
           date,
           description,
           value: numValue,
@@ -2170,11 +2171,10 @@ export const DespesasPage: React.FC<PageProps> = ({
         // Create mode
         if (installments > 1) {
           const newExpensesList: Expense[] = [];
-          const baseTimestamp = Date.now();
           for (let i = 1; i <= installments; i++) {
             const instDate = getNextMonthDate(date, i - 1);
             newExpensesList.push({
-              id: 'exp-' + baseTimestamp + '-' + i,
+              id: generateRecordId('exp'),
               date: instDate,
               description: `${description} (${i}/${installments})`,
               value: parsedVal,
@@ -2189,7 +2189,7 @@ export const DespesasPage: React.FC<PageProps> = ({
           });
         } else {
           const newExpense: Expense = {
-            id: 'exp-' + Date.now(),
+            id: generateRecordId('exp'),
             date,
             description,
             value: parsedVal,
@@ -4190,11 +4190,10 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
     try {
       if (newExpInstallments > 1) {
         const newExpensesList: Expense[] = [];
-        const baseTimestamp = Date.now();
         for (let i = 1; i <= newExpInstallments; i++) {
           const instDate = getNextMonthDate(newExpDate, i - 1);
           newExpensesList.push({
-            id: 'exp-' + baseTimestamp + '-' + i,
+            id: generateRecordId('exp'),
             date: instDate,
             description: `${newExpDescription} (${i}/${newExpInstallments})`,
             value: parsedVal,
@@ -4209,7 +4208,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
         });
       } else {
         const newExpense: Expense = {
-          id: 'exp-' + Date.now(),
+          id: generateRecordId('exp'),
           date: newExpDate,
           description: newExpDescription,
           value: parsedVal,
@@ -6671,7 +6670,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
         setEditingPlanId(null);
       } else {
         const newPlan: ActionPlan = {
-          id: 'plan-' + Date.now(),
+          id: generateRecordId('plan'),
           title,
           description,
           targetDate,
@@ -7142,7 +7141,7 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
         setEditingWishId(null);
       } else {
         const newWish: Wish = {
-          id: 'wish-' + Date.now(),
+          id: generateRecordId('wish'),
           title,
           description,
           targetDate,
@@ -7675,7 +7674,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
         setEditingActionId(null);
       } else {
         const newAction = {
-          id: 'deficit-' + Date.now(),
+          id: generateRecordId('deficit'),
           costCenter,
           reason,
           correctionAction,
@@ -8189,7 +8188,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
     if (!name) return;
 
     const newItem: ShoppingItem = {
-      id: 'shop-' + Date.now(),
+      id: generateRecordId('shop'),
       name,
       quantity: parseInt(quantity) || 1,
       price: parseFloat(price) || 0,

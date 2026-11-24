@@ -38,14 +38,40 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
   const [rememberLoading, setRememberLoading] = useState(false);
   const [rememberSuccess, setRememberSuccess] = useState('');
   const [rememberError, setRememberError] = useState('');
-  const [rememberedPassword, setRememberedPassword] = useState('');
+  const [rememberEmailConfigured, setRememberEmailConfigured] = useState<boolean>(true);
   const [rememberEmailDetails, setRememberEmailDetails] = useState<{ subject?: string; body?: string; name?: string; email?: string } | null>(null);
+
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetPass, setShowResetPass] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = params.get('resetToken');
+      if (tokenFromUrl && tokenFromUrl.trim().length >= 16) {
+        setResetToken(tokenFromUrl.trim());
+        setShowResetModal(true);
+        params.delete('resetToken');
+        const nextQuery = params.toString();
+        const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
+        window.history.replaceState({}, '', nextUrl);
+      }
+    } catch {
+      // ignore URL parsing errors
+    }
+  }, []);
 
   const handleRememberPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setRememberError('');
     setRememberSuccess('');
-    setRememberedPassword('');
+    setRememberEmailConfigured(true);
     setRememberEmailDetails(null);
     setRememberLoading(true);
 
@@ -70,19 +96,55 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
       }
 
       if (!response.ok) {
-        throw new Error(data?.error || 'O e-mail digitado é diferente do e-mail cadastrado.');
+        throw new Error(data?.error || 'Não foi possível processar a solicitação de recuperação.');
       }
 
-      setRememberSuccess(data?.message || 'E-mail enviado com sucesso!');
+      setRememberEmailConfigured(data?.emailConfigured !== false);
+      setRememberSuccess(data?.message || 'Solicitação processada!');
       setRememberEmailDetails({
-        subject: data?.emailSubject,
+        subject: data?.emailSubject || 'FinanFly - Redefinição de Senha',
         name: data?.user?.name,
-        email: data?.user?.email || rememberEmail
+        email: data?.user?.email || rememberEmail.trim().toLowerCase()
       });
     } catch (err: any) {
       setRememberError(err.message || 'Erro ao processar solicitação.');
     } finally {
       setRememberLoading(false);
+    }
+  };
+
+  const handleCompletePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetSuccess('');
+
+    if (resetNewPassword.length < 4) {
+      setResetError('A nova senha deve ter pelo menos 4 caracteres.');
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError('As senhas digitadas não coincidem.');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, newPassword: resetNewPassword }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || 'Link de redefinição inválido ou expirado.');
+      }
+      setResetSuccess(data?.message || 'Senha redefinida com sucesso!');
+      setResetNewPassword('');
+      setResetConfirmPassword('');
+    } catch (err: any) {
+      setResetError(err.message || 'Erro ao redefinir senha.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -464,11 +526,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                     setRememberEmail(email);
                     setRememberSuccess('');
                     setRememberError('');
-                    setRememberedPassword('');
+                    setRememberEmailConfigured(true);
                   }}
                   className="hover:text-blue-400 font-semibold transition-colors focus:outline-none underline underline-offset-4"
                 >
-                  Relembrar senha
+                  Esqueci / Redefinir senha
                 </button>
               </div>
             )}
@@ -512,24 +574,34 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
 
             {rememberSuccess ? (
               <div className="space-y-4 py-2">
-                <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3.5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
-                    <CheckCircle className="h-5 w-5" />
+                <div className={`flex items-center gap-3 rounded-xl border p-3.5 ${
+                  rememberEmailConfigured
+                    ? 'bg-emerald-500/10 border-emerald-500/20'
+                    : 'bg-amber-500/10 border-amber-500/20'
+                }`}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                    rememberEmailConfigured
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-amber-500/20 text-amber-400'
+                  }`}>
+                    {rememberEmailConfigured ? <CheckCircle className="h-5 w-5" /> : <Info className="h-5 w-5" />}
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-emerald-300">E-mail de recuperação enviado!</h4>
-                    <p className="text-[11px] text-emerald-400/80 mt-0.5">
-                      O e-mail digitado foi localizado no banco de dados e as instruções foram despachadas.
+                    <h4 className={`text-xs font-bold ${rememberEmailConfigured ? 'text-emerald-300' : 'text-amber-300'}`}>
+                      {rememberEmailConfigured ? 'Solicitação processada!' : 'Envio de e-mail pendente de configuração'}
+                    </h4>
+                    <p className={`text-[11px] mt-0.5 ${rememberEmailConfigured ? 'text-emerald-400/80' : 'text-amber-300/80'}`}>
+                      {rememberSuccess}
                     </p>
                   </div>
                 </div>
 
-                {/* Email Sent Confirmation Box */}
+                {/* Email Status Box */}
                 <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4 space-y-3 text-left">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                     <div className="flex items-center gap-2 text-xs text-blue-400 font-semibold">
                       <Mail className="h-3.5 w-3.5" />
-                      <span>{rememberEmailDetails?.subject || 'Finanfly - Lembrete de Senha'}</span>
+                      <span>{rememberEmailDetails?.subject || 'FinanFly - Redefinição de Senha'}</span>
                     </div>
                     <span className="text-[10px] text-slate-500 font-mono">Para: {rememberEmailDetails?.email || rememberEmail}</span>
                   </div>
@@ -539,10 +611,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                       Olá, <strong className="text-white">{rememberEmailDetails?.name || 'Usuário'}</strong>!
                     </p>
                     <p>
-                      Sua mensagem com a senha de acesso foi enviada com sucesso para o endereço: <strong className="text-blue-300">{rememberEmailDetails?.email || rememberEmail}</strong>.
-                    </p>
-                    <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
-                      🔒 <strong>Segurança:</strong> Por motivos de privacidade e proteção da sua conta, a senha não é exibida na tela do aplicativo. Acesse sua caixa de entrada (ou pasta de spams) para conferir a mensagem recebida e realizar seu login.
+                      {rememberEmailConfigured
+                        ? <>Caso o endereço <strong className="text-blue-300">{rememberEmailDetails?.email || rememberEmail}</strong> esteja cadastrado, enviamos um link seguro de uso único (válido por 30 minutos) para criar uma nova senha.</>
+                        : <>Nossas senhas são protegidas com criptografia irreversível. Como o serviço de envio de e-mail ainda não está ativo neste servidor, contate o administrador para gerar uma senha temporária.</>
+                      }
                     </p>
                   </div>
                 </div>
@@ -561,7 +633,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
             ) : (
               <form onSubmit={handleRememberPassword} className="space-y-4">
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Digite seu e-mail de cadastro para recuperar a sua senha correspondente.
+                  Digite seu e-mail cadastrado para receber um link seguro de redefinição de senha (válido por 30 minutos).
                 </p>
 
                 {rememberError && (
@@ -604,7 +676,128 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                   >
                     {rememberLoading ? (
                       <RefreshCw className="h-3 w-3 animate-spin" />
-                    ) : 'Enviar Senha'}
+                    ) : 'Enviar Link'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Criar Nova Senha via Link (?resetToken=) */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                <Lock className="h-4 w-4 text-blue-400" />
+                <span>Criar Nova Senha</span>
+              </div>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {resetSuccess ? (
+              <div className="space-y-4 py-2">
+                <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3.5">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+                    <CheckCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-emerald-300">Senha redefinida!</h4>
+                    <p className="text-[11px] text-emerald-400/80 mt-0.5">{resetSuccess}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowResetModal(false);
+                    setResetSuccess('');
+                  }}
+                  className="w-full rounded-lg bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-500 transition-colors"
+                >
+                  Ir para o Login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleCompletePasswordReset} className="space-y-4">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Defina sua nova senha de acesso abaixo. Este link só pode ser utilizado uma vez.
+                </p>
+
+                {resetError && (
+                  <div className="rounded-lg border border-red-900 bg-red-950/40 p-3 text-xs text-red-200">
+                    {resetError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    Nova Senha (mín. 4 caracteres)
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type={showResetPass ? 'text' : 'password'}
+                      required
+                      minLength={4}
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPass(!showResetPass)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-300"
+                    >
+                      {showResetPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    Confirmar Nova Senha
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Lock className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input
+                      type={showResetPass ? 'text' : 'password'}
+                      required
+                      minLength={4}
+                      value={resetConfirmPassword}
+                      onChange={(e) => setResetConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(false)}
+                    className="flex-1 rounded-lg border border-slate-800 py-2 text-xs font-bold text-slate-400 hover:bg-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {resetLoading ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : 'Salvar Nova Senha'}
                   </button>
                 </div>
               </form>
