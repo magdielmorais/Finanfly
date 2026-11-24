@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserData, Income, Expense, ActionPlan, ShoppingItem, UserProfile, Wish } from '../types';
-import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart, Download, Layers, FileText } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Calendar, Search, Filter, CheckSquare, Square, DollarSign, Wallet, CreditCard, Tag, User, MapPin, Phone, Mail, Sparkles, TrendingUp, TrendingDown, Sliders, ArrowLeft, ArrowRight, AlertTriangle, Copy, Lock, KeyRound, ChevronDown, ChevronUp, LogOut, Eye, EyeOff, Target, CheckCircle2, Clock, Heart, Download, Layers, FileText, RotateCcw, Upload, Database, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MonthlyExpenseTrendChart } from './CustomChart';
 import { DoubleConsentDeleteModal } from './DoubleConsentDeleteModal';
@@ -20,7 +20,7 @@ dayjs.extend(isoWeek);
 export interface PageProps {
   userData: UserData;
   userProfile: UserProfile;
-  onUpdateUserData: (newData: Partial<UserData>) => void;
+  onUpdateUserData: (newData: Partial<UserData>) => Promise<void>;
   onUpdateUserProfile: (name: string, address: string, phone: string, city?: string, state?: string, cpf?: string) => void;
   onNavigate?: (page: string, options?: { openAddExpense?: boolean; category?: string }) => void;
   initialShowAddForm?: boolean;
@@ -353,16 +353,12 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
   const [category, setCategory] = useState('');
 
   const receiptTypesList = useMemo(() => {
-    return (userData.receiptTypes && userData.receiptTypes.length > 0)
-      ? userData.receiptTypes
-      : (userData.paymentTypes && userData.paymentTypes.length > 0 ? userData.paymentTypes : ['Pix', 'Transferência Bancária', 'Dinheiro', 'Boleto', 'Cartão de Débito', 'Cartão de Crédito', 'Outros']);
-  }, [userData.receiptTypes, userData.paymentTypes]);
+    return userData.receiptTypes || [];
+  }, [userData.receiptTypes]);
 
   const receiptStatusesList = useMemo(() => {
-    return (userData.receiptStatuses && userData.receiptStatuses.length > 0)
-      ? userData.receiptStatuses
-      : (userData.paymentStatuses && userData.paymentStatuses.length > 0 ? userData.paymentStatuses : ['Recebido', 'Pendente', 'Cancelado']);
-  }, [userData.receiptStatuses, userData.paymentStatuses]);
+    return userData.receiptStatuses || [];
+  }, [userData.receiptStatuses]);
 
   const [paymentType, setPaymentType] = useState('');
   const [status, setStatus] = useState('');
@@ -463,63 +459,67 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     return `${monthNames[monthIdx] || ''} de ${year}`;
   };
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date || !description || !value || !category || !paymentType || !status) return;
     const numValue = parsePtBrNumber(value);
     if (numValue <= 0) return;
 
-    if (editingIncomeId) {
-      // Edit mode
-      const updatedIncomes = userData.incomes.map(inc => {
-        if (inc.id === editingIncomeId) {
-          return {
-            ...inc,
-            date,
-            description,
-            value: numValue,
-            category,
-            paymentType,
-            status
-          };
-        }
-        return inc;
-      });
+    try {
+      if (editingIncomeId) {
+        // Edit mode
+        const updatedIncomes = userData.incomes.map(inc => {
+          if (inc.id === editingIncomeId) {
+            return {
+              ...inc,
+              date,
+              description,
+              value: numValue,
+              category,
+              paymentType,
+              status
+            };
+          }
+          return inc;
+        });
 
-      onUpdateUserData({
-        incomes: updatedIncomes
-      });
+        await onUpdateUserData({
+          incomes: updatedIncomes
+        });
 
-      setEditingIncomeId(null);
-    } else {
-      // Create mode
-      const newIncome: Income = {
-        id: 'inc-' + Date.now(),
-        date,
-        description,
-        value: numValue,
-        category,
-        paymentType,
-        status
-      };
+        setEditingIncomeId(null);
+      } else {
+        // Create mode
+        const newIncome: Income = {
+          id: 'inc-' + Date.now(),
+          date,
+          description,
+          value: numValue,
+          category,
+          paymentType,
+          status
+        };
 
-      onUpdateUserData({
-        incomes: [newIncome, ...userData.incomes]
-      });
-    }
+        await onUpdateUserData({
+          incomes: [newIncome, ...userData.incomes]
+        });
+      }
 
-    const savedDate = date;
-    setDate('');
-    setDescription('');
-    setValue('');
-    setCategory('');
-    setPaymentType('');
-    setStatus('');
-    setShowAddForm(false);
-    
-    // Automatically switch to the month of the added/edited income to let the user see it!
-    if (savedDate.length >= 7) {
-      setSelectedMonth(savedDate.substring(0, 7));
+      const savedDate = date;
+      setDate('');
+      setDescription('');
+      setValue('');
+      setCategory('');
+      setPaymentType('');
+      setStatus('');
+      setShowAddForm(false);
+      
+      // Automatically switch to the month of the added/edited income to let the user see it!
+      if (savedDate.length >= 7) {
+        setSelectedMonth(savedDate.substring(0, 7));
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
@@ -539,40 +539,52 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
   const [itemToDelete, setItemToDelete] = useState<Income | null>(null);
 
-  const handleDelete = (id: string) => {
-    onUpdateUserData({
-      incomes: userData.incomes.filter(i => i.id !== id)
-    });
-    setItemToDelete(null);
+  const handleDelete = async (id: string) => {
+    try {
+      await onUpdateUserData({
+        incomes: userData.incomes.filter(i => i.id !== id)
+      });
+      setItemToDelete(null);
+    } catch {
+      setItemToDelete(null);
+    }
   };
 
   const handleRequestDelete = (inc: Income) => {
     setItemToDelete(inc);
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
     if (userData.incomeCategories.includes(trimmed)) return;
     const updated = [...userData.incomeCategories, trimmed];
-    onUpdateUserData({
-      incomeCategories: updated
-    });
-    setNewCategoryName('');
-    setCategory(trimmed); // Select newly created category
-  };
-
-  const handleDeleteCategory = (catToDelete: string) => {
-    const updated = userData.incomeCategories.filter(cat => cat !== catToDelete);
-    onUpdateUserData({
-      incomeCategories: updated
-    });
-    if (category === catToDelete) {
-      setCategory(updated[0] || 'Outros');
+    try {
+      await onUpdateUserData({
+        incomeCategories: updated
+      });
+      setNewCategoryName('');
+      setCategory(trimmed); // Select newly created category
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
-  const handleEditCategory = (oldCat: string) => {
+  const handleDeleteCategory = async (catToDelete: string) => {
+    const updated = userData.incomeCategories.filter(cat => cat !== catToDelete);
+    try {
+      await onUpdateUserData({
+        incomeCategories: updated
+      });
+      if (category === catToDelete) {
+        setCategory(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
+  };
+
+  const handleEditCategory = async (oldCat: string) => {
     const trimmed = editCategoryValue.trim();
     if (!trimmed) return;
     if (userData.incomeCategories.includes(trimmed) && trimmed !== oldCat) return;
@@ -580,41 +592,53 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     const updatedCategories = userData.incomeCategories.map(cat => cat === oldCat ? trimmed : cat);
     const updatedIncomes = userData.incomes.map(inc => inc.category === oldCat ? { ...inc, category: trimmed } : inc);
 
-    onUpdateUserData({
-      incomeCategories: updatedCategories,
-      incomes: updatedIncomes
-    });
+    try {
+      await onUpdateUserData({
+        incomeCategories: updatedCategories,
+        incomes: updatedIncomes
+      });
 
-    if (category === oldCat) {
-      setCategory(trimmed);
+      if (category === oldCat) {
+        setCategory(trimmed);
+      }
+      setEditingCategory(null);
+      setEditCategoryValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-    setEditingCategory(null);
-    setEditCategoryValue('');
   };
 
-  const handleAddReceiptType = () => {
+  const handleAddReceiptType = async () => {
     const trimmed = newReceiptTypeName.trim();
     if (!trimmed) return;
     if (receiptTypesList.includes(trimmed)) return;
     const updated = [...receiptTypesList, trimmed];
-    onUpdateUserData({
-      receiptTypes: updated
-    });
-    setNewReceiptTypeName('');
-    setPaymentType(trimmed); // Select newly created receipt type
-  };
-
-  const handleDeleteReceiptType = (rtToDelete: string) => {
-    const updated = receiptTypesList.filter(rt => rt !== rtToDelete);
-    onUpdateUserData({
-      receiptTypes: updated
-    });
-    if (paymentType === rtToDelete) {
-      setPaymentType(updated[0] || 'Pix');
+    try {
+      await onUpdateUserData({
+        receiptTypes: updated
+      });
+      setNewReceiptTypeName('');
+      setPaymentType(trimmed); // Select newly created receipt type
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
-  const handleEditReceiptType = (oldRt: string) => {
+  const handleDeleteReceiptType = async (rtToDelete: string) => {
+    const updated = receiptTypesList.filter(rt => rt !== rtToDelete);
+    try {
+      await onUpdateUserData({
+        receiptTypes: updated
+      });
+      if (paymentType === rtToDelete) {
+        setPaymentType(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
+  };
+
+  const handleEditReceiptType = async (oldRt: string) => {
     const trimmed = editReceiptTypeValue.trim();
     if (!trimmed) return;
     if (receiptTypesList.includes(trimmed) && trimmed !== oldRt) return;
@@ -622,41 +646,53 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     const updatedReceiptTypes = receiptTypesList.map(rt => rt === oldRt ? trimmed : rt);
     const updatedIncomes = userData.incomes.map(inc => inc.paymentType === oldRt ? { ...inc, paymentType: trimmed } : inc);
 
-    onUpdateUserData({
-      receiptTypes: updatedReceiptTypes,
-      incomes: updatedIncomes
-    });
+    try {
+      await onUpdateUserData({
+        receiptTypes: updatedReceiptTypes,
+        incomes: updatedIncomes
+      });
 
-    if (paymentType === oldRt) {
-      setPaymentType(trimmed);
+      if (paymentType === oldRt) {
+        setPaymentType(trimmed);
+      }
+      setEditingReceiptType(null);
+      setEditReceiptTypeValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-    setEditingReceiptType(null);
-    setEditReceiptTypeValue('');
   };
 
-  const handleAddReceiptStatus = () => {
+  const handleAddReceiptStatus = async () => {
     const trimmed = newReceiptStatusName.trim();
     if (!trimmed) return;
     if (receiptStatusesList.includes(trimmed)) return;
     const updated = [...receiptStatusesList, trimmed];
-    onUpdateUserData({
-      receiptStatuses: updated
-    });
-    setNewReceiptStatusName('');
-    setStatus(trimmed);
-  };
-
-  const handleDeleteReceiptStatus = (rsToDelete: string) => {
-    const updated = receiptStatusesList.filter(rs => rs !== rsToDelete);
-    onUpdateUserData({
-      receiptStatuses: updated
-    });
-    if (status === rsToDelete) {
-      setStatus(updated[0] || 'Recebido');
+    try {
+      await onUpdateUserData({
+        receiptStatuses: updated
+      });
+      setNewReceiptStatusName('');
+      setStatus(trimmed);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
-  const handleEditReceiptStatus = (oldRs: string) => {
+  const handleDeleteReceiptStatus = async (rsToDelete: string) => {
+    const updated = receiptStatusesList.filter(rs => rs !== rsToDelete);
+    try {
+      await onUpdateUserData({
+        receiptStatuses: updated
+      });
+      if (status === rsToDelete) {
+        setStatus(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
+  };
+
+  const handleEditReceiptStatus = async (oldRs: string) => {
     const trimmed = editReceiptStatusValue.trim();
     if (!trimmed) return;
     if (receiptStatusesList.includes(trimmed) && trimmed !== oldRs) return;
@@ -664,16 +700,20 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
     const updatedStatuses = receiptStatusesList.map(rs => rs === oldRs ? trimmed : rs);
     const updatedIncomes = userData.incomes.map(inc => inc.status === oldRs ? { ...inc, status: trimmed } : inc);
 
-    onUpdateUserData({
-      receiptStatuses: updatedStatuses,
-      incomes: updatedIncomes
-    });
+    try {
+      await onUpdateUserData({
+        receiptStatuses: updatedStatuses,
+        incomes: updatedIncomes
+      });
 
-    if (status === oldRs) {
-      setStatus(trimmed);
+      if (status === oldRs) {
+        setStatus(trimmed);
+      }
+      setEditingReceiptStatus(null);
+      setEditReceiptStatusValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-    setEditingReceiptStatus(null);
-    setEditReceiptStatusValue('');
   };
 
   const filteredIncomes = useMemo(() => {
@@ -1659,17 +1699,6 @@ export const DespesasPage: React.FC<PageProps> = ({
       }
     };
 
-    try {
-      const flag = localStorage.getItem('finanfly_auto_open_add_expense');
-      if (flag) {
-        localStorage.removeItem('finanfly_auto_open_add_expense');
-        setShowAddForm(true);
-        if (flag !== 'true') {
-          setCategory(flag);
-        }
-      }
-    } catch {}
-
     window.addEventListener('finanfly-open-new-expense', handleOpenAddExpense);
     return () => {
       window.removeEventListener('finanfly-open-new-expense', handleOpenAddExpense);
@@ -1731,6 +1760,7 @@ export const DespesasPage: React.FC<PageProps> = ({
   const [bulkEditCurrentVal, setBulkEditCurrentVal] = useState<string>('');
   const [bulkEditTargetVal, setBulkEditTargetVal] = useState<string>('');
   const [bulkEditSuccessMessage, setBulkEditSuccessMessage] = useState<string | null>(null);
+  const [bulkEditError, setBulkEditError] = useState<string | null>(null);
   const [showBulkEditConfirm, setShowBulkEditConfirm] = useState(false);
 
   // Travar rolagem do body e fechar com ESC quando o formulário de despesa ou modal de alteração em massa estiver aberto
@@ -2052,14 +2082,16 @@ export const DespesasPage: React.FC<PageProps> = ({
     setBulkEditCurrentVal('Variável');
     setBulkEditTargetVal('Fixo');
     setBulkEditSuccessMessage(null);
+    setBulkEditError(null);
     setShowBulkEditConfirm(false);
     setShowBulkEditModal(true);
   };
 
-  const handleExecuteBulkEdit = () => {
+  const handleExecuteBulkEdit = async () => {
+    setBulkEditError(null);
     if (!bulkEditMonth || !bulkEditCurrentVal || !bulkEditTargetVal) return;
     if (bulkEditCurrentVal === bulkEditTargetVal) {
-      alert('O valor desejado deve ser diferente do valor atual.');
+      setBulkEditError('O valor desejado deve ser diferente do valor atual.');
       return;
     }
 
@@ -2084,34 +2116,80 @@ export const DespesasPage: React.FC<PageProps> = ({
     });
 
     if (changedCount === 0) {
-      alert('Nenhum registro encontrado correspondente aos critérios selecionados.');
+      setBulkEditError('Nenhum registro encontrado correspondente aos critérios selecionados.');
       return;
     }
 
-    onUpdateUserData({
-      expenses: updatedExpenses
-    });
+    try {
+      await onUpdateUserData({
+        expenses: updatedExpenses
+      });
 
-    const fieldLabel = bulkEditField === 'classification' ? 'Classificação' : bulkEditField === 'paymentType' ? 'Tipo' : 'Situação';
-    setBulkEditSuccessMessage(`Sucesso! ${changedCount} ${changedCount === 1 ? 'despesa foi atualizada' : 'despesas foram atualizadas'} (${fieldLabel}: "${bulkEditCurrentVal}" ➔ "${bulkEditTargetVal}").`);
-    setTimeout(() => {
-      setBulkEditSuccessMessage(null);
-      setShowBulkEditModal(false);
-    }, 1800);
+      const fieldLabel = bulkEditField === 'classification' ? 'Classificação' : bulkEditField === 'paymentType' ? 'Tipo' : 'Situação';
+      setBulkEditSuccessMessage(`Sucesso! ${changedCount} ${changedCount === 1 ? 'despesa foi atualizada' : 'despesas foram atualizadas'} (${fieldLabel}: "${bulkEditCurrentVal}" ➔ "${bulkEditTargetVal}").`);
+      setTimeout(() => {
+        setBulkEditSuccessMessage(null);
+        setShowBulkEditModal(false);
+      }, 1800);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date || !description || !value || !category || !paymentType || !status || !classification) return;
     const parsedVal = parsePtBrNumber(value);
     if (parsedVal <= 0) return;
 
-    if (editingExpenseId) {
-      // Edit mode
-      const updatedExpenses = userData.expenses.map(exp => {
-        if (exp.id === editingExpenseId) {
-          return {
-            ...exp,
+    try {
+      if (editingExpenseId) {
+        // Edit mode
+        const updatedExpenses = userData.expenses.map(exp => {
+          if (exp.id === editingExpenseId) {
+            return {
+              ...exp,
+              date,
+              description,
+              value: parsedVal,
+              category,
+              paymentType,
+              status,
+              classification
+            };
+          }
+          return exp;
+        });
+
+        await onUpdateUserData({
+          expenses: updatedExpenses
+        });
+
+        setEditingExpenseId(null);
+      } else {
+        // Create mode
+        if (installments > 1) {
+          const newExpensesList: Expense[] = [];
+          const baseTimestamp = Date.now();
+          for (let i = 1; i <= installments; i++) {
+            const instDate = getNextMonthDate(date, i - 1);
+            newExpensesList.push({
+              id: 'exp-' + baseTimestamp + '-' + i,
+              date: instDate,
+              description: `${description} (${i}/${installments})`,
+              value: parsedVal,
+              category,
+              paymentType,
+              status: i === 1 ? status : (status === 'Pago' ? 'Pendente' : status),
+              classification
+            });
+          }
+          await onUpdateUserData({
+            expenses: [...newExpensesList, ...userData.expenses]
+          });
+        } else {
+          const newExpense: Expense = {
+            id: 'exp-' + Date.now(),
             date,
             description,
             value: parsedVal,
@@ -2120,63 +2198,25 @@ export const DespesasPage: React.FC<PageProps> = ({
             status,
             classification
           };
-        }
-        return exp;
-      });
 
-      onUpdateUserData({
-        expenses: updatedExpenses
-      });
-
-      setEditingExpenseId(null);
-    } else {
-      // Create mode
-      if (installments > 1) {
-        const newExpensesList: Expense[] = [];
-        const baseTimestamp = Date.now();
-        for (let i = 1; i <= installments; i++) {
-          const instDate = getNextMonthDate(date, i - 1);
-          newExpensesList.push({
-            id: 'exp-' + baseTimestamp + '-' + i,
-            date: instDate,
-            description: `${description} (${i}/${installments})`,
-            value: parsedVal,
-            category,
-            paymentType,
-            status: i === 1 ? status : (status === 'Pago' ? 'Pendente' : status),
-            classification
+          await onUpdateUserData({
+            expenses: [newExpense, ...userData.expenses]
           });
         }
-        onUpdateUserData({
-          expenses: [...newExpensesList, ...userData.expenses]
-        });
-      } else {
-        const newExpense: Expense = {
-          id: 'exp-' + Date.now(),
-          date,
-          description,
-          value: parsedVal,
-          category,
-          paymentType,
-          status,
-          classification
-        };
-
-        onUpdateUserData({
-          expenses: [newExpense, ...userData.expenses]
-        });
       }
-    }
 
-    setDate('');
-    setDescription('');
-    setValue('');
-    setCategory('');
-    setPaymentType('');
-    setStatus('');
-    setClassification('');
-    setInstallments(1);
-    setShowAddForm(false);
+      setDate('');
+      setDescription('');
+      setValue('');
+      setCategory('');
+      setPaymentType('');
+      setStatus('');
+      setClassification('');
+      setInstallments(1);
+      setShowAddForm(false);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   const handleEditStart = (exp: Expense) => {
@@ -2193,77 +2233,101 @@ export const DespesasPage: React.FC<PageProps> = ({
 
   const [itemToDelete, setItemToDelete] = useState<Expense | null>(null);
 
-  const handleDelete = (id: string) => {
-    onUpdateUserData({
-      expenses: userData.expenses.filter(i => i.id !== id)
-    });
-    setItemToDelete(null);
+  const handleDelete = async (id: string) => {
+    try {
+      await onUpdateUserData({
+        expenses: userData.expenses.filter(i => i.id !== id)
+      });
+      setItemToDelete(null);
+    } catch {
+      setItemToDelete(null);
+    }
   };
 
   const handleRequestDelete = (exp: Expense) => {
     setItemToDelete(exp);
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
     if (userData.expenseCategories.includes(trimmed)) return;
     const updated = [...userData.expenseCategories, trimmed];
-    onUpdateUserData({
-      expenseCategories: updated
-    });
-    setNewCategoryName('');
-    setCategory(trimmed); // Select newly created category
-  };
-
-  const handleDeleteCategory = (catToDelete: string) => {
-    const updated = userData.expenseCategories.filter(cat => cat !== catToDelete);
-    onUpdateUserData({
-      expenseCategories: updated
-    });
-    if (category === catToDelete) {
-      setCategory(updated[0] || 'Outros');
+    try {
+      await onUpdateUserData({
+        expenseCategories: updated
+      });
+      setNewCategoryName('');
+      setCategory(trimmed); // Select newly created category
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
-  const handleEditCategory = (oldCat: string) => {
+  const handleDeleteCategory = async (catToDelete: string) => {
+    const updated = userData.expenseCategories.filter(cat => cat !== catToDelete);
+    try {
+      await onUpdateUserData({
+        expenseCategories: updated
+      });
+      if (category === catToDelete) {
+        setCategory(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
+  };
+
+  const handleEditCategory = async (oldCat: string) => {
     const trimmed = editCategoryValue.trim();
     if (!trimmed) return;
     if (userData.expenseCategories.includes(trimmed) && trimmed !== oldCat) return;
 
     const updates = renameExpenseCategoryInUserData(userData, oldCat, trimmed);
-    onUpdateUserData(updates);
+    try {
+      await onUpdateUserData(updates);
 
-    if (category === oldCat) {
-      setCategory(trimmed);
+      if (category === oldCat) {
+        setCategory(trimmed);
+      }
+      setEditingCategory(null);
+      setEditCategoryValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-    setEditingCategory(null);
-    setEditCategoryValue('');
   };
 
-  const handleAddPaymentType = () => {
+  const handleAddPaymentType = async () => {
     const trimmed = newPaymentTypeName.trim();
     if (!trimmed) return;
     if (userData.paymentTypes.includes(trimmed)) return;
     const updated = [...userData.paymentTypes, trimmed];
-    onUpdateUserData({
-      paymentTypes: updated
-    });
-    setNewPaymentTypeName('');
-    setPaymentType(trimmed); // Select newly created payment type
-  };
-
-  const handleDeletePaymentType = (ptToDelete: string) => {
-    const updated = userData.paymentTypes.filter(pt => pt !== ptToDelete);
-    onUpdateUserData({
-      paymentTypes: updated
-    });
-    if (paymentType === ptToDelete) {
-      setPaymentType(updated[0] || 'Pix');
+    try {
+      await onUpdateUserData({
+        paymentTypes: updated
+      });
+      setNewPaymentTypeName('');
+      setPaymentType(trimmed); // Select newly created payment type
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
-  const handleEditPaymentType = (oldPt: string) => {
+  const handleDeletePaymentType = async (ptToDelete: string) => {
+    const updated = userData.paymentTypes.filter(pt => pt !== ptToDelete);
+    try {
+      await onUpdateUserData({
+        paymentTypes: updated
+      });
+      if (paymentType === ptToDelete) {
+        setPaymentType(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
+  };
+
+  const handleEditPaymentType = async (oldPt: string) => {
     const trimmed = editPaymentTypeValue.trim();
     if (!trimmed) return;
     if (userData.paymentTypes.includes(trimmed) && trimmed !== oldPt) return;
@@ -2271,41 +2335,53 @@ export const DespesasPage: React.FC<PageProps> = ({
     const updatedPaymentTypes = userData.paymentTypes.map(pt => pt === oldPt ? trimmed : pt);
     const updatedExpenses = userData.expenses.map(exp => exp.paymentType === oldPt ? { ...exp, paymentType: trimmed } : exp);
 
-    onUpdateUserData({
-      paymentTypes: updatedPaymentTypes,
-      expenses: updatedExpenses
-    });
+    try {
+      await onUpdateUserData({
+        paymentTypes: updatedPaymentTypes,
+        expenses: updatedExpenses
+      });
 
-    if (paymentType === oldPt) {
-      setPaymentType(trimmed);
+      if (paymentType === oldPt) {
+        setPaymentType(trimmed);
+      }
+      setEditingPaymentType(null);
+      setEditPaymentTypeValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-    setEditingPaymentType(null);
-    setEditPaymentTypeValue('');
   };
 
-  const handleAddPaymentStatus = () => {
+  const handleAddPaymentStatus = async () => {
     const trimmed = newPaymentStatusName.trim();
     if (!trimmed) return;
     if (userData.paymentStatuses.includes(trimmed)) return;
     const updated = [...userData.paymentStatuses, trimmed];
-    onUpdateUserData({
-      paymentStatuses: updated
-    });
-    setNewPaymentStatusName('');
-    setStatus(trimmed); // Select newly created status
-  };
-
-  const handleDeletePaymentStatus = (psToDelete: string) => {
-    const updated = userData.paymentStatuses.filter(ps => ps !== psToDelete);
-    onUpdateUserData({
-      paymentStatuses: updated
-    });
-    if (status === psToDelete) {
-      setStatus(updated[0] || 'Pendente');
+    try {
+      await onUpdateUserData({
+        paymentStatuses: updated
+      });
+      setNewPaymentStatusName('');
+      setStatus(trimmed); // Select newly created status
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
-  const handleEditPaymentStatus = (oldPs: string) => {
+  const handleDeletePaymentStatus = async (psToDelete: string) => {
+    const updated = userData.paymentStatuses.filter(ps => ps !== psToDelete);
+    try {
+      await onUpdateUserData({
+        paymentStatuses: updated
+      });
+      if (status === psToDelete) {
+        setStatus(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
+  };
+
+  const handleEditPaymentStatus = async (oldPs: string) => {
     const trimmed = editPaymentStatusValue.trim();
     if (!trimmed) return;
     if (userData.paymentStatuses.includes(trimmed) && trimmed !== oldPs) return;
@@ -2313,16 +2389,20 @@ export const DespesasPage: React.FC<PageProps> = ({
     const updatedStatuses = userData.paymentStatuses.map(ps => ps === oldPs ? trimmed : ps);
     const updatedExpenses = userData.expenses.map(exp => exp.status === oldPs ? { ...exp, status: trimmed } : exp);
 
-    onUpdateUserData({
-      paymentStatuses: updatedStatuses,
-      expenses: updatedExpenses
-    });
+    try {
+      await onUpdateUserData({
+        paymentStatuses: updatedStatuses,
+        expenses: updatedExpenses
+      });
 
-    if (status === oldPs) {
-      setStatus(trimmed);
+      if (status === oldPs) {
+        setStatus(trimmed);
+      }
+      setEditingPaymentStatus(null);
+      setEditPaymentStatusValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-    setEditingPaymentStatus(null);
-    setEditPaymentStatusValue('');
   };
 
   const filteredExpenses = useMemo(() => {
@@ -2384,6 +2464,7 @@ export const DespesasPage: React.FC<PageProps> = ({
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
+  const [pdfErrorMessage, setPdfErrorMessage] = useState<string | null>(null);
   const [isPdfExportOpen, setIsPdfExportOpen] = useState<boolean>(false);
   const pdfExportCardRef = useRef<HTMLDivElement>(null);
 
@@ -2502,8 +2583,9 @@ export const DespesasPage: React.FC<PageProps> = ({
   }, [isPdfExportOpen]);
 
   const handleExportPdf = async () => {
+    setPdfErrorMessage(null);
     if (filteredExpenses.length === 0) {
-      alert('Não há lançamentos de despesas para exportar com os filtros selecionados.');
+      setPdfErrorMessage('Não há lançamentos de despesas para exportar com os filtros selecionados.');
       return;
     }
 
@@ -2526,7 +2608,7 @@ export const DespesasPage: React.FC<PageProps> = ({
       setTimeout(() => setPdfSuccessMessage(null), 4000);
     } catch (err) {
       console.error('Erro ao exportar PDF de despesas:', err);
-      alert('Ocorreu um erro ao gerar o relatório em PDF. Tente novamente.');
+      setPdfErrorMessage('Ocorreu um erro ao gerar o relatório em PDF. Tente novamente.');
     } finally {
       setIsExportingPdf(false);
     }
@@ -3693,6 +3775,13 @@ export const DespesasPage: React.FC<PageProps> = ({
                           * Selecione um valor desejado diferente do valor atual.
                         </p>
                       )}
+
+                      {bulkEditError && (
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          <span>{bulkEditError}</span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -3967,6 +4056,13 @@ export const DespesasPage: React.FC<PageProps> = ({
                   </div>
                 )}
 
+                {pdfErrorMessage && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs font-semibold animate-fade-in">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span>{pdfErrorMessage}</span>
+                  </div>
+                )}
+
                 {filteredExpenses.length === 0 && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                     * Nenhum lançamento encontrado com o filtro atual para gerar o documento PDF. Ajuste ou limpe os filtros para exportar.
@@ -4012,6 +4108,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
   const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
+  const [pdfErrorMessage, setPdfErrorMessage] = useState<string | null>(null);
   const pdfExportCardRef = useRef<HTMLDivElement>(null);
 
   // Estados para o popup de Novo Registro de Despesa disparado no Resumo Mensal
@@ -4067,7 +4164,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
   };
 
   const handleNovoLancamento = () => {
-    const targetCat = selectedCategoryModal || sortedExpenseCategories[0] || 'Outros';
+    const targetCat = selectedCategoryModal || sortedExpenseCategories[0] || '';
     setNewExpCategory(targetCat);
     setNewExpDescription('');
     setNewExpValue('');
@@ -4077,57 +4174,61 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
       ? String(now.getDate()).padStart(2, '0')
       : '01';
     setNewExpDate(`${selectedYear}-${mm}-${day}`);
-    setNewExpPaymentType(sortedPaymentTypes[0] || 'Pix');
-    setNewExpStatus(sortedPaymentStatuses[0] || 'Pago');
+    setNewExpPaymentType(sortedPaymentTypes[0] || '');
+    setNewExpStatus(sortedPaymentStatuses[0] || '');
     setNewExpClassification('Variável');
     setNewExpInstallments(1);
     setShowNewExpenseModal(true);
   };
 
-  const handleSaveNewExpense = (e: React.FormEvent) => {
+  const handleSaveNewExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExpDate || !newExpDescription || !newExpValue || !newExpCategory || !newExpPaymentType || !newExpStatus || !newExpClassification) return;
     const parsedVal = parsePtBrNumber(newExpValue);
     if (parsedVal <= 0) return;
 
-    if (newExpInstallments > 1) {
-      const newExpensesList: Expense[] = [];
-      const baseTimestamp = Date.now();
-      for (let i = 1; i <= newExpInstallments; i++) {
-        const instDate = getNextMonthDate(newExpDate, i - 1);
-        newExpensesList.push({
-          id: 'exp-' + baseTimestamp + '-' + i,
-          date: instDate,
-          description: `${newExpDescription} (${i}/${newExpInstallments})`,
+    try {
+      if (newExpInstallments > 1) {
+        const newExpensesList: Expense[] = [];
+        const baseTimestamp = Date.now();
+        for (let i = 1; i <= newExpInstallments; i++) {
+          const instDate = getNextMonthDate(newExpDate, i - 1);
+          newExpensesList.push({
+            id: 'exp-' + baseTimestamp + '-' + i,
+            date: instDate,
+            description: `${newExpDescription} (${i}/${newExpInstallments})`,
+            value: parsedVal,
+            category: newExpCategory,
+            paymentType: newExpPaymentType,
+            status: i === 1 ? newExpStatus : (newExpStatus === 'Pago' ? 'Pendente' : newExpStatus),
+            classification: newExpClassification
+          });
+        }
+        await onUpdateUserData({
+          expenses: [...newExpensesList, ...userData.expenses]
+        });
+      } else {
+        const newExpense: Expense = {
+          id: 'exp-' + Date.now(),
+          date: newExpDate,
+          description: newExpDescription,
           value: parsedVal,
           category: newExpCategory,
           paymentType: newExpPaymentType,
-          status: i === 1 ? newExpStatus : (newExpStatus === 'Pago' ? 'Pendente' : newExpStatus),
+          status: newExpStatus,
           classification: newExpClassification
+        };
+
+        await onUpdateUserData({
+          expenses: [newExpense, ...userData.expenses]
         });
       }
-      onUpdateUserData({
-        expenses: [...newExpensesList, ...userData.expenses]
-      });
-    } else {
-      const newExpense: Expense = {
-        id: 'exp-' + Date.now(),
-        date: newExpDate,
-        description: newExpDescription,
-        value: parsedVal,
-        category: newExpCategory,
-        paymentType: newExpPaymentType,
-        status: newExpStatus,
-        classification: newExpClassification
-      };
 
-      onUpdateUserData({
-        expenses: [newExpense, ...userData.expenses]
-      });
+      // Fecha apenas o popup de Novo Registro de Despesa e mantém o popup de visualização de lançamentos da categoria aberto!
+      setShowNewExpenseModal(false);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-
-    // Fecha apenas o popup de Novo Registro de Despesa e mantém o popup de visualização de lançamentos da categoria aberto!
-    setShowNewExpenseModal(false);
   };
 
   const handleListaDespesas = () => {
@@ -4147,9 +4248,9 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
         setEditLaunchDate(exp.date || '');
         setEditLaunchDescription(exp.description || '');
         setEditLaunchValue(formatPtBrCurrency(exp.value || 0));
-        setEditLaunchCategory(exp.category || selectedCategoryModal || sortedExpenseCategories[0] || 'Outros');
-        setEditLaunchPaymentType(exp.paymentType || sortedPaymentTypes[0] || 'Pix');
-        setEditLaunchStatus(exp.status || sortedPaymentStatuses[0] || 'Pago');
+        setEditLaunchCategory(exp.category || selectedCategoryModal || sortedExpenseCategories[0] || '');
+        setEditLaunchPaymentType(exp.paymentType || sortedPaymentTypes[0] || '');
+        setEditLaunchStatus(exp.status || sortedPaymentStatuses[0] || '');
         setEditLaunchClassification((exp.classification as any) || 'Variável');
       }
     } else {
@@ -4159,63 +4260,67 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
         setEditLaunchDate(inc.date || '');
         setEditLaunchDescription(inc.description || '');
         setEditLaunchValue(formatPtBrCurrency(inc.value || 0));
-        setEditLaunchCategory(inc.category || selectedCategoryModal || sortedIncomeCategories[0] || 'Outros');
-        setEditLaunchPaymentType(inc.paymentType || sortedPaymentTypes[0] || 'Pix');
-        setEditLaunchStatus(inc.status || sortedPaymentStatuses[0] || 'Recebido');
+        setEditLaunchCategory(inc.category || selectedCategoryModal || sortedIncomeCategories[0] || '');
+        setEditLaunchPaymentType(inc.paymentType || sortedPaymentTypes[0] || '');
+        setEditLaunchStatus(inc.status || sortedPaymentStatuses[0] || '');
       }
     }
   };
 
-  const handleSaveEditedLaunch = (e: React.FormEvent) => {
+  const handleSaveEditedLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingLaunchItem) return;
     if (!editLaunchDate || !editLaunchDescription || !editLaunchValue || !editLaunchCategory) return;
     const parsedVal = parsePtBrNumber(editLaunchValue);
     if (parsedVal <= 0) return;
 
-    if (editingLaunchItem.type === 'despesa') {
-      const updatedExpenses = userData.expenses.map(exp => {
-        if (exp.id === editingLaunchItem.id) {
-          return {
-            ...exp,
-            date: editLaunchDate,
-            description: editLaunchDescription,
-            value: parsedVal,
-            category: editLaunchCategory,
-            paymentType: editLaunchPaymentType,
-            status: editLaunchStatus,
-            classification: editLaunchClassification
-          };
-        }
-        return exp;
-      });
+    try {
+      if (editingLaunchItem.type === 'despesa') {
+        const updatedExpenses = userData.expenses.map(exp => {
+          if (exp.id === editingLaunchItem.id) {
+            return {
+              ...exp,
+              date: editLaunchDate,
+              description: editLaunchDescription,
+              value: parsedVal,
+              category: editLaunchCategory,
+              paymentType: editLaunchPaymentType,
+              status: editLaunchStatus,
+              classification: editLaunchClassification
+            };
+          }
+          return exp;
+        });
 
-      onUpdateUserData({
-        expenses: updatedExpenses
-      });
-    } else {
-      const updatedIncomes = userData.incomes.map(inc => {
-        if (inc.id === editingLaunchItem.id) {
-          return {
-            ...inc,
-            date: editLaunchDate,
-            description: editLaunchDescription,
-            value: parsedVal,
-            category: editLaunchCategory,
-            paymentType: editLaunchPaymentType,
-            status: editLaunchStatus
-          };
-        }
-        return inc;
-      });
+        await onUpdateUserData({
+          expenses: updatedExpenses
+        });
+      } else {
+        const updatedIncomes = userData.incomes.map(inc => {
+          if (inc.id === editingLaunchItem.id) {
+            return {
+              ...inc,
+              date: editLaunchDate,
+              description: editLaunchDescription,
+              value: parsedVal,
+              category: editLaunchCategory,
+              paymentType: editLaunchPaymentType,
+              status: editLaunchStatus
+            };
+          }
+          return inc;
+        });
 
-      onUpdateUserData({
-        incomes: updatedIncomes
-      });
+        await onUpdateUserData({
+          incomes: updatedIncomes
+        });
+      }
+
+      // Fecha apenas o modal de edição do lançamento e retorna para a janela aberta dos lançamentos da categoria
+      setEditingLaunchItem(null);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-
-    // Fecha apenas o modal de edição do lançamento e retorna para a janela aberta dos lançamentos da categoria
-    setEditingLaunchItem(null);
   };
 
   const handleCancelEditLaunch = () => {
@@ -4709,6 +4814,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
   }, [isPdfExportOpen]);
 
   const handleExportPdf = async () => {
+    setPdfErrorMessage(null);
     setIsExportingPdf(true);
     setPdfSuccessMessage(null);
     try {
@@ -4726,7 +4832,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
       setTimeout(() => setPdfSuccessMessage(null), 4000);
     } catch (err) {
       console.error('Erro ao exportar PDF do Resumo Mensal:', err);
-      alert('Ocorreu um erro ao gerar o relatório em PDF. Tente novamente.');
+      setPdfErrorMessage('Ocorreu um erro ao gerar o relatório em PDF. Tente novamente.');
     } finally {
       setIsExportingPdf(false);
     }
@@ -5950,6 +6056,13 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
                     <span>{pdfSuccessMessage}</span>
                   </div>
                 )}
+
+                {pdfErrorMessage && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs font-semibold animate-fade-in">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span>{pdfErrorMessage}</span>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -6542,40 +6655,44 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>('all');
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !value) return;
 
-    if (editingPlanId) {
-      onUpdateUserData({
-        actionPlans: userData.actionPlans.map(p =>
-          p.id === editingPlanId
-            ? { ...p, title, description, targetDate, value: parseFloat(value), status }
-            : p
-        )
-      });
-      setEditingPlanId(null);
-    } else {
-      const newPlan: ActionPlan = {
-        id: 'plan-' + Date.now(),
-        title,
-        description,
-        targetDate,
-        value: parseFloat(value),
-        status
-      };
+    try {
+      if (editingPlanId) {
+        await onUpdateUserData({
+          actionPlans: userData.actionPlans.map(p =>
+            p.id === editingPlanId
+              ? { ...p, title, description, targetDate, value: parseFloat(value), status }
+              : p
+          )
+        });
+        setEditingPlanId(null);
+      } else {
+        const newPlan: ActionPlan = {
+          id: 'plan-' + Date.now(),
+          title,
+          description,
+          targetDate,
+          value: parseFloat(value),
+          status
+        };
 
-      onUpdateUserData({
-        actionPlans: [...userData.actionPlans, newPlan]
-      });
+        await onUpdateUserData({
+          actionPlans: [...userData.actionPlans, newPlan]
+        });
+      }
+
+      setTitle('');
+      setDescription('');
+      setTargetDate('');
+      setValue('');
+      setStatus('Pendente');
+      setShowAdd(false);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-
-    setTitle('');
-    setDescription('');
-    setTargetDate('');
-    setValue('');
-    setStatus('Pendente');
-    setShowAdd(false);
   };
 
   const handleStartEdit = (plan: ActionPlan) => {
@@ -6600,24 +6717,32 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
 
   const [itemToDelete, setItemToDelete] = useState<ActionPlan | null>(null);
 
-  const handleDelete = (id: string) => {
-    onUpdateUserData({
-      actionPlans: userData.actionPlans.filter(p => p.id !== id)
-    });
-    if (editingPlanId === id) {
-      handleCancelEdit();
+  const handleDelete = async (id: string) => {
+    try {
+      await onUpdateUserData({
+        actionPlans: userData.actionPlans.filter(p => p.id !== id)
+      });
+      if (editingPlanId === id) {
+        handleCancelEdit();
+      }
+      setItemToDelete(null);
+    } catch {
+      setItemToDelete(null);
     }
-    setItemToDelete(null);
   };
 
   const handleRequestDelete = (plan: ActionPlan) => {
     setItemToDelete(plan);
   };
 
-  const handleStatusChange = (id: string, newStatus: 'Pendente' | 'Em Andamento' | 'Concluído') => {
-    onUpdateUserData({
-      actionPlans: userData.actionPlans.map(p => p.id === id ? { ...p, status: newStatus } : p)
-    });
+  const handleStatusChange = async (id: string, newStatus: 'Pendente' | 'Em Andamento' | 'Concluído') => {
+    try {
+      await onUpdateUserData({
+        actionPlans: userData.actionPlans.map(p => p.id === id ? { ...p, status: newStatus } : p)
+      });
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Extract list of years dynamically for filters
@@ -7001,40 +7126,44 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>('all');
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !value) return;
 
-    if (editingWishId) {
-      onUpdateUserData({
-        wishes: wishesList.map(w =>
-          w.id === editingWishId
-            ? { ...w, title, description, targetDate, value: parseFloat(value), status }
-            : w
-        )
-      });
-      setEditingWishId(null);
-    } else {
-      const newWish: Wish = {
-        id: 'wish-' + Date.now(),
-        title,
-        description,
-        targetDate,
-        value: parseFloat(value),
-        status
-      };
+    try {
+      if (editingWishId) {
+        await onUpdateUserData({
+          wishes: wishesList.map(w =>
+            w.id === editingWishId
+              ? { ...w, title, description, targetDate, value: parseFloat(value), status }
+              : w
+          )
+        });
+        setEditingWishId(null);
+      } else {
+        const newWish: Wish = {
+          id: 'wish-' + Date.now(),
+          title,
+          description,
+          targetDate,
+          value: parseFloat(value),
+          status
+        };
 
-      onUpdateUserData({
-        wishes: [...wishesList, newWish]
-      });
+        await onUpdateUserData({
+          wishes: [...wishesList, newWish]
+        });
+      }
+
+      setTitle('');
+      setDescription('');
+      setTargetDate('');
+      setValue('');
+      setStatus('Pendente');
+      setShowAdd(false);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-
-    setTitle('');
-    setDescription('');
-    setTargetDate('');
-    setValue('');
-    setStatus('Pendente');
-    setShowAdd(false);
   };
 
   const handleStartEdit = (wish: Wish) => {
@@ -7059,24 +7188,32 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
 
   const [itemToDelete, setItemToDelete] = useState<Wish | null>(null);
 
-  const handleDelete = (id: string) => {
-    onUpdateUserData({
-      wishes: wishesList.filter(w => w.id !== id)
-    });
-    if (editingWishId === id) {
-      handleCancelEdit();
+  const handleDelete = async (id: string) => {
+    try {
+      await onUpdateUserData({
+        wishes: wishesList.filter(w => w.id !== id)
+      });
+      if (editingWishId === id) {
+        handleCancelEdit();
+      }
+      setItemToDelete(null);
+    } catch {
+      setItemToDelete(null);
     }
-    setItemToDelete(null);
   };
 
   const handleRequestDelete = (wish: Wish) => {
     setItemToDelete(wish);
   };
 
-  const handleStatusChange = (id: string, newStatus: 'Pendente' | 'Concluído') => {
-    onUpdateUserData({
-      wishes: wishesList.map(w => w.id === id ? { ...w, status: newStatus } : w)
-    });
+  const handleStatusChange = async (id: string, newStatus: 'Pendente' | 'Concluído') => {
+    try {
+      await onUpdateUserData({
+        wishes: wishesList.map(w => w.id === id ? { ...w, status: newStatus } : w)
+      });
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Extract list of years dynamically for filters
@@ -7522,40 +7659,44 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showAdd]);
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!costCenter || !reason || !correctionAction || !responsible || !date) return;
 
-    if (editingActionId) {
-      onUpdateUserData({
-        deficitActions: deficitActions.map(a =>
-          a.id === editingActionId
-            ? { ...a, costCenter, reason, correctionAction, responsible, date, status }
-            : a
-        )
-      });
-      setEditingActionId(null);
-    } else {
-      const newAction = {
-        id: 'deficit-' + Date.now(),
-        costCenter,
-        reason,
-        correctionAction,
-        responsible,
-        date,
-        status
-      };
-      onUpdateUserData({
-        deficitActions: [...deficitActions, newAction]
-      });
-    }
+    try {
+      if (editingActionId) {
+        await onUpdateUserData({
+          deficitActions: deficitActions.map(a =>
+            a.id === editingActionId
+              ? { ...a, costCenter, reason, correctionAction, responsible, date, status }
+              : a
+          )
+        });
+        setEditingActionId(null);
+      } else {
+        const newAction = {
+          id: 'deficit-' + Date.now(),
+          costCenter,
+          reason,
+          correctionAction,
+          responsible,
+          date,
+          status
+        };
+        await onUpdateUserData({
+          deficitActions: [...deficitActions, newAction]
+        });
+      }
 
-    setReason('');
-    setCorrectionAction('');
-    setResponsible('');
-    setDate(new Date().toISOString().split('T')[0]);
-    setStatus('Pendente');
-    setShowAdd(false);
+      setReason('');
+      setCorrectionAction('');
+      setResponsible('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setStatus('Pendente');
+      setShowAdd(false);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   const handleStartEdit = (action: any) => {
@@ -7581,14 +7722,18 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
 
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
 
-  const handleDelete = (id: string) => {
-    onUpdateUserData({
-      deficitActions: deficitActions.filter(a => a.id !== id)
-    });
-    if (editingActionId === id) {
-      handleCancelEdit();
+  const handleDelete = async (id: string) => {
+    try {
+      await onUpdateUserData({
+        deficitActions: deficitActions.filter(a => a.id !== id)
+      });
+      if (editingActionId === id) {
+        handleCancelEdit();
+      }
+      setItemToDelete(null);
+    } catch {
+      setItemToDelete(null);
     }
-    setItemToDelete(null);
   };
 
   const handleRequestDelete = (action: any) => {
@@ -7607,7 +7752,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
         <button
           onClick={() => {
             setEditingActionId(null);
-            setCostCenter(userData.expenseCategories[0] || 'Outros');
+            setCostCenter(userData.expenseCategories[0] || '');
             setReason('');
             setCorrectionAction('');
             setResponsible('');
@@ -8039,7 +8184,7 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
 
@@ -8053,40 +8198,56 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
       date
     };
 
-    onUpdateUserData({
-      shoppingList: [...userData.shoppingList, newItem]
-    });
+    try {
+      await onUpdateUserData({
+        shoppingList: [...userData.shoppingList, newItem]
+      });
 
-    setName('');
-    setQuantity('1');
-    setPrice('');
-    setDate(new Date().toISOString().split('T')[0]);
-    setShowAdd(false);
+      setName('');
+      setQuantity('1');
+      setPrice('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setShowAdd(false);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
-  const handleToggleCheck = (id: string) => {
-    onUpdateUserData({
-      shoppingList: userData.shoppingList.map(item => item.id === id ? { ...item, checked: !item.checked } : item)
-    });
+  const handleToggleCheck = async (id: string) => {
+    try {
+      await onUpdateUserData({
+        shoppingList: userData.shoppingList.map(item => item.id === id ? { ...item, checked: !item.checked } : item)
+      });
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   const [itemToDelete, setItemToDelete] = useState<ShoppingItem | null>(null);
 
-  const handleDelete = (id: string) => {
-    onUpdateUserData({
-      shoppingList: userData.shoppingList.filter(item => item.id !== id)
-    });
-    setItemToDelete(null);
+  const handleDelete = async (id: string) => {
+    try {
+      await onUpdateUserData({
+        shoppingList: userData.shoppingList.filter(item => item.id !== id)
+      });
+      setItemToDelete(null);
+    } catch {
+      setItemToDelete(null);
+    }
   };
 
   const handleRequestDelete = (item: ShoppingItem) => {
     setItemToDelete(item);
   };
 
-  const handleClearCompleted = () => {
-    onUpdateUserData({
-      shoppingList: userData.shoppingList.filter(item => !item.checked)
-    });
+  const handleClearCompleted = async () => {
+    try {
+      await onUpdateUserData({
+        shoppingList: userData.shoppingList.filter(item => !item.checked)
+      });
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Extract years dynamically
@@ -8406,7 +8567,7 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
     setRenameError(null);
   };
 
-  const handleConfirmRename = (e?: React.FormEvent) => {
+  const handleConfirmRename = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!categoryToRename) return;
     const trimmed = renameCategoryInput.trim();
@@ -8423,24 +8584,22 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       return;
     }
 
-    // 1. Migra imediatamente o estado local de orçamentos para a nova chave,
-    // garantindo que NENHUM valor dos 12 meses seja alterado ou perdido!
     const updatedLocal = migrateLocalBudgetsCategory(localBudgets, categoryToRename, trimmed);
-    setLocalBudgets(updatedLocal);
-
-    // 2. Renomeia de forma segura no userData:
-    // Atualiza apenas o nome em annualPlanning (para todos os anos e meses),
-    // mantendo rigorosamente todos os valores orçados (budgetedValue) intactos!
     const updates = renameExpenseCategoryInUserData(userData, categoryToRename, trimmed);
-    onUpdateUserData(updates);
-
-    setCategoryToRename(null);
-    setRenameCategoryInput('');
-    setRenameError(null);
-    setRenameSuccessMessage(`Categoria "${categoryToRename}" alterada para "${trimmed}". Valores orçados mantidos!`);
-    setTimeout(() => {
-      setRenameSuccessMessage(null);
-    }, 4000);
+    try {
+      await onUpdateUserData(updates);
+      setLocalBudgets(updatedLocal);
+      const oldName = categoryToRename;
+      setCategoryToRename(null);
+      setRenameCategoryInput('');
+      setRenameError(null);
+      setRenameSuccessMessage(`Categoria "${oldName}" alterada para "${trimmed}". Valores orçados mantidos!`);
+      setTimeout(() => {
+        setRenameSuccessMessage(null);
+      }, 4000);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Load existing budgets into local state when selectedYear or userData.annualPlanning changes
@@ -8481,14 +8640,14 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       const normalized = formatPtBrCurrency(num);
       const next = { ...localBudgets, [key]: normalized };
       setLocalBudgets(next);
-      commitBudgets(next);
+      void commitBudgets(next);
     } else {
-      commitBudgets();
+      void commitBudgets();
     }
   };
 
   // Commit changes to annualPlanning in userData
-  const commitBudgets = (budgetsToCommit = localBudgets) => {
+  const commitBudgets = async (budgetsToCommit = localBudgets): Promise<boolean> => {
     setSaveStatus('saving');
 
     const yearPlanIdx = userData.annualPlanning.findIndex(p => p.year === selectedYear);
@@ -8539,37 +8698,47 @@ export const PlanejamentoAnualPage: React.FC<PageProps> = ({ userData, onUpdateU
       });
     }
 
-    onUpdateUserData({
-      annualPlanning: updatedPlanningList
-    });
+    try {
+      await onUpdateUserData({
+        annualPlanning: updatedPlanningList
+      });
 
-    setSaveStatus('saved');
-    setTimeout(() => {
+      setSaveStatus('saved');
+      setTimeout(() => {
+        setSaveStatus('idle');
+      }, 2500);
+      return true;
+    } catch {
       setSaveStatus('idle');
-    }, 2500);
+      return false;
+    }
   };
 
-  const copyValuesBetweenMonths = (sourceIdx: number, targetIdx: number) => {
+  const copyValuesBetweenMonths = async (sourceIdx: number, targetIdx: number) => {
     const next = { ...localBudgets };
     categories.forEach(cat => {
       const val = localBudgets[`${cat}__${sourceIdx}`] || '';
       next[`${cat}__${targetIdx}`] = val;
     });
-    setLocalBudgets(next);
-    commitBudgets(next);
-    setMassSuccessMessage(`Valores copiados de ${monthsFull[sourceIdx]} para ${monthsFull[targetIdx]} com sucesso!`);
-    setTimeout(() => setMassSuccessMessage(''), 3500);
+    const saved = await commitBudgets(next);
+    if (saved) {
+      setLocalBudgets(next);
+      setMassSuccessMessage(`Valores copiados de ${monthsFull[sourceIdx]} para ${monthsFull[targetIdx]} com sucesso!`);
+      setTimeout(() => setMassSuccessMessage(''), 3500);
+    }
   };
 
-  const clearMonthValues = (monthIdx: number) => {
+  const clearMonthValues = async (monthIdx: number) => {
     const next = { ...localBudgets };
     categories.forEach(cat => {
       next[`${cat}__${monthIdx}`] = '';
     });
-    setLocalBudgets(next);
-    commitBudgets(next);
-    setMassSuccessMessage(`Dados do mês de ${monthsFull[monthIdx]} apagados com sucesso!`);
-    setTimeout(() => setMassSuccessMessage(''), 3500);
+    const saved = await commitBudgets(next);
+    if (saved) {
+      setLocalBudgets(next);
+      setMassSuccessMessage(`Dados do mês de ${monthsFull[monthIdx]} apagados com sucesso!`);
+      setTimeout(() => setMassSuccessMessage(''), 3500);
+    }
   };
 
   // Calculations
@@ -9305,29 +9474,36 @@ export const ListManagerPage: React.FC<{
   description: string;
   items: string[];
   placeholder: string;
-  onUpdateItems: (newItems: string[]) => void;
-  onRenameItem?: (oldVal: string, newVal: string) => void;
+  onUpdateItems: (newItems: string[]) => Promise<void> | void;
+  onRenameItem?: (oldVal: string, newVal: string) => Promise<void> | void;
 }> = ({ title, description, items, placeholder, onUpdateItems, onRenameItem }) => {
   const [newVal, setNewVal] = useState('');
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVal.trim()) return;
     if (items.includes(newVal.trim())) {
-      alert('Este item já está cadastrado.');
       return;
     }
-    onUpdateItems([...items, newVal.trim()]);
-    setNewVal('');
+    try {
+      await onUpdateItems([...items, newVal.trim()]);
+      setNewVal('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
-  const handleDelete = (itemToDelete: string) => {
-    onUpdateItems(items.filter(item => item !== itemToDelete));
+  const handleDelete = async (itemToDelete: string) => {
+    try {
+      await onUpdateItems(items.filter(item => item !== itemToDelete));
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
-  const handleSaveEdit = (oldVal: string) => {
+  const handleSaveEdit = async (oldVal: string) => {
     const trimmed = editValue.trim();
     if (!trimmed) return;
     if (trimmed === oldVal) {
@@ -9335,16 +9511,19 @@ export const ListManagerPage: React.FC<{
       return;
     }
     if (items.includes(trimmed)) {
-      alert('Este item já está cadastrado.');
       return;
     }
-    if (onRenameItem) {
-      onRenameItem(oldVal, trimmed);
-    } else {
-      onUpdateItems(items.map(item => item === oldVal ? trimmed : item));
+    try {
+      if (onRenameItem) {
+        await onRenameItem(oldVal, trimmed);
+      } else {
+        await onUpdateItems(items.map(item => item === oldVal ? trimmed : item));
+      }
+      setEditingItem(null);
+      setEditValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
-    setEditingItem(null);
-    setEditValue('');
   };
 
   return (
@@ -9451,7 +9630,18 @@ export const ListManagerPage: React.FC<{
 };
 
 // ======================== DADOS PESSOAIS PAGE ========================
-export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> = ({ userProfile, onUpdateUserProfile, onLogout }) => {
+interface TrashItemRecord {
+  id: string;
+  entity: string;
+  entityLabel: string;
+  recordId: string;
+  label: string;
+  payload: any;
+  deletedAt: string;
+  expiresAt: string;
+}
+
+export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void; onUserDataReplaced?: (data: UserData) => void }> = ({ userProfile, onUpdateUserProfile, onLogout, onUserDataReplaced }) => {
   const [name, setName] = useState(userProfile.name);
   const [address, setAddress] = useState(userProfile.address || '');
   const [city, setCity] = useState(userProfile.city || '');
@@ -9460,13 +9650,217 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
   const [cpf, setCpf] = useState(userProfile.cpf || '');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [profileError, setProfileError] = useState('');
 
   // Accordion open/closed states
+  const [isTrashAccordionOpen, setIsTrashAccordionOpen] = useState(false);
+  const [isBackupAccordionOpen, setIsBackupAccordionOpen] = useState(false);
   const [isPasswordAccordionOpen, setIsPasswordAccordionOpen] = useState(false);
   const [isDeleteAccordionOpen, setIsDeleteAccordionOpen] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  // Lixeira (Últimos 3 dias) states
+  const [trashItems, setTrashItems] = useState<TrashItemRecord[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashTableMissing, setTrashTableMissing] = useState(false);
+  const [trashActionLoadingId, setTrashActionLoadingId] = useState<string | null>(null);
+  const [trashFeedback, setTrashFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Backup / Restauração (.json) states
+  const [backupDownloading, setBackupDownloading] = useState(false);
+  const [backupRestoring, setBackupRestoring] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [pendingRestorePayload, setPendingRestorePayload] = useState<{
+    fileName: string;
+    rawData: any;
+    summary: { incomes: number; expenses: number; investments: number; trips: number; actionPlans: number };
+  } | null>(null);
+  const backupFileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadTrashItems = async () => {
+    setTrashLoading(true);
+    setTrashFeedback(null);
+    try {
+      const res = await fetch('/api/user/trash', {
+        headers: getAuthHeaders({ 'x-user-email': userProfile.email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao consultar lixeira.');
+      setTrashItems(Array.isArray(data.items) ? data.items : []);
+      setTrashTableMissing(Boolean(data.tableMissing));
+    } catch (err: any) {
+      setTrashFeedback({ type: 'error', message: err.message || 'Erro ao carregar lixeira.' });
+    } finally {
+      setTrashLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isTrashAccordionOpen) {
+      loadTrashItems();
+    }
+  }, [isTrashAccordionOpen]);
+
+  const formatTrashRemaining = (deletedAtIso: string) => {
+    const deletedMs = new Date(deletedAtIso).getTime();
+    if (!Number.isFinite(deletedMs)) return 'Prazo ativo';
+    const expiresMs = deletedMs + 3 * 24 * 60 * 60 * 1000;
+    const remainingMs = Math.max(0, expiresMs - Date.now());
+    const hours = Math.floor(remainingMs / (60 * 60 * 1000));
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24);
+      const remHours = hours % 24;
+      return `Expira em ${days}d ${remHours}h`;
+    }
+    return hours > 0 ? `Expira em ${hours}h` : 'Expira em menos de 1h';
+  };
+
+  const handleRestoreTrashItem = async (trashId: string) => {
+    setTrashActionLoadingId(trashId);
+    setTrashFeedback(null);
+    try {
+      const res = await fetch('/api/user/trash/restore', {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'x-user-email': userProfile.email
+        }),
+        body: JSON.stringify({ trashId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao restaurar registro.');
+      if (data.data && onUserDataReplaced) {
+        onUserDataReplaced(data.data);
+      }
+      setTrashItems(prev => prev.filter(item => item.id !== trashId));
+      setTrashFeedback({
+        type: 'success',
+        message: `Registro "${data.restoredLabel || 'item'}" restaurado para sua base com sucesso!`
+      });
+    } catch (err: any) {
+      setTrashFeedback({ type: 'error', message: err.message || 'Erro ao restaurar item.' });
+      loadTrashItems();
+    } finally {
+      setTrashActionLoadingId(null);
+    }
+  };
+
+  const handlePermanentDeleteTrashItem = async (trashId: string) => {
+    setTrashActionLoadingId(trashId);
+    setTrashFeedback(null);
+    try {
+      const res = await fetch(`/api/user/trash/${encodeURIComponent(trashId)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders({ 'x-user-email': userProfile.email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao limpar item da lixeira.');
+      setTrashItems(prev => prev.filter(item => item.id !== trashId));
+    } catch (err: any) {
+      setTrashFeedback({ type: 'error', message: err.message || 'Erro ao remover item da lixeira.' });
+    } finally {
+      setTrashActionLoadingId(null);
+    }
+  };
+
+  const handleDownloadBackup = async () => {
+    setBackupDownloading(true);
+    setBackupFeedback(null);
+    try {
+      const res = await fetch('/api/user/backup/export', {
+        headers: getAuthHeaders({ 'x-user-email': userProfile.email })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao exportar backup.');
+      }
+      const backupObj = await res.json();
+      const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finanfly-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setBackupFeedback({
+        type: 'success',
+        message: 'Backup completo (.json) gerado e baixado com sucesso!'
+      });
+    } catch (err: any) {
+      setBackupFeedback({ type: 'error', message: err.message || 'Erro ao baixar backup.' });
+    } finally {
+      setBackupDownloading(false);
+    }
+  };
+
+  const handleBackupFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBackupFeedback(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const candidate = parsed?.userData || parsed;
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        throw new Error('Estrutura JSON inválida para backup do FinanFly.');
+      }
+      setPendingRestorePayload({
+        fileName: file.name,
+        rawData: candidate,
+        summary: {
+          incomes: Array.isArray(candidate.incomes) ? candidate.incomes.length : 0,
+          expenses: Array.isArray(candidate.expenses) ? candidate.expenses.length : 0,
+          investments: Array.isArray(candidate.investments) ? candidate.investments.length : 0,
+          trips: Array.isArray(candidate.trips) ? candidate.trips.length : 0,
+          actionPlans: Array.isArray(candidate.actionPlans) ? candidate.actionPlans.length : 0
+        }
+      });
+    } catch (err: any) {
+      setBackupFeedback({ type: 'error', message: err.message || 'Não foi possível ler o arquivo .json selecionado.' });
+    } finally {
+      if (backupFileInputRef.current) {
+        backupFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleConfirmBackupRestore = async () => {
+    if (!pendingRestorePayload) return;
+    setBackupRestoring(true);
+    setBackupFeedback(null);
+    try {
+      const res = await fetch('/api/user/backup/restore', {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json',
+          'x-user-email': userProfile.email
+        }),
+        body: JSON.stringify({ userData: pendingRestorePayload.rawData })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao restaurar backup.');
+      if (data.data && onUserDataReplaced) {
+        onUserDataReplaced(data.data);
+      }
+      setPendingRestorePayload(null);
+      const extraMsg = data.removedOlderThanThreeYears > 0
+        ? ` (${data.removedOlderThanThreeYears} registro(s) com mais de 3 anos foram descartados conforme a política de retenção).`
+        : '';
+      setBackupFeedback({
+        type: 'success',
+        message: `Backup restaurado e salvo no banco de dados com sucesso!${extraMsg}`
+      });
+    } catch (err: any) {
+      setBackupFeedback({ type: 'error', message: err.message || 'Erro ao restaurar arquivo de backup.' });
+    } finally {
+      setBackupRestoring(false);
+    }
+  };
 
   // Mudar senha states
   const [oldPassword, setOldPassword] = useState('');
@@ -9548,6 +9942,7 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
     e.preventDefault();
     setLoading(true);
     setSuccess(false);
+    setProfileError('');
 
     try {
       const res = await fetch('/api/user/profile', {
@@ -9565,7 +9960,7 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar dados cadastrais.');
+      setProfileError(err.message || 'Erro ao atualizar dados cadastrais por instabilidade de conexão. Tente gravar novamente.');
     } finally {
       setLoading(false);
     }
@@ -9596,6 +9991,11 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
         {success && (
           <div className="rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 p-3.5 font-semibold text-center text-sm">
             ✓ Informações atualizadas com sucesso no banco de dados!
+          </div>
+        )}
+        {profileError && (
+          <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 p-3.5 font-semibold text-center text-sm dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-300">
+            {profileError}
           </div>
         )}
 
@@ -9835,6 +10235,229 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void }> 
                 {passwordLoading ? 'Alterando...' : 'Confirmar Nova Senha'}
               </button>
             </form>
+          </div>
+        )}
+      </div>
+
+      {/* Lixeira / Recuperação de Exclusões (Últimos 3 dias) */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <div
+          onClick={() => setIsTrashAccordionOpen(!isTrashAccordionOpen)}
+          className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+        >
+          <div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              Lixeira de Exclusões (Últimos 3 dias)
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Recupere lançamentos excluídos acidentalmente nos últimos 3 dias.
+            </p>
+          </div>
+          <div>
+            {isTrashAccordionOpen ? (
+              <ChevronUp className="h-5 w-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-slate-400" />
+            )}
+          </div>
+        </div>
+
+        {isTrashAccordionOpen && (
+          <div className="p-5 border-t border-slate-100 dark:border-slate-800/60 space-y-4 animate-slide-down">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span>Retenção automática na lixeira: apenas os últimos <strong>3 dias (72 horas)</strong>.</span>
+              <button
+                type="button"
+                onClick={loadTrashItems}
+                disabled={trashLoading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${trashLoading ? 'animate-spin' : ''}`} />
+                Atualizar
+              </button>
+            </div>
+
+            {trashFeedback && (
+              <div
+                className={`rounded-lg border p-3 text-xs font-semibold ${
+                  trashFeedback.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-200'
+                    : 'bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-200'
+                }`}
+              >
+                {trashFeedback.message}
+              </div>
+            )}
+
+            {trashTableMissing ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                A tabela <code className="font-mono font-bold">trash_items</code> ainda está pendente de criação no Supabase. Peça ao administrador para executar o Script Diferencial Seguro em <strong>Administrador → Conexão</strong>.
+              </div>
+            ) : trashLoading ? (
+              <p className="text-xs text-slate-500 text-center py-4">Carregando itens da lixeira...</p>
+            ) : trashItems.length === 0 ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-4">
+                Nenhum item excluído nos últimos 3 dias encontrado na lixeira.
+              </p>
+            ) : (
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                {trashItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/60">
+                          {item.entityLabel}
+                        </span>
+                        <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatTrashRemaining(item.deletedAt)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs sm:text-sm font-bold text-slate-800 dark:text-white truncate">
+                        {item.label}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Excluído em {new Date(item.deletedAt).toLocaleString('pt-BR')}
+                        {item.payload?.value !== undefined ? ` • R$ ${Number(item.payload.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={trashActionLoadingId === item.id}
+                        onClick={() => handleRestoreTrashItem(item.id)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition-colors disabled:opacity-50"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Restaurar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={trashActionLoadingId === item.id}
+                        onClick={() => handlePermanentDeleteTrashItem(item.id)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 disabled:opacity-50"
+                        title="Remover definitivamente da lixeira"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Backup e Restauração Completa (.json) */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <div
+          onClick={() => setIsBackupAccordionOpen(!isBackupAccordionOpen)}
+          className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+        >
+          <div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <Database className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              Backup e Restauração (.json)
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Exporte seus últimos 3 anos de dados em JSON ou restaure um arquivo salvo.
+            </p>
+          </div>
+          <div>
+            {isBackupAccordionOpen ? (
+              <ChevronUp className="h-5 w-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-slate-400" />
+            )}
+          </div>
+        </div>
+
+        {isBackupAccordionOpen && (
+          <div className="p-5 border-t border-slate-100 dark:border-slate-800/60 space-y-4 animate-slide-down">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Gere uma cópia de segurança dos seus dados financeiros (receitas, despesas, metas, viagens, investimentos, categorias e planejamentos dos últimos 3 anos).
+            </p>
+
+            {backupFeedback && (
+              <div
+                className={`rounded-lg border p-3 text-xs font-semibold ${
+                  backupFeedback.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-200'
+                    : 'bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-200'
+                }`}
+              >
+                {backupFeedback.message}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                disabled={backupDownloading}
+                onClick={handleDownloadBackup}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm transition-colors disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {backupDownloading ? 'Gerando Backup...' : 'Baixar Backup (.json)'}
+              </button>
+
+              <input
+                ref={backupFileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleBackupFileSelected}
+                className="hidden"
+              />
+              <button
+                type="button"
+                disabled={backupRestoring}
+                onClick={() => backupFileInputRef.current?.click()}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-50"
+              >
+                <Upload className="h-4 w-4" />
+                Carregar Arquivo (.json)
+              </button>
+            </div>
+
+            {pendingRestorePayload && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900/50 dark:bg-amber-950/20 space-y-3">
+                <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    Confirmar restauração do arquivo "{pendingRestorePayload.fileName}"?
+                  </p>
+                  <p>
+                    Este arquivo contém: <strong>{pendingRestorePayload.summary.incomes}</strong> receitas, <strong>{pendingRestorePayload.summary.expenses}</strong> despesas, <strong>{pendingRestorePayload.summary.investments}</strong> investimentos, <strong>{pendingRestorePayload.summary.trips}</strong> viagens e <strong>{pendingRestorePayload.summary.actionPlans}</strong> metas.
+                  </p>
+                  <p className="opacity-90">
+                    Ao confirmar, os dados atuais serão substituídos pelos registros do backup (respeitando o limite dos últimos 3 anos).
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={backupRestoring}
+                    onClick={() => setPendingRestorePayload(null)}
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={backupRestoring}
+                    onClick={handleConfirmBackupRestore}
+                    className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    {backupRestoring ? 'Restaurando...' : 'Confirmar Restauração'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -19,13 +19,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
 
   const [localFloatingMenuEnabled, setLocalFloatingMenuEnabled] = useState<boolean>(() => {
     if (floatingMenuEnabled !== undefined) return floatingMenuEnabled;
-    try {
-      const saved = localStorage.getItem('finanfly_floating_menu_enabled');
-      if (saved !== null) {
-        return saved === 'true';
-      }
-    } catch {}
-    return true; // Ativado por padrão
+    return true;
   });
 
   useEffect(() => {
@@ -36,30 +30,15 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
 
   const handleSaveFloatingMenu = (newVal: boolean) => {
     setLocalFloatingMenuEnabled(newVal);
-    try {
-      localStorage.setItem('finanfly_floating_menu_enabled', String(newVal));
-    } catch {}
     onToggleFloatingMenu?.(newVal);
     window.dispatchEvent(new CustomEvent('finanfly_floating_menu_changed', { detail: newVal }));
     setIsMenuSuspensoModalOpen(false);
   };
 
   const handleResetFloatingPosition = () => {
-    try {
-      localStorage.removeItem('finanfly_floating_menu_position_v2');
-      localStorage.removeItem('finanfly_floating_menu_position');
-    } catch {}
     window.dispatchEvent(new CustomEvent('finanfly-reset-floating-menu-position'));
   };
-  const [notices, setNotices] = useState(() => {
-    try {
-      const saved = localStorage.getItem('finanfly_home_notices');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.fluxoCaixa) return parsed;
-      }
-    } catch (e) {}
-    return {
+  const [notices, setNotices] = useState(() => ({
       fluxoCaixa: {
         title: 'Fluxo de Caixa Simplificado',
         message: 'Cadastre suas receitas e despesas de forma imediata, mantendo o controle total dos seus gastos diários sem perder tempo.'
@@ -80,12 +59,14 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
         title: 'Lançamento diário e Check-in Semanal',
         message: 'Registre suas finanças assim que elas acontecerem. Depois, reserve apenas 10 minutos no início ou no fim da semana para revisar o resumo de receitas e despesas. Manter os lançamentos em dia é o segredo para evitar surpresas no fim do mês!'
       }
-    };
-  });
+  }));
 
   useEffect(() => {
     fetch('/api/notices')
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) throw new Error('Falha ao buscar avisos');
+        return res.json();
+      })
       .then(data => {
         if (data && data.fluxoCaixa) {
           const freshNotices = {
@@ -111,9 +92,6 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
             }
           };
           setNotices(freshNotices);
-          try {
-            localStorage.setItem('finanfly_home_notices', JSON.stringify(freshNotices));
-          } catch (e) {}
         }
       })
       .catch(err => console.error('Erro ao carregar avisos sincronizados na Home:', err));
@@ -143,6 +121,11 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
             <p className="text-slate-200 text-base max-w-xl leading-relaxed">
               Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações para melhoria contínua de finanças. Tudo em um único lugar, adaptado para qualquer tela.
             </p>
+
+            <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 border border-emerald-400/30 px-3.5 py-2 text-xs sm:text-sm font-semibold text-emerald-200">
+              <Shield className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>Guarde seus dados e histórico por até 3 anos</span>
+            </div>
 
             <p className="text-blue-300 font-semibold text-sm sm:text-base">
               Para começar só escolher abaixo.

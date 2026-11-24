@@ -22,9 +22,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     active: boolean | null;
     url: string;
     message: string;
+    usingServiceRole?: boolean;
+    jwtSecretConfigured?: boolean;
     schema?: string;
     differentialSql?: string;
     fullSafeSql?: string;
+    rlsHardeningSql?: string;
     totalRequired?: number;
     existingCount?: number;
     missingCount?: number;
@@ -42,10 +45,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     active: null,
     url: '',
     message: '',
+    usingServiceRole: false,
+    jwtSecretConfigured: false,
     schema: '',
     differentialSql: '',
     fullSafeSql: '',
-    totalRequired: 21,
+    rlsHardeningSql: '',
+    totalRequired: 25,
     existingCount: 0,
     missingCount: 0,
     missingTables: [],
@@ -53,7 +59,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   });
 
   const [copiedSchema, setCopiedSchema] = useState(false);
-  const [selectedScriptType, setSelectedScriptType] = useState<'differential' | 'full'>('differential');
+  const [selectedScriptType, setSelectedScriptType] = useState<'differential' | 'full' | 'rls'>('differential');
   const [showTableDetails, setShowTableDetails] = useState(true);
 
   const checkSupabaseStatus = async () => {
@@ -68,11 +74,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         active: !!data.active,
         url: data.url || '',
         message: data.message || (data.active ? 'Conectado ao Supabase com sucesso!' : 'Desconectado do Supabase'),
+        usingServiceRole: !!data.usingServiceRole,
+        jwtSecretConfigured: !!data.jwtSecretConfigured,
         schema: data.schema || '',
         differentialSql: data.differentialSql || '',
         fullSafeSql: data.fullSafeSql || '',
-        totalRequired: data.totalRequired || 21,
-        existingCount: data.existingCount ?? (data.active ? 21 : 0),
+        rlsHardeningSql: data.rlsHardeningSql || '',
+        totalRequired: data.totalRequired || 25,
+        existingCount: data.existingCount ?? (data.active ? 25 : 0),
         missingCount: data.missingCount ?? 0,
         missingTables: data.missingTables || [],
         tables: data.tables || []
@@ -87,22 +96,33 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         active: false,
         url: '',
         message: 'Erro ao verificar conexão com o Supabase.',
+        usingServiceRole: false,
+        jwtSecretConfigured: false,
         schema: '',
         differentialSql: '',
         fullSafeSql: '',
-        totalRequired: 21,
+        rlsHardeningSql: '',
+        totalRequired: 25,
         existingCount: 0,
-        missingCount: 21,
+        missingCount: 25,
         missingTables: [],
         tables: []
       });
     }
   };
 
+  const getSelectedSqlScript = () => {
+    if (selectedScriptType === 'differential') {
+      return supabaseStatus.differentialSql || supabaseStatus.schema || '';
+    }
+    if (selectedScriptType === 'rls') {
+      return supabaseStatus.rlsHardeningSql || '';
+    }
+    return supabaseStatus.fullSafeSql || supabaseStatus.schema || '';
+  };
+
   const handleCopySchema = () => {
-    const scriptToCopy = selectedScriptType === 'differential'
-      ? (supabaseStatus.differentialSql || supabaseStatus.schema || '')
-      : (supabaseStatus.fullSafeSql || supabaseStatus.schema || '');
+    const scriptToCopy = getSelectedSqlScript();
     if (scriptToCopy) {
       navigator.clipboard.writeText(scriptToCopy);
       setCopiedSchema(true);
@@ -111,9 +131,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   };
 
   const handleDownloadSql = () => {
-    const scriptToDownload = selectedScriptType === 'differential'
-      ? (supabaseStatus.differentialSql || supabaseStatus.schema || '')
-      : (supabaseStatus.fullSafeSql || supabaseStatus.schema || '');
+    const scriptToDownload = getSelectedSqlScript();
     if (!scriptToDownload) return;
     const blob = new Blob([scriptToDownload], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -121,6 +139,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     link.href = url;
     link.download = selectedScriptType === 'differential'
       ? 'finanfly_atualizacao_segura_supabase.sql'
+      : selectedScriptType === 'rls'
+      ? 'finanfly_rls_restritivo_producao.sql'
       : 'finanfly_esquema_completo_seguro_supabase.sql';
     document.body.appendChild(link);
     link.click();
@@ -133,7 +153,55 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   }, []);
 
   // Active Tab state
-  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios' | 'conexao'>('gestao');
+  const [activeTab, setActiveTab] = useState<'gestao' | 'config-valores' | 'limite-uso-gratuito' | 'avisos' | 'relatorios' | 'conexao' | 'auditoria'>('gestao');
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState<Array<{
+    id: string;
+    created_at: string;
+    actor_email: string | null;
+    target_email: string | null;
+    action: string;
+    entity: string | null;
+    status: string | null;
+    ip: string | null;
+    details?: Record<string, any>;
+  }>>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState('');
+  const [auditTableMissing, setAuditTableMissing] = useState(false);
+  const [auditActionFilter, setAuditActionFilter] = useState('');
+  const [auditEmailFilter, setAuditEmailFilter] = useState('');
+
+  const fetchAuditLogs = async (actionVal = auditActionFilter, emailVal = auditEmailFilter) => {
+    setAuditLoading(true);
+    setAuditError('');
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', '150');
+      if (actionVal.trim()) params.set('action', actionVal.trim());
+      if (emailVal.trim()) params.set('email', emailVal.trim());
+      const res = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
+        headers: getAuthHeaders({ 'x-user-email': adminUser.email })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Erro ao carregar trilha de auditoria.');
+      }
+      setAuditLogs(Array.isArray(data.logs) ? data.logs : []);
+      setAuditTableMissing(!!data.tableMissing);
+    } catch (err: any) {
+      setAuditError(err?.message || 'Erro ao consultar auditoria.');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'auditoria') {
+      fetchAuditLogs();
+    }
+  }, [activeTab]);
 
   // Reports filters state
   const [reportStateFilter, setReportStateFilter] = useState('all');
@@ -751,7 +819,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       // Refresh user list
       fetchUsers();
     } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar aprovação.');
+      setError(err.message || 'Erro ao atualizar aprovação.');
     }
   };
 
@@ -761,7 +829,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
     setSuccessMsg('');
 
     if (!newEmail || !newName) {
-      setError('E-mail e Nome Completo so obrigatrios.');
+      setError('E-mail e Nome Completo são obrigatórios.');
       return;
     }
 
@@ -819,7 +887,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         setSelectedUserForAudit(prev => prev ? { ...prev, ...data.userProfile, userMessage: msg, mensagemUsuario: msg } : data.userProfile);
       }
     } catch (err: any) {
-      alert(err.message || 'Erro ao obter registros financeiros.');
+      setAuditSaveError(err.message || 'Erro ao obter registros financeiros.');
     } finally {
       setLoadingAudit(false);
     }
@@ -1155,9 +1223,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar avisos.');
-      try {
-        localStorage.setItem('finanfly_home_notices', JSON.stringify(payload));
-      } catch (e) {}
       setNoticesSuccess(data.message || 'Avisos atualizados e sincronizados no banco de dados com sucesso!');
     } catch (err: any) {
       setNoticesError(err.message || 'Ocorreu um erro.');
@@ -1255,6 +1320,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         >
           <Database className="h-4 w-4" />
           Conexão
+        </button>
+        <button
+          onClick={() => setActiveTab('auditoria')}
+          className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'auditoria'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Shield className="h-4 w-4" />
+          Auditoria
         </button>
       </div>
 
@@ -2768,7 +2844,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                       ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
                       : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200 dark:border-amber-800/40'
                   }`}>
-                    {(supabaseStatus.missingCount ?? 0) === 0 ? ' 21/21 Tabelas 100% Sincronizadas' : ` ${supabaseStatus.missingCount} tabela(s) pendente(s)`}
+                    {(supabaseStatus.missingCount ?? 0) === 0
+                      ? ` ${supabaseStatus.existingCount || supabaseStatus.totalRequired || 25}/${supabaseStatus.totalRequired || 25} Tabelas 100% Sincronizadas`
+                      : ` ${supabaseStatus.missingCount} tabela(s) pendente(s)`}
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300 px-2 py-0.5 text-[10px] font-semibold border border-blue-200 dark:border-blue-900/40">
@@ -2799,6 +2877,61 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
           </button>
         </div>
 
+        {/* Security & Scalability Readiness Indicators */}
+        <div className="mt-4 pt-4 border-t border-slate-150 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className={`rounded-xl border px-3 py-2 text-[11px] ${
+            supabaseStatus.usingServiceRole
+              ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300'
+              : 'border-amber-200 bg-amber-50/70 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300'
+          }`}>
+            <div className="font-bold flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5 shrink-0" />
+              <span>Chave Backend (Service Role)</span>
+            </div>
+            <p className="mt-0.5 text-[10px] opacity-90">
+              {supabaseStatus.usingServiceRole
+                ? 'Ativa via SUPABASE_SERVICE_ROLE_KEY'
+                : 'Usando ANON_KEY (configure SERVICE_ROLE_KEY para RLS restrito)'}
+            </p>
+          </div>
+
+          <div className={`rounded-xl border px-3 py-2 text-[11px] ${
+            supabaseStatus.jwtSecretConfigured
+              ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300'
+              : 'border-amber-200 bg-amber-50/70 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300'
+          }`}>
+            <div className="font-bold flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span>Segredo de Sessão (JWT)</span>
+            </div>
+            <p className="mt-0.5 text-[10px] opacity-90">
+              {supabaseStatus.jwtSecretConfigured
+                ? 'JWT_SECRET fixo configurado no ambiente'
+                : 'Temporário em memória (configure JWT_SECRET em produção)'}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300 px-3 py-2 text-[11px]">
+            <div className="font-bold flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 shrink-0" />
+              <span>Proteção Anti-Força Bruta</span>
+            </div>
+            <p className="mt-0.5 text-[10px] opacity-90">
+              Rate limiting, CORS restrito e headers HTTP ativos
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300 px-3 py-2 text-[11px]">
+            <div className="font-bold flex items-center gap-1.5">
+              <FolderSync className="h-3.5 w-3.5 shrink-0" />
+              <span>Controle de Concorrência</span>
+            </div>
+            <p className="mt-0.5 text-[10px] opacity-90">
+              Trava otimista por versão e salvamento incremental ativos
+            </p>
+          </div>
+        </div>
+
         {/* Missing Tables Notice / Status Banner */}
         {supabaseStatus.active && (
           <div className="mt-4 pt-4 border-t border-slate-150 dark:border-slate-800">
@@ -2816,14 +2949,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                   ))}
                 </div>
                 <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed pt-1">
-                  O script diferencial abaixo cria <strong>apenas</strong> essas tabelas e adiciona colunas faltantes. Ele <strong>não usa DROP TABLE</strong> e preserva intactos todos os usuários e dados já existentes.
+                  O script diferencial abaixo cria <strong>apenas</strong> essas tabelas e adiciona colunas e índices compostos faltantes. Ele <strong>não usa DROP TABLE</strong> e preserva intactos todos os usuários e dados já existentes.
                 </p>
               </div>
             ) : (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>
-                  <strong>Perfeito!</strong> Todas as 21 tabelas do sistema estão presentes no Supabase e os dados dos usuários continuam 100% seguros e preservados.
+                  <strong>Perfeito!</strong> Todas as {supabaseStatus.totalRequired || 25} tabelas do sistema estão presentes no Supabase e os dados dos usuários continuam 100% seguros e preservados.
                 </span>
               </div>
             )}
@@ -2833,8 +2966,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
         {/* Script Selection & Code Box */}
         <div className="mt-4 pt-4 border-t border-slate-150 dark:border-slate-800 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* Tabs for Differential vs Full */}
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60 text-xs font-semibold">
+            {/* Tabs for Differential vs Full vs RLS */}
+            <div className="inline-flex flex-wrap rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60 text-xs font-semibold gap-1">
               <button
                 type="button"
                 onClick={() => setSelectedScriptType('differential')}
@@ -2855,7 +2988,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                Script Completo Seguro (21 Tabelas)
+                Script Completo Seguro ({supabaseStatus.totalRequired || 25} Tabelas)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedScriptType('rls')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  selectedScriptType === 'rls'
+                    ? 'bg-white shadow-sm text-amber-600 dark:bg-slate-900 dark:text-amber-400 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                RLS Restritivo (Produção)
               </button>
             </div>
 
@@ -2881,26 +3025,33 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
             </div>
           </div>
 
-          <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
-             <strong>Instrução:</strong> Abra o console do seu <strong>Supabase</strong>, vá no menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>RUN</strong>. Ele aplicará as alterações com total segurança sem resetar ou apagar dados de usuários já existentes.
-          </p>
+          {selectedScriptType === 'rls' ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-3 dark:border-amber-900/50 dark:bg-amber-950/30 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                <strong>Atenção antes de executar:</strong> Configure primeiro a variável de ambiente <code className="font-mono font-bold">SUPABASE_SERVICE_ROLE_KEY</code> no servidor. Este script bloqueia consultas diretas pela chave pública (<code className="font-mono">anon</code>) e restringe todas as tabelas ao backend autenticado.
+              </span>
+            </div>
+          ) : (
+            <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
+               <strong>Instrução:</strong> Abra o console do seu <strong>Supabase</strong>, vá no menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>RUN</strong>. Ele aplicará as alterações com total segurança sem resetar ou apagar dados de usuários já existentes.
+            </p>
+          )}
 
           <div className="relative">
             <pre className="rounded-xl bg-slate-950 p-4 text-[10px] font-mono text-emerald-400/90 overflow-x-auto max-h-56 border border-slate-800 leading-relaxed custom-scrollbar selection:bg-blue-600 selection:text-white">
-              {selectedScriptType === 'differential'
-                ? (supabaseStatus.differentialSql || supabaseStatus.schema || 'Carregando script diferencial...')
-                : (supabaseStatus.fullSafeSql || supabaseStatus.schema || 'Carregando script completo...')}
+              {getSelectedSqlScript() || 'Carregando script SQL...'}
             </pre>
           </div>
 
-          {/* Toggle button to inspect all 21 tables */}
+          {/* Toggle button to inspect all tables */}
           <div className="pt-2">
             <button
               type="button"
               onClick={() => setShowTableDetails(!showTableDetails)}
               className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
             >
-              <span>{showTableDetails ? ' Ocultar detalhes das 21 tabelas do sistema' : ' Ver catálogo e contagem de registros das 21 tabelas'}</span>
+              <span>{showTableDetails ? ` Ocultar detalhes das ${supabaseStatus.totalRequired || 25} tabelas do sistema` : ` Ver catálogo e contagem de registros das ${supabaseStatus.totalRequired || 25} tabelas`}</span>
             </button>
 
             {showTableDetails && (
@@ -2950,6 +3101,155 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       </div>
     </div>
   )}
+
+      {/* Tab: Auditoria (Trilha de Logs de Acesso, Conflitos e Alterações Administrativas) */}
+      {activeTab === 'auditoria' && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span>Trilha de Auditoria e Eventos de Segurança</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Monitoramento em tempo real de logins, bloqueios, conflitos de versão, alterações de plano e ações administrativas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchAuditLogs()}
+                disabled={auditLoading}
+                className="flex h-9 px-3.5 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 self-end sm:self-auto"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${auditLoading ? 'animate-spin text-blue-600' : ''}`} />
+                <span>Atualizar Auditoria</span>
+              </button>
+            </div>
+
+            {auditTableMissing && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div>
+                  <span className="font-bold">Tabela <code className="font-mono">audit_logs</code> ainda não criada no Supabase.</span>
+                  <p className="mt-1 text-[11px]">
+                    Acesse a aba <strong>Conexão</strong>, copie o <strong>Script Diferencial Seguro</strong> e execute no SQL Editor do Supabase para ativar o histórico persistente de auditoria.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {auditError && (
+              <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
+                {auditError}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
+              <input
+                type="text"
+                placeholder="Filtrar por e-mail..."
+                value={auditEmailFilter}
+                onChange={(e) => setAuditEmailFilter(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={auditActionFilter}
+                onChange={(e) => {
+                  setAuditActionFilter(e.target.value);
+                  fetchAuditLogs(e.target.value, auditEmailFilter);
+                }}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todas as ações</option>
+                <option value="LOGIN_SUCCESS">Login bem-sucedido</option>
+                <option value="LOGIN_FAILED">Falha de login</option>
+                <option value="LOGIN_RATE_LIMITED">Bloqueio anti-força bruta</option>
+                <option value="LOGIN_BLOCKED">Tentativa de conta bloqueada</option>
+                <option value="USER_REGISTER">Novo cadastro</option>
+                <option value="PASSWORD_CHANGED">Senha alterada</option>
+                <option value="DATA_VERSION_CONFLICT">Conflito de concorrência</option>
+                <option value="MASS_DELETE_BLOCKED">Proteção anti-exclusão em massa</option>
+                <option value="ADMIN_EDIT_USER">Edição administrativa</option>
+                <option value="ADMIN_EXTEND_SUBSCRIPTION">Extensão de assinatura</option>
+                <option value="ADMIN_DELETE_USER">Exclusão de usuário</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => fetchAuditLogs(auditActionFilter, auditEmailFilter)}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
+              >
+                Filtrar
+              </button>
+            </div>
+
+            <div className="mt-4 overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl max-h-96 overflow-y-auto custom-scrollbar">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="px-3 py-2.5">Data / Hora</th>
+                    <th className="px-3 py-2.5">Ação</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5">Ator</th>
+                    <th className="px-3 py-2.5">Alvo</th>
+                    <th className="px-3 py-2.5">IP</th>
+                    <th className="px-3 py-2.5">Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150 dark:divide-slate-800/60 text-[11px]">
+                  {auditLoading ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        Carregando registros de auditoria...
+                      </td>
+                    </tr>
+                  ) : auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        Nenhum evento de auditoria registrado até o momento.
+                      </td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td className="px-3 py-2 font-mono text-[10px] text-slate-500 whitespace-nowrap">
+                          {new Date(log.created_at).toLocaleString('pt-BR')}
+                        </td>
+                        <td className="px-3 py-2 font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {log.action}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            log.status === 'success'
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : log.status === 'warning' || log.status === 'conflict'
+                              ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                          }`}>
+                            {log.status || 'success'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-300">
+                          {log.actor_email || '-'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-slate-500 dark:text-slate-400">
+                          {log.target_email || '-'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[10px] text-slate-400">
+                          {log.ip || '-'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[10px] text-slate-500 max-w-xs truncate" title={log.details ? JSON.stringify(log.details) : ''}>
+                          {log.details && Object.keys(log.details).length > 0 ? JSON.stringify(log.details) : '-'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
 
 

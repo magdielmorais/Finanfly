@@ -79,9 +79,6 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
     if (userData.paymentTypes && userData.paymentTypes.length > 0) {
       userData.paymentTypes.forEach(p => list.add(p));
     }
-    // Add common fallback types
-    ['Cartão de Crédito', 'Pix', 'Dinheiro', 'Cartão de Débito', 'Boleto', 'Transferência'].forEach(p => list.add(p));
-    
     // Also include any custom payment types already used in expenses
     trips.forEach(t => {
       t.expenses.forEach(e => {
@@ -150,29 +147,33 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   }, [activeTrip]);
 
   // Create / Edit Trip handler
-  const handleSaveTrip = (e: React.FormEvent) => {
+  const handleSaveTrip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tripName.trim()) return;
 
-    if (editingTripId) {
-      // Edit mode
-      const updatedTrips = trips.map(t => 
-        t.id === editingTripId ? { ...t, name: tripName.trim() } : t
-      );
-      onUpdateUserData({ trips: updatedTrips });
-      setEditingTripId(null);
-    } else {
-      // Create mode
-      const newTrip: Trip = {
-        id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
-        name: tripName.trim(),
-        expenses: []
-      };
-      onUpdateUserData({ trips: [...trips, newTrip] });
-    }
+    try {
+      if (editingTripId) {
+        // Edit mode
+        const updatedTrips = trips.map(t => 
+          t.id === editingTripId ? { ...t, name: tripName.trim() } : t
+        );
+        await onUpdateUserData({ trips: updatedTrips });
+        setEditingTripId(null);
+      } else {
+        // Create mode
+        const newTrip: Trip = {
+          id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
+          name: tripName.trim(),
+          expenses: []
+        };
+        await onUpdateUserData({ trips: [...trips, newTrip] });
+      }
 
-    setTripName('');
-    setShowTripForm(false);
+      setTripName('');
+      setShowTripForm(false);
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Trigger edit trip name
@@ -188,13 +189,17 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   const [expenseToDelete, setExpenseToDelete] = useState<{ tripId: string; expense: TripExpense } | null>(null);
 
   // Delete trip handler
-  const handleDeleteTrip = (tripId: string) => {
+  const handleDeleteTrip = async (tripId: string) => {
     const updatedTrips = trips.filter(t => t.id !== tripId);
-    onUpdateUserData({ trips: updatedTrips });
-    if (activeTripId === tripId) {
-      setActiveTripId(null);
+    try {
+      await onUpdateUserData({ trips: updatedTrips });
+      if (activeTripId === tripId) {
+        setActiveTripId(null);
+      }
+      setTripToDelete(null);
+    } catch {
+      setTripToDelete(null);
     }
-    setTripToDelete(null);
   };
 
   const handleRequestDeleteTrip = (trip: Trip, e?: React.MouseEvent) => {
@@ -203,14 +208,14 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   };
 
   // Create / Edit Expense handler
-  const handleSaveExpense = (e: React.FormEvent) => {
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!expenseDescription.trim() || !expenseValue || !selectedTripId) return;
 
     const val = parseFloat(expenseValue);
     if (isNaN(val) || val <= 0) return;
 
-    const cleanPaymentType = expensePaymentType.trim() || 'Outro';
+    const cleanPaymentType = expensePaymentType.trim();
     const cleanStatus = expenseStatus.trim() || 'Não pago';
 
     const updatedTrips = trips.map(t => {
@@ -246,8 +251,12 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       return t;
     });
 
-    onUpdateUserData({ trips: updatedTrips });
-    resetExpenseForm();
+    try {
+      await onUpdateUserData({ trips: updatedTrips });
+      resetExpenseForm();
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   const resetExpenseForm = () => {
@@ -266,7 +275,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
     resetExpenseForm();
     setSelectedTripId(tripId);
     setExpenseDate(new Date().toISOString().split('T')[0]);
-    setExpensePaymentType('Cartão de Crédito');
+    setExpensePaymentType(availablePaymentTypes[0] || '');
     setExpenseStatus('Pago');
     setShowExpenseForm(true);
   };
@@ -278,21 +287,25 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
     setExpenseDescription(expense.description);
     setExpenseValue(expense.value.toString());
     setExpenseDate(expense.date || new Date().toISOString().split('T')[0]);
-    setExpensePaymentType(expense.paymentType || 'Cartão de Crédito');
+    setExpensePaymentType(expense.paymentType || '');
     setExpenseStatus(expense.status || 'Pago');
     setShowExpenseForm(true);
   };
 
   // Delete expense handler
-  const handleDeleteExpense = (tripId: string, expenseId: string) => {
+  const handleDeleteExpense = async (tripId: string, expenseId: string) => {
     const updatedTrips = trips.map(t => {
       if (t.id === tripId) {
         return { ...t, expenses: t.expenses.filter(exp => exp.id !== expenseId) };
       }
       return t;
     });
-    onUpdateUserData({ trips: updatedTrips });
-    setExpenseToDelete(null);
+    try {
+      await onUpdateUserData({ trips: updatedTrips });
+      setExpenseToDelete(null);
+    } catch {
+      setExpenseToDelete(null);
+    }
   };
 
   const handleRequestDeleteExpense = (tripId: string, expense: TripExpense) => {
@@ -300,7 +313,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   };
 
   // Quick toggle status between "Pago" and "Não pago"
-  const handleToggleExpenseStatus = (tripId: string, expense: TripExpense) => {
+  const handleToggleExpenseStatus = async (tripId: string, expense: TripExpense) => {
     const isCurrentlyPago = (expense.status || '').toLowerCase().trim() === 'pago';
     const newStatus = isCurrentlyPago ? 'Não pago' : 'Pago';
 
@@ -314,7 +327,11 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       return t;
     });
 
-    onUpdateUserData({ trips: updatedTrips });
+    try {
+      await onUpdateUserData({ trips: updatedTrips });
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   return (

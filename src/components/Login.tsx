@@ -246,6 +246,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
           <p className="mt-2.5 text-sm font-semibold text-blue-500">
             Comece grátis
           </p>
+          <div className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
+            <span>Guarde seus dados e histórico por até 3 anos</span>
+          </div>
         </div>
 
         {/* Form Card */}

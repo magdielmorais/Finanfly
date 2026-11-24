@@ -15,41 +15,17 @@ import {
 
 interface Props {
   userData: UserData;
-  onUpdateUserData: (newData: Partial<UserData>) => void;
+  onUpdateUserData: (newData: Partial<UserData>) => Promise<void>;
   onNavigate?: (page: string) => void;
 }
-
-const DEFAULT_TYPES = [
-  'Ações',
-  'Fundos Imobiliários (FIIs)',
-  'Renda Fixa',
-  'CDB / LCI / LCA',
-  'Tesouro Direto',
-  'Criptomoedas',
-  'Previdência Privada',
-  'Outros'
-];
-
-const DEFAULT_STATUSES = [
-  'Ativo',
-  'Resgatado',
-  'Em Andamento',
-  'Pendente',
-  'Cancelado'
-];
 
 export const InvestimentosConfigPage: React.FC<Props> = ({
   userData,
   onUpdateUserData,
   onNavigate
 }) => {
-  const types = (userData.investmentTypes && userData.investmentTypes.length > 0)
-    ? userData.investmentTypes
-    : DEFAULT_TYPES;
-
-  const statuses = (userData.investmentStatuses && userData.investmentStatuses.length > 0)
-    ? userData.investmentStatuses
-    : DEFAULT_STATUSES;
+  const types = userData.investmentTypes || [];
+  const statuses = userData.investmentStatuses || [];
 
   // Type state
   const [newType, setNewType] = useState('');
@@ -65,21 +41,24 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'all' | 'types' | 'statuses'>('all');
 
   // Add Type handler
-  const handleAddType = (e: React.FormEvent) => {
+  const handleAddType = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = newType.trim();
     if (!clean) return;
     if (types.some((t) => t.toLowerCase() === clean.toLowerCase())) {
-      alert('Este tipo de investimento já está cadastrado.');
       return;
     }
     const updated = [...types, clean];
-    onUpdateUserData({ investmentTypes: updated });
-    setNewType('');
+    try {
+      await onUpdateUserData({ investmentTypes: updated });
+      setNewType('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Rename Type handler
-  const handleSaveTypeEdit = (oldType: string) => {
+  const handleSaveTypeEdit = async (oldType: string) => {
     const clean = editTypeValue.trim();
     if (!clean) return;
     if (clean === oldType) {
@@ -87,7 +66,6 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       return;
     }
     if (types.some((t) => t.toLowerCase() === clean.toLowerCase() && t !== oldType)) {
-      alert('Este tipo de investimento já existe.');
       return;
     }
 
@@ -97,42 +75,47 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       inv.type === oldType ? { ...inv, type: clean } : inv
     );
 
-    onUpdateUserData({
-      investmentTypes: updatedTypes,
-      investments: updatedInvestments
-    });
-    setEditingType(null);
-    setEditTypeValue('');
+    try {
+      await onUpdateUserData({
+        investmentTypes: updatedTypes,
+        investments: updatedInvestments
+      });
+      setEditingType(null);
+      setEditTypeValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Delete Type handler
-  const handleDeleteType = (typeToDelete: string) => {
-    if (types.length <= 1) {
-      alert('É necessário manter ao menos um tipo de investimento cadastrado.');
-      return;
-    }
-    if (confirm(`Deseja remover o tipo "${typeToDelete}"?`)) {
-      const updatedTypes = types.filter((t) => t !== typeToDelete);
-      onUpdateUserData({ investmentTypes: updatedTypes });
+  const handleDeleteType = async (typeToDelete: string) => {
+    const updatedTypes = types.filter((t) => t !== typeToDelete);
+    try {
+      await onUpdateUserData({ investmentTypes: updatedTypes });
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
   // Add Status handler
-  const handleAddStatus = (e: React.FormEvent) => {
+  const handleAddStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = newStatus.trim();
     if (!clean) return;
     if (statuses.some((s) => s.toLowerCase() === clean.toLowerCase())) {
-      alert('Este status de investimento já está cadastrado.');
       return;
     }
     const updated = [...statuses, clean];
-    onUpdateUserData({ investmentStatuses: updated });
-    setNewStatus('');
+    try {
+      await onUpdateUserData({ investmentStatuses: updated });
+      setNewStatus('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Rename Status handler
-  const handleSaveStatusEdit = (oldStatus: string) => {
+  const handleSaveStatusEdit = async (oldStatus: string) => {
     const clean = editStatusValue.trim();
     if (!clean) return;
     if (clean === oldStatus) {
@@ -140,7 +123,6 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       return;
     }
     if (statuses.some((s) => s.toLowerCase() === clean.toLowerCase() && s !== oldStatus)) {
-      alert('Este status de investimento já existe.');
       return;
     }
 
@@ -150,23 +132,25 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       inv.status === oldStatus ? { ...inv, status: clean } : inv
     );
 
-    onUpdateUserData({
-      investmentStatuses: updatedStatuses,
-      investments: updatedInvestments
-    });
-    setEditingStatus(null);
-    setEditStatusValue('');
+    try {
+      await onUpdateUserData({
+        investmentStatuses: updatedStatuses,
+        investments: updatedInvestments
+      });
+      setEditingStatus(null);
+      setEditStatusValue('');
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   // Delete Status handler
-  const handleDeleteStatus = (statusToDelete: string) => {
-    if (statuses.length <= 1) {
-      alert('É necessário manter ao menos um status de investimento cadastrado.');
-      return;
-    }
-    if (confirm(`Deseja remover o status "${statusToDelete}"?`)) {
-      const updatedStatuses = statuses.filter((s) => s !== statusToDelete);
-      onUpdateUserData({ investmentStatuses: updatedStatuses });
+  const handleDeleteStatus = async (statusToDelete: string) => {
+    const updatedStatuses = statuses.filter((s) => s !== statusToDelete);
+    try {
+      await onUpdateUserData({ investmentStatuses: updatedStatuses });
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
     }
   };
 
@@ -294,7 +278,10 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
 
             {/* List of Types */}
             <div className="divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800 pt-2">
-              {types.map((t) => (
+              {types.length === 0 ? (
+                <p className="text-slate-400 py-4 text-center">Nenhum tipo cadastrado.</p>
+              ) : (
+                types.map((t) => (
                 <div
                   key={t}
                   className="flex items-center justify-between py-2.5 font-semibold text-slate-700 dark:text-slate-300 min-h-[44px]"
@@ -362,7 +349,7 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
                     </>
                   )}
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         )}
@@ -406,7 +393,10 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
 
             {/* List of Statuses */}
             <div className="divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800 pt-2">
-              {statuses.map((s) => (
+              {statuses.length === 0 ? (
+                <p className="text-slate-400 py-4 text-center">Nenhum status cadastrado.</p>
+              ) : (
+                statuses.map((s) => (
                 <div
                   key={s}
                   className="flex items-center justify-between py-2.5 font-semibold text-slate-700 dark:text-slate-300 min-h-[44px]"
@@ -474,7 +464,7 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
                     </>
                   )}
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         )}

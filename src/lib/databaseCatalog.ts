@@ -1,4 +1,4 @@
-// Catalog of all 23 application tables in Supabase for Finanfly
+// Catalog of all 25 application tables in Supabase for Finanfly
 // All schemas are 100% non-destructive: NO DROP TABLE, NO DATA LOSS!
 
 export interface SchemaTableDefinition {
@@ -209,7 +209,8 @@ CREATE POLICY "Acesso total - expense_categories" ON expense_categories FOR ALL 
 );`,
     indexesSql: [
       `CREATE INDEX IF NOT EXISTS idx_incomes_email ON incomes(email);`,
-      `CREATE INDEX IF NOT EXISTS idx_incomes_date ON incomes(date);`
+      `CREATE INDEX IF NOT EXISTS idx_incomes_date ON incomes(date);`,
+      `CREATE INDEX IF NOT EXISTS idx_incomes_email_date ON incomes(email, date DESC);`
     ],
     rlsPolicySql: `ALTER TABLE incomes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - incomes" ON incomes;
@@ -236,7 +237,8 @@ CREATE POLICY "Acesso total - incomes" ON incomes FOR ALL USING (true) WITH CHEC
     ],
     indexesSql: [
       `CREATE INDEX IF NOT EXISTS idx_expenses_email ON expenses(email);`,
-      `CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);`
+      `CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);`,
+      `CREATE INDEX IF NOT EXISTS idx_expenses_email_date ON expenses(email, date DESC);`
     ],
     rlsPolicySql: `ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - expenses" ON expenses;
@@ -279,7 +281,8 @@ CREATE POLICY "Acesso total - annual_planning" ON annual_planning FOR ALL USING 
       `ALTER TABLE shopping_list ADD COLUMN IF NOT EXISTS date DATE;`
     ],
     indexesSql: [
-      `CREATE INDEX IF NOT EXISTS idx_shopping_list_email ON shopping_list(email);`
+      `CREATE INDEX IF NOT EXISTS idx_shopping_list_email ON shopping_list(email);`,
+      `CREATE INDEX IF NOT EXISTS idx_shopping_list_email_date ON shopping_list(email, date DESC);`
     ],
     rlsPolicySql: `ALTER TABLE shopping_list ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - shopping_list" ON shopping_list;
@@ -300,7 +303,8 @@ CREATE POLICY "Acesso total - shopping_list" ON shopping_list FOR ALL USING (tru
   created_at TIMESTAMPTZ DEFAULT NOW()
 );`,
     indexesSql: [
-      `CREATE INDEX IF NOT EXISTS idx_action_plans_email ON action_plans(email);`
+      `CREATE INDEX IF NOT EXISTS idx_action_plans_email ON action_plans(email);`,
+      `CREATE INDEX IF NOT EXISTS idx_action_plans_email_target ON action_plans(email, target_date ASC);`
     ],
     rlsPolicySql: `ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - action_plans" ON action_plans;
@@ -322,7 +326,8 @@ CREATE POLICY "Acesso total - action_plans" ON action_plans FOR ALL USING (true)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );`,
     indexesSql: [
-      `CREATE INDEX IF NOT EXISTS idx_deficit_actions_email ON deficit_actions(email);`
+      `CREATE INDEX IF NOT EXISTS idx_deficit_actions_email ON deficit_actions(email);`,
+      `CREATE INDEX IF NOT EXISTS idx_deficit_actions_email_date ON deficit_actions(email, date DESC);`
     ],
     rlsPolicySql: `ALTER TABLE deficit_actions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - deficit_actions" ON deficit_actions;
@@ -361,7 +366,8 @@ CREATE POLICY "Acesso total - trips" ON trips FOR ALL USING (true) WITH CHECK (t
   created_at TIMESTAMPTZ DEFAULT NOW()
 );`,
     indexesSql: [
-      `CREATE INDEX IF NOT EXISTS idx_wishes_email ON wishes(email);`
+      `CREATE INDEX IF NOT EXISTS idx_wishes_email ON wishes(email);`,
+      `CREATE INDEX IF NOT EXISTS idx_wishes_email_target ON wishes(email, target_date ASC);`
     ],
     rlsPolicySql: `ALTER TABLE wishes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - wishes" ON wishes;
@@ -383,7 +389,8 @@ CREATE POLICY "Acesso total - wishes" ON wishes FOR ALL USING (true) WITH CHECK 
   created_at TIMESTAMPTZ DEFAULT NOW()
 );`,
     indexesSql: [
-      `CREATE INDEX IF NOT EXISTS idx_investments_email ON investments(email);`
+      `CREATE INDEX IF NOT EXISTS idx_investments_email ON investments(email);`,
+      `CREATE INDEX IF NOT EXISTS idx_investments_email_date ON investments(email, date DESC);`
     ],
     rlsPolicySql: `ALTER TABLE investments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - investments" ON investments;
@@ -448,11 +455,57 @@ CREATE POLICY "Acesso total - user_data" ON user_data FOR ALL USING (true) WITH 
     rlsPolicySql: `ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Acesso total - system_settings" ON system_settings;
 CREATE POLICY "Acesso total - system_settings" ON system_settings FOR ALL USING (true) WITH CHECK (true);`
+  },
+  {
+    name: 'audit_logs',
+    category: 'system',
+    description: 'Trilha de auditoria de acessos, alterações financeiras e ações administrativas',
+    createSql: `CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  actor_email TEXT,
+  target_email TEXT,
+  action TEXT NOT NULL,
+  entity TEXT,
+  status TEXT DEFAULT 'success',
+  ip TEXT,
+  details JSONB DEFAULT '{}'::jsonb
+);`,
+    indexesSql: [
+      `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);`,
+      `CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_email ON audit_logs(actor_email);`,
+      `CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);`
+    ],
+    rlsPolicySql: `ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Acesso total - audit_logs" ON audit_logs;
+CREATE POLICY "Acesso total - audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);`
+  },
+  {
+    name: 'trash_items',
+    category: 'system',
+    description: 'Lixeira temporária (Soft Delete) para recuperação de exclusões dos últimos 3 dias',
+    createSql: `CREATE TABLE IF NOT EXISTS trash_items (
+  id TEXT PRIMARY KEY,
+  email TEXT REFERENCES users(email) ON DELETE CASCADE,
+  entity TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  label TEXT,
+  payload JSONB NOT NULL,
+  deleted_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);`,
+    indexesSql: [
+      `CREATE INDEX IF NOT EXISTS idx_trash_items_email_deleted ON trash_items(email, deleted_at DESC);`,
+      `CREATE INDEX IF NOT EXISTS idx_trash_items_expires_at ON trash_items(expires_at);`
+    ],
+    rlsPolicySql: `ALTER TABLE trash_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Acesso total - trash_items" ON trash_items;
+CREATE POLICY "Acesso total - trash_items" ON trash_items FOR ALL USING (true) WITH CHECK (true);`
   }
 ];
 
 export function generateSafeSchemaScripts(existingSet: Set<string>, missingTables: string[]) {
-  // 1. Script Diferencial Seguro (Apenas o que está faltando, SEM DROP TABLE)
+  // 1. Script Diferencial Seguro (Apenas o que está faltando + colunas/índices não destrutivos, SEM DROP TABLE)
   let diffSql = `-- ============================================================================
 -- SCRIPT DE ATUALIZAÇÃO DIFERENCIAL SEGURA DO SUPABASE (SQL EDITOR)
 -- Finanfly - Sistema Financeiro Inteligente
@@ -465,13 +518,8 @@ export function generateSafeSchemaScripts(existingSet: Set<string>, missingTable
 `;
 
   if (missingTables.length === 0) {
-    diffSql += `\n-- PARABÉNS! TODAS AS ${DATABASE_SCHEMA_CATALOG.length} TABELAS JÁ ESTÃO CRIADAS NO SUPABASE.
--- Nenhuma tabela precisa ser criada no momento.
--- O comando abaixo é 100% inofensivo e apenas confirma o status de sincronização:
-
-DO $$ BEGIN
-  RAISE NOTICE 'Todas as ${DATABASE_SCHEMA_CATALOG.length} tabelas do Finanfly já estão criadas e operacionais no Supabase!';
-END $$;
+    diffSql += `\n-- TODAS AS ${DATABASE_SCHEMA_CATALOG.length} TABELAS JÁ ESTÃO CRIADAS NO SUPABASE.
+-- Abaixo serão aplicados apenas ajustes não destrutivos de colunas e índices de performance.
 `;
   } else {
     diffSql += `\n-- TABELAS IDENTIFICADAS PARA CRIAÇÃO (${missingTables.length} tabela(s)):
@@ -505,14 +553,24 @@ END $$;
     diffSql += `${alterStmt}\n`;
   }
 
-  // 2. Script Completo Seguro (Todas as tabelas com CREATE TABLE IF NOT EXISTS - SEM NENHUM DROP)
+  // Safe performance composite indexes (CREATE INDEX IF NOT EXISTS)
+  diffSql += `\n-- ----------------------------------------------------------------------------\n`;
+  diffSql += `-- ÍNDICES DE PERFORMANCE E ESCALABILIDADE (CREATE INDEX IF NOT EXISTS)\n`;
+  diffSql += `-- ----------------------------------------------------------------------------\n`;
+  for (const def of DATABASE_SCHEMA_CATALOG) {
+    if (existingSet.has(def.name) && def.indexesSql && def.indexesSql.length > 0) {
+      diffSql += `${def.indexesSql.join('\n')}\n`;
+    }
+  }
+
+  // 2. Script Completo Seguro (Todas as tabelas com CREATE TABLE IF NOT EXISTS - SEM NENHUM DROP TABLE)
   let fullSql = `-- ============================================================================
 -- SCRIPT COMPLETO SEGURO DE TABELAS DO SUPABASE (SQL EDITOR)
 -- Finanfly - Sistema Financeiro Inteligente
 -- ============================================================================
 -- GARANTIAS ABSOLUTAS DE SEGURANÇA:
 -- 1. NENHUMA TABELA É APAGADA (NÃO UTILIZA 'DROP TABLE').
--- 2. Utiliza exclusivamente 'CREATE TABLE IF NOT EXISTS' e 'ADD COLUMN IF NOT EXISTS'.
+-- 2. Utiliza exclusivamente 'CREATE TABLE IF NOT EXISTS', 'ADD COLUMN IF NOT EXISTS' e 'CREATE INDEX IF NOT EXISTS'.
 -- 3. Pode ser executado em bancos novos ou já em produção sem risco de perda de dados.
 -- ============================================================================
 
@@ -536,5 +594,30 @@ END $$;
     }
   }
 
-  return { differentialSql: diffSql.trim(), fullSafeSql: fullSql.trim() };
+  // 3. Script RLS Restritivo para Produção (Acesso exclusivo via SUPABASE_SERVICE_ROLE_KEY no servidor)
+  let rlsHardeningSql = `-- ============================================================================
+-- SCRIPT DE ENDURECIMENTO DE RLS (PRODUÇÃO - ACESSO EXCLUSIVO VIA SERVICE_ROLE)
+-- Finanfly - Sistema Financeiro Inteligente
+-- ============================================================================
+-- IMPORTANTE ANTES DE EXECUTAR ESTE SCRIPT:
+-- 1. Certifique-se de configurar a variável SUPABASE_SERVICE_ROLE_KEY no ambiente
+--    do servidor (backend) ANTES de rodar estas políticas no Supabase.
+-- 2. Este script bloqueia leitura/escrita direta pela chave pública (anon) no
+--    navegador e libera acesso total apenas para o backend autenticado (service_role).
+-- 3. NENHUM DADO É APAGADO. Apenas as regras de permissão (RLS) são atualizadas.
+-- ============================================================================
+
+`;
+  for (const def of DATABASE_SCHEMA_CATALOG) {
+    rlsHardeningSql += `ALTER TABLE IF EXISTS ${def.name} ENABLE ROW LEVEL SECURITY;\n`;
+    rlsHardeningSql += `DROP POLICY IF EXISTS "Acesso total - ${def.name}" ON ${def.name};\n`;
+    rlsHardeningSql += `DROP POLICY IF EXISTS "Restrito service_role - ${def.name}" ON ${def.name};\n`;
+    rlsHardeningSql += `CREATE POLICY "Restrito service_role - ${def.name}" ON ${def.name} FOR ALL TO service_role USING (true) WITH CHECK (true);\n\n`;
+  }
+
+  return {
+    differentialSql: diffSql.trim(),
+    fullSafeSql: fullSql.trim(),
+    rlsHardeningSql: rlsHardeningSql.trim()
+  };
 }

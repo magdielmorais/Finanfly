@@ -25,6 +25,7 @@ interface SubscriptionPageProps {
 
 export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpdateUser, message }) => {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [subscriptionFeedback, setSubscriptionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const [prices, setPrices] = useState<{
     mensal_de: string;
@@ -203,8 +204,13 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
   };
 
   const handleSelectPlan = async (plan: 'gratis' | 'mensal' | 'anual') => {
+    setSubscriptionFeedback(null);
+
     if (plan === 'gratis' && isFreePlanUsed) {
-      alert('Você já utilizou o período grátis de 60 dias anteriormente.');
+      setSubscriptionFeedback({
+        type: 'error',
+        message: 'Você já utilizou o período grátis de 60 dias anteriormente.'
+      });
       return;
     }
 
@@ -223,9 +229,15 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         onUpdateUser(data.user);
-        alert('Período grátis de 60 dias ativado com sucesso!');
+        setSubscriptionFeedback({
+          type: 'success',
+          message: 'Período grátis de 60 dias ativado com sucesso!'
+        });
       } catch (err: any) {
-        alert(err.message || 'Erro ao ativar período grátis.');
+        setSubscriptionFeedback({
+          type: 'error',
+          message: err.message || 'Erro ao ativar período grátis.'
+        });
       } finally {
         setLoadingPlan(null);
       }
@@ -254,7 +266,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
           throw new Error('Link de checkout do Mercado Pago não recebido.');
         }
       } catch (err: any) {
-        alert(err.message || 'Erro ao conectar com o Mercado Pago.');
+        setSubscriptionFeedback({
+          type: 'error',
+          message: err.message || 'Erro ao conectar com o Mercado Pago.'
+        });
       } finally {
         setLoadingPlan(null);
       }
@@ -272,6 +287,32 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
           Escolha a melhor opção para organizar suas finanças com recursos ilimitados, gráficos dinâmicos e exportação de dados.
         </p>
       </div>
+
+      {subscriptionFeedback && (
+        <div
+          className={`flex items-center justify-between gap-3 rounded-xl border p-4 text-sm shadow-sm ${
+            subscriptionFeedback.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-200'
+              : 'border-rose-200 bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            {subscriptionFeedback.type === 'success' ? (
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
+            )}
+            <span className="font-semibold">{subscriptionFeedback.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSubscriptionFeedback(null)}
+            className="text-xs font-bold opacity-70 hover:opacity-100 px-2 py-1 rounded-lg"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
 
       {message && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-200 shadow-sm animate-pulse">

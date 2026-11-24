@@ -11,7 +11,6 @@ interface Position {
   y: number;
 }
 
-const STORAGE_KEY = 'finanfly_floating_menu_position_v2';
 const BUTTON_SIZE = 44; // 44px - alinhado ao avatar (40px) com toque confortável
 
 export const FloatingMenuButton: React.FC<FloatingMenuButtonProps> = ({
@@ -29,24 +28,7 @@ export const FloatingMenuButton: React.FC<FloatingMenuButtonProps> = ({
     };
   };
 
-  const [position, setPosition] = useState<Position>(() => {
-    const defaultPos = getDefaultPosition();
-    if (typeof window === 'undefined') return defaultPos;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-          const safeX = Math.max(8, Math.min(window.innerWidth - BUTTON_SIZE - 8, parsed.x));
-          const safeY = Math.max(50, Math.min(window.innerHeight - BUTTON_SIZE - 20, parsed.y));
-          return { x: safeX, y: safeY };
-        }
-      }
-    } catch {
-      // Ignorar erros de storage
-    }
-    return defaultPos;
-  });
+  const [position, setPosition] = useState<Position>(() => getDefaultPosition());
 
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const dragInfoRef = useRef<{
@@ -71,15 +53,6 @@ export const FloatingMenuButton: React.FC<FloatingMenuButtonProps> = ({
     onToggle();
   }, [onToggle]);
 
-  // Salvar posição no localStorage
-  const savePosition = useCallback((newPos: Position) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newPos));
-    } catch {
-      // Ignorar erro
-    }
-  }, []);
-
   // Manter o botão dentro da tela se a janela for redimensionada ou rotacionada
   useEffect(() => {
     const handleResize = () => {
@@ -91,9 +64,7 @@ export const FloatingMenuButton: React.FC<FloatingMenuButtonProps> = ({
     };
 
     const handleReset = () => {
-      const def = getDefaultPosition();
-      setPosition(def);
-      savePosition(def);
+      setPosition(getDefaultPosition());
     };
 
     window.addEventListener('resize', handleResize);
@@ -104,7 +75,7 @@ export const FloatingMenuButton: React.FC<FloatingMenuButtonProps> = ({
       window.removeEventListener('orientationchange', handleResize);
       window.removeEventListener('finanfly-reset-floating-menu-position', handleReset);
     };
-  }, [savePosition]);
+  }, []);
 
   // --- Handlers com Pointer Events (Suporte universal para touch de iPhone, Android e mouse) ---
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -165,13 +136,7 @@ export const FloatingMenuButton: React.FC<FloatingMenuButtonProps> = ({
     dragInfoRef.current = null;
     setIsDragging(false);
 
-    if (hadMoved) {
-      // Se foi arrastado, salva a nova posição
-      setPosition(curr => {
-        savePosition(curr);
-        return curr;
-      });
-    } else {
+    if (!hadMoved) {
       // Se foi um toque, aciona a abertura do menu
       triggerToggle();
     }
@@ -193,9 +158,7 @@ export const FloatingMenuButton: React.FC<FloatingMenuButtonProps> = ({
   // Duplo clique ou duplo toque reseta para a posição padrão original
   const handleDoubleClick = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
-    const def = getDefaultPosition();
-    setPosition(def);
-    savePosition(def);
+    setPosition(getDefaultPosition());
   };
 
   return (

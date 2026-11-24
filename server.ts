@@ -6,6 +6,22 @@ import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { DATABASE_SCHEMA_CATALOG, generateSafeSchemaScripts } from "./src/lib/databaseCatalog";
+import {
+  extractClientIp,
+  createSecurityHeadersMiddleware,
+  createStrictCorsMiddleware,
+  createAuthLoginIpLimiter,
+  createAuthSensitiveIpLimiter,
+  createApiGeneralLimiter,
+  LoginAttemptTracker,
+} from "./src/server/security";
+import {
+  RETENTION_YEARS,
+  TRASH_RETENTION_DAYS,
+  TRASH_RETENTION_MS,
+  applyThreeYearRetention,
+  isWithinTrashRestoreWindow,
+} from "./src/server/retention";
 
 // Define _dirname de forma segura para ambientes ES Module (ESM) e CommonJS (CJS)
 const _dirname = typeof __dirname !== "undefined"
@@ -107,8 +123,17 @@ loadEnvFilesReadOnly();
 
 const app = express();
 const PORT = 3000;
+const serverStartedAt = Date.now();
 
+app.set("trust proxy", 1);
+app.use(createSecurityHeadersMiddleware());
+app.use("/api", createStrictCorsMiddleware());
 app.use(express.json({ limit: "5mb" }));
+app.use("/api", createApiGeneralLimiter());
+
+const authLoginLimiter = createAuthLoginIpLimiter();
+const authSensitiveLimiter = createAuthSensitiveIpLimiter();
+const loginAttemptTracker = new LoginAttemptTracker();
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -116,6 +141,7 @@ let supabaseClient: any = null;
 let lastTestedKey: string = "";
 let isSupabaseKeyInvalid: boolean = false;
 let invalidKeyMarkedAt: number = 0;
+let usingServiceRoleKey: boolean = false;
 
 function markSupabaseKeyAsInvalid(reason?: string) {
   const now = Date.now();
@@ -123,14 +149,20 @@ function markSupabaseKeyAsInvalid(reason?: string) {
     isSupabaseKeyInvalid = true;
     invalidKeyMarkedAt = now;
     supabaseClient = null;
-    console.error(`[Supabase Erro] A chave do Supabase é inválida ou expirou${reason ? ` (${reason})` : ""}. Configure SUPABASE_URL e SUPABASE_ANON_KEY válidas nas variáveis de ambiente.`);
+    console.error(`[Supabase Erro] A chave do Supabase é inválida ou expirou${reason ? ` (${reason})` : ""}. Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY válidas nas variáveis de ambiente.`);
   }
 }
 
 function getSupabaseClient() {
   const rawUrl = process.env.SUPABASE_URL || process.env.supabase_url || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const rawKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const rawServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
+  const rawAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.supabase_anon_key || process.env.supabase_key || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  const cleanServiceKey = cleanEnvString(rawServiceKey);
+  const hasValidServiceKey = Boolean(cleanServiceKey && !isPlaceholderValue(cleanServiceKey));
+  usingServiceRoleKey = hasValidServiceKey;
+
+  const rawKey = hasValidServiceKey ? cleanServiceKey : rawAnonKey;
   const cleanUrl = cleanSupabaseUrl(rawUrl);
   const cleanKey = cleanEnvString(rawKey);
 
@@ -165,12 +197,53 @@ function getSupabaseClient() {
   return null;
 }
 
+function isUsingServiceRole(): boolean {
+  getSupabaseClient();
+  return usingServiceRoleKey;
+}
+
 function requireSupabase() {
   const client = getSupabaseClient();
   if (!client) {
     throw new Error("Banco de dados Supabase não configurado ou indisponível no momento.");
   }
   return client;
+}
+
+async function logAuditEvent(params: {
+  actorEmail?: string | null;
+  targetEmail?: string | null;
+  action: string;
+  entity?: string;
+  status?: "success" | "failed" | "blocked" | "warning" | "conflict";
+  req?: express.Request;
+  details?: Record<string, any>;
+}) {
+  try {
+    const client = getSupabaseClient();
+    if (!client) return;
+    const id = `aud_${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
+    const safeDetails = params.details ? { ...params.details } : {};
+    delete (safeDetails as any).password;
+    delete (safeDetails as any).token;
+
+    const { error } = await client.from("audit_logs").insert({
+      id,
+      created_at: new Date().toISOString(),
+      actor_email: params.actorEmail ? String(params.actorEmail).toLowerCase().trim() : null,
+      target_email: params.targetEmail ? String(params.targetEmail).toLowerCase().trim() : null,
+      action: params.action,
+      entity: params.entity || null,
+      status: params.status || "success",
+      ip: params.req ? extractClientIp(params.req) : null,
+      details: safeDetails,
+    });
+    if (error && !isMissingTableOrColumnError(error)) {
+      console.warn("[Audit] Falha não bloqueante ao gravar log de auditoria:", error.message);
+    }
+  } catch {
+    // Auditoria nunca deve derrubar o fluxo principal
+  }
 }
 
 function isTransientNetworkError(err: any): boolean {
@@ -655,11 +728,16 @@ function addSubscriptionHistoryEntry(
     description?: string;
     price?: string;
     createdAt?: string;
+    paymentId?: string;
   }
 ) {
   if (!user) return;
   if (!user.subscriptionHistory || !Array.isArray(user.subscriptionHistory)) {
     user.subscriptionHistory = [];
+  }
+
+  if (entry.paymentId && user.subscriptionHistory.some((h: any) => h?.paymentId && String(h.paymentId) === String(entry.paymentId))) {
+    return;
   }
 
   const nowIso = entry.createdAt || new Date().toISOString();
@@ -676,7 +754,7 @@ function addSubscriptionHistoryEntry(
     return;
   }
 
-  const item = {
+  const item: Record<string, any> = {
     id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     plan: entry.plan,
     createdAt: nowIso,
@@ -686,6 +764,9 @@ function addSubscriptionHistoryEntry(
     description: entry.description || '',
     price: entry.price || ''
   };
+  if (entry.paymentId) {
+    item.paymentId = String(entry.paymentId);
+  }
 
   user.subscriptionHistory.unshift(item);
 
@@ -981,97 +1062,18 @@ async function saveUser(user: any): Promise<boolean> {
 }
 
 // ==========================================
-// Default Configuration Items per New User
+// Empty Workspace Data Structure (No Automatic Seeding)
 // ==========================================
-const DEFAULT_RECEIPT_TYPES = [
-  'Pix',
-  'Transferência Bancária',
-  'Dinheiro',
-  'Boleto',
-  'Cartão de Débito',
-  'Cartão de Crédito',
-  'Outros'
-];
-
-const DEFAULT_PAYMENT_TYPES = [
-  'Pix',
-  'Cartão de Crédito',
-  'Cartão de Débito',
-  'Boleto',
-  'Dinheiro',
-  'Transferência Bancária',
-  'Débito Automático',
-  'Outros'
-];
-
-const DEFAULT_RECEIPT_STATUSES = [
-  'Recebido',
-  'Pendente',
-  'Cancelado',
-  'Atrasado'
-];
-
-const DEFAULT_PAYMENT_STATUSES = [
-  'Pago',
-  'Pendente',
-  'Atrasado',
-  'Cancelado'
-];
-
-const DEFAULT_INCOME_CATEGORIES = [
-  'Salário',
-  'Investimentos',
-  'Freelance / Extra',
-  'Aluguel Recebido',
-  'Bônus / Comissões',
-  'Outros'
-];
-
-const DEFAULT_EXPENSE_CATEGORIES = [
-  'Alimentação',
-  'Limpeza',
-  'Frutas/Verduras',
-  'Açougue',
-  'Aluguel',
-  'Combustível',
-  'Educação',
-  'Lazer',
-  'Impostos',
-  'Manutenção casa',
-  'Ajuda pessoas',
-  'Reserva de emergência',
-  'Investimentos'
-];
-
-const DEFAULT_INVESTMENT_TYPES = [
-  'Ações',
-  'Fundos Imobiliários (FIIs)',
-  'Renda Fixa',
-  'CDB / LCI / LCA',
-  'Tesouro Direto',
-  'Criptomoedas',
-  'Previdência Privada',
-  'Outros'
-];
-
-const DEFAULT_INVESTMENT_STATUSES = [
-  'Ativo',
-  'Resgatado',
-  'Em Andamento',
-  'Pendente',
-  'Cancelado'
-];
-
-function getDefaultUserData() {
+function getEmptyUserData() {
   return {
-    receiptTypes: [...DEFAULT_RECEIPT_TYPES],
-    paymentTypes: [...DEFAULT_PAYMENT_TYPES],
-    receiptStatuses: [...DEFAULT_RECEIPT_STATUSES],
-    paymentStatuses: [...DEFAULT_PAYMENT_STATUSES],
-    incomeCategories: [...DEFAULT_INCOME_CATEGORIES],
-    expenseCategories: [...DEFAULT_EXPENSE_CATEGORIES],
-    investmentTypes: [...DEFAULT_INVESTMENT_TYPES],
-    investmentStatuses: [...DEFAULT_INVESTMENT_STATUSES],
+    receiptTypes: [],
+    paymentTypes: [],
+    receiptStatuses: [],
+    paymentStatuses: [],
+    incomeCategories: [],
+    expenseCategories: [],
+    investmentTypes: [],
+    investmentStatuses: [],
     incomes: [],
     expenses: [],
     investments: [],
@@ -1080,50 +1082,7 @@ function getDefaultUserData() {
     shoppingList: [],
     actionPlans: [],
     deficitActions: [],
-    annualPlanning: [
-      {
-        year: 2026,
-        monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-          month: i,
-          incomeBudget: 0,
-          expenseBudget: 0
-        }))
-      }
-    ]
-  };
-}
-
-function ensureUserHasDefaults(data: any) {
-  if (!data) return getDefaultUserData();
-
-  return {
-    ...data,
-    receiptTypes: (data.receiptTypes && data.receiptTypes.length > 0) ? data.receiptTypes : [...DEFAULT_RECEIPT_TYPES],
-    paymentTypes: (data.paymentTypes && data.paymentTypes.length > 0) ? data.paymentTypes : [...DEFAULT_PAYMENT_TYPES],
-    receiptStatuses: (data.receiptStatuses && data.receiptStatuses.length > 0) ? data.receiptStatuses : [...DEFAULT_RECEIPT_STATUSES],
-    paymentStatuses: (data.paymentStatuses && data.paymentStatuses.length > 0) ? data.paymentStatuses : [...DEFAULT_PAYMENT_STATUSES],
-    incomeCategories: (data.incomeCategories && data.incomeCategories.length > 0) ? data.incomeCategories : [...DEFAULT_INCOME_CATEGORIES],
-    expenseCategories: (data.expenseCategories && data.expenseCategories.length > 0) ? data.expenseCategories : [...DEFAULT_EXPENSE_CATEGORIES],
-    investmentTypes: (data.investmentTypes && data.investmentTypes.length > 0) ? data.investmentTypes : [...DEFAULT_INVESTMENT_TYPES],
-    investmentStatuses: (data.investmentStatuses && data.investmentStatuses.length > 0) ? data.investmentStatuses : [...DEFAULT_INVESTMENT_STATUSES],
-    incomes: data.incomes || [],
-    expenses: data.expenses || [],
-    investments: data.investments || [],
-    trips: data.trips || [],
-    wishes: data.wishes || [],
-    shoppingList: data.shoppingList || [],
-    actionPlans: data.actionPlans || [],
-    deficitActions: data.deficitActions || [],
-    annualPlanning: (data.annualPlanning && data.annualPlanning.length > 0) ? data.annualPlanning : [
-      {
-        year: 2026,
-        monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-          month: i,
-          incomeBudget: 0,
-          expenseBudget: 0
-        }))
-      }
-    ]
+    annualPlanning: []
   };
 }
 
@@ -1142,7 +1101,7 @@ function isMissingTableOrColumnError(err: any): boolean {
 }
 
 function hasSupabaseQueryError(res: any): boolean {
-  return Boolean(res && res.error && !isMissingTableOrColumnError(res.error));
+  return Boolean(res && res.error);
 }
 
 function pickNonEmptyArray(primary: any[] | null | undefined, ...fallbacks: Array<any[] | null | undefined>): any[] {
@@ -1153,23 +1112,111 @@ function pickNonEmptyArray(primary: any[] | null | undefined, ...fallbacks: Arra
   return Array.isArray(primary) ? primary : [];
 }
 
-// Get user workspace data exclusively from Supabase with error-safe fallback to user_data backup
+// Paginated Supabase fetch helper (prevents silent 1,000-row cap truncation)
+async function fetchAllPaginatedRows(
+  buildQuery: (from: number, to: number) => any,
+  operationName: string,
+  pageSize = 1000
+): Promise<{ data: any[]; error: any }> {
+  const allRows: any[] = [];
+  let offset = 0;
+  while (true) {
+    const res = await withSupabaseRetry<any>(
+      () => buildQuery(offset, offset + pageSize - 1),
+      `${operationName}:page:${offset}`
+    );
+    if (res?.error) {
+      return { data: allRows, error: res.error };
+    }
+    const batch = Array.isArray(res?.data) ? res.data : [];
+    allRows.push(...batch);
+    if (batch.length < pageSize) {
+      break;
+    }
+    offset += pageSize;
+  }
+  return { data: allRows, error: null };
+}
+
+// Get user workspace data exclusively from Supabase (never injects defaults or masks errors when throwOnError=true)
 async function getUserDataByEmail(
   email: string,
-  options: boolean | { bypassCache?: boolean; throwOnError?: boolean } = false
+  options: boolean | { bypassCache?: boolean; throwOnError?: boolean; year?: number } = false
 ): Promise<any> {
   const bypassCache = typeof options === 'boolean' ? options : Boolean(options?.bypassCache);
   const throwOnError = typeof options === 'boolean' ? false : Boolean(options?.throwOnError);
+  const filterYear = (typeof options === 'object' && options?.year && Number.isInteger(options.year) && options.year >= 2000 && options.year <= 2100)
+    ? options.year
+    : undefined;
 
   const lowerEmail = email.toLowerCase().trim();
   const supabase = requireSupabase();
 
   const cached = userDataCache.get(lowerEmail);
-  if (!bypassCache && cached && cached.data && (Date.now() - cached.timestamp < 30000)) {
+  if (!filterYear && !bypassCache && cached && cached.data && (Date.now() - cached.timestamp < 30000)) {
     return cached.data;
   }
 
+  const yearStart = filterYear ? `${filterYear}-01-01` : null;
+  const yearEnd = filterYear ? `${filterYear}-12-31` : null;
+
   try {
+    const fetchNameList = (table: string) =>
+      fetchAllPaginatedRows(
+        (from, to) => supabase.from(table).select('name').eq('email', lowerEmail).order('id', { ascending: true }).range(from, to),
+        `getUserDataByEmail:${table}`
+      );
+
+    const fetchIncomes = () =>
+      fetchAllPaginatedRows(
+        (from, to) => {
+          let q = supabase.from('incomes').select('*').eq('email', lowerEmail);
+          if (yearStart && yearEnd) q = q.gte('date', yearStart).lte('date', yearEnd);
+          return q.order('date', { ascending: false }).order('id', { ascending: true }).range(from, to);
+        },
+        'getUserDataByEmail:incomes'
+      );
+
+    const fetchExpenses = () =>
+      fetchAllPaginatedRows(
+        (from, to) => {
+          let q = supabase.from('expenses').select('*').eq('email', lowerEmail);
+          if (yearStart && yearEnd) q = q.gte('date', yearStart).lte('date', yearEnd);
+          return q.order('date', { ascending: false }).order('id', { ascending: true }).range(from, to);
+        },
+        'getUserDataByEmail:expenses'
+      );
+
+    const fetchAnnual = () =>
+      fetchAllPaginatedRows(
+        (from, to) => {
+          let q = supabase.from('annual_planning').select('*').eq('email', lowerEmail);
+          if (filterYear) q = q.eq('year', filterYear);
+          return q.order('year', { ascending: true }).range(from, to);
+        },
+        'getUserDataByEmail:annual_planning'
+      );
+
+    const fetchDeficit = () =>
+      fetchAllPaginatedRows(
+        (from, to) => {
+          let q = supabase.from('deficit_actions').select('*').eq('email', lowerEmail);
+          if (yearStart && yearEnd) q = q.gte('date', yearStart).lte('date', yearEnd);
+          return q.order('date', { ascending: false }).order('id', { ascending: true }).range(from, to);
+        },
+        'getUserDataByEmail:deficit_actions'
+      );
+
+    const fetchInvestments = () =>
+      fetchAllPaginatedRows(
+        (from, to) => {
+          let q = supabase.from('investments').select('*').eq('email', lowerEmail);
+          if (yearStart && yearEnd) q = q.gte('date', yearStart).lte('date', yearEnd);
+          return q.order('date', { ascending: false }).order('id', { ascending: true }).range(from, to);
+        },
+        'getUserDataByEmail:investments'
+      );
+
     const [
       rTypesRes,
       rStatusesRes,
@@ -1191,51 +1238,40 @@ async function getUserDataByEmail(
       backupUserDataRes
     ] = await withSupabaseRetry(async () => {
       const queryPromise = Promise.all([
-        supabase.from('receipt_types').select('name').eq('email', lowerEmail),
-        supabase.from('receipt_statuses').select('name').eq('email', lowerEmail),
-        supabase.from('payment_types').select('name').eq('email', lowerEmail),
-        supabase.from('payment_statuses').select('name').eq('email', lowerEmail),
-        supabase.from('income_categories').select('name').eq('email', lowerEmail),
-        supabase.from('expense_categories').select('name').eq('email', lowerEmail),
-        supabase.from('incomes').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
-        supabase.from('expenses').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
-        supabase.from('annual_planning').select('*').eq('email', lowerEmail),
-        supabase.from('shopping_list').select('*').eq('email', lowerEmail),
-        supabase.from('action_plans').select('*').eq('email', lowerEmail).order('target_date', { ascending: true }),
-        supabase.from('deficit_actions').select('*').eq('email', lowerEmail).order('date', { ascending: false }),
-        supabase.from('trips').select('*').eq('email', lowerEmail),
-        supabase.from('wishes').select('*').eq('email', lowerEmail),
-        supabase.from('investments').select('*').eq('email', lowerEmail),
-        supabase.from('investment_types').select('name').eq('email', lowerEmail),
-        supabase.from('investment_statuses').select('name').eq('email', lowerEmail),
-        supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle()
+        fetchNameList('receipt_types'),
+        fetchNameList('receipt_statuses'),
+        fetchNameList('payment_types'),
+        fetchNameList('payment_statuses'),
+        fetchNameList('income_categories'),
+        fetchNameList('expense_categories'),
+        fetchIncomes(),
+        fetchExpenses(),
+        fetchAnnual(),
+        fetchAllPaginatedRows(
+          (from, to) => supabase.from('shopping_list').select('*').eq('email', lowerEmail).order('id', { ascending: true }).range(from, to),
+          'getUserDataByEmail:shopping_list'
+        ),
+        fetchAllPaginatedRows(
+          (from, to) => supabase.from('action_plans').select('*').eq('email', lowerEmail).order('target_date', { ascending: true }).order('id', { ascending: true }).range(from, to),
+          'getUserDataByEmail:action_plans'
+        ),
+        fetchDeficit(),
+        fetchAllPaginatedRows(
+          (from, to) => supabase.from('trips').select('*').eq('email', lowerEmail).order('id', { ascending: true }).range(from, to),
+          'getUserDataByEmail:trips'
+        ),
+        fetchAllPaginatedRows(
+          (from, to) => supabase.from('wishes').select('*').eq('email', lowerEmail).order('id', { ascending: true }).range(from, to),
+          'getUserDataByEmail:wishes'
+        ),
+        fetchInvestments(),
+        fetchNameList('investment_types'),
+        fetchNameList('investment_statuses'),
+        supabase.from('user_data').select('data, updated_at').eq('email', lowerEmail).maybeSingle()
       ]);
       const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 25000));
       return Promise.race([queryPromise, timeoutPromise]);
     }, `getUserDataByEmail:${lowerEmail}`);
-
-    const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && isMissingTableOrColumnError(res.error));
-
-    if (relationMissing) {
-      const { data, error } = await supabase
-        .from('user_data')
-        .select('data')
-        .eq('email', lowerEmail)
-        .maybeSingle();
-
-      if (error) {
-        throw new Error(`Erro ao ler fallback user_data no Supabase: ${error.message || error.code}`);
-      }
-      if (data && data.data) {
-        const completedData = ensureUserHasDefaults(data.data);
-        userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
-        return completedData;
-      }
-
-      const freshDefault = getDefaultUserData();
-      userDataCache.set(lowerEmail, { data: freshDefault, timestamp: Date.now() });
-      return freshDefault;
-    }
 
     const queryChecks: Array<[string, any]> = [
       ['receipt_types', rTypesRes],
@@ -1257,51 +1293,37 @@ async function getUserDataByEmail(
       ['investment_statuses', invStatusesRes]
     ];
 
-    const coreTables = new Set([
-      'payment_types',
-      'payment_statuses',
-      'income_categories',
-      'expense_categories',
-      'incomes',
-      'expenses'
-    ]);
-
     const failedEntries = queryChecks.filter(([, r]) => hasSupabaseQueryError(r));
     const failedTables = failedEntries.map(([name]) => name);
-    const coreFailedTables = failedEntries.filter(([name]) => coreTables.has(name)).map(([name]) => name);
     const backupError = hasSupabaseQueryError(backupUserDataRes);
     const backupData = !backupError ? backupUserDataRes?.data?.data : null;
 
-    if (failedEntries.length > 0) {
+    if (failedEntries.length > 0 || backupError) {
       const details = failedEntries
         .map(([name, r]) => `${name}: [${r?.error?.code || 'ERR'}] ${r?.error?.message || 'Erro desconhecido'}`)
         .join(' | ');
-      console.warn(`[getUserDataByEmail] Erros parciais ao consultar Supabase para ${lowerEmail}:`, details);
-      if (throwOnError && (coreFailedTables.length > 0 || failedEntries.length === queryChecks.length) && !backupData && !cached?.data) {
-        throw new Error(`Falha ao consultar tabelas principais no Supabase (${(coreFailedTables.length > 0 ? coreFailedTables : failedTables).join(', ')}).`);
+      if (details) {
+        console.warn(`[getUserDataByEmail] Erros ao consultar Supabase para ${lowerEmail}:`, details);
+      }
+      if (backupError) {
+        console.warn(`[getUserDataByEmail] Erro ao consultar user_data para ${lowerEmail}:`, backupUserDataRes?.error?.message);
+      }
+      if (throwOnError) {
+        const allFailed = backupError ? [...failedTables, 'user_data'] : failedTables;
+        throw new Error(`Falha ao consultar tabelas no Supabase (${allFailed.join(', ')}).`);
       }
     }
 
-    const resolveNameList = (res: any, backupArr: any, cacheArr: any, defaultArr: string[]): string[] => {
-      if (!hasSupabaseQueryError(res) && Array.isArray(res?.data) && res.data.length > 0) {
+    const resolveNameList = (res: any, backupArr: any, cacheArr: any): string[] => {
+      if (!hasSupabaseQueryError(res) && Array.isArray(res?.data)) {
         return res.data.map((r: any) => r.name);
       }
-      const recovered = pickNonEmptyArray(backupArr, hasSupabaseQueryError(res) ? cacheArr : undefined);
-      if (recovered.length > 0) {
-        return recovered;
-      }
-      return [...defaultArr];
+      return pickNonEmptyArray(backupArr, cacheArr);
     };
 
     const resolveEntityList = <T>(res: any, mapper: (r: any) => T, backupArr: any, cacheArr: any): T[] => {
       if (!hasSupabaseQueryError(res) && Array.isArray(res?.data)) {
-        if (res.data.length > 0) {
-          return res.data.map(mapper);
-        }
-        if (Array.isArray(backupArr) && backupArr.length > 0) {
-          return backupArr;
-        }
-        return [];
+        return res.data.map(mapper);
       }
       return pickNonEmptyArray(backupArr, cacheArr);
     };
@@ -1310,12 +1332,12 @@ async function getUserDataByEmail(
       expensesRes,
       (r: any) => {
         const backupExp = backupData?.expenses?.find((b: any) => b.id === r.id);
-        const rawClass = (backupExp && backupExp.classification !== undefined && backupExp.classification !== null && backupExp.classification !== '')
-          ? backupExp.classification
-          : (r.classification !== undefined && r.classification !== null && r.classification !== '')
+        const rawClass = (r.classification !== undefined && r.classification !== null && r.classification !== '')
           ? r.classification
           : (r.classificacao !== undefined && r.classificacao !== null && r.classificacao !== '')
           ? r.classificacao
+          : (backupExp && backupExp.classification !== undefined && backupExp.classification !== null && backupExp.classification !== '')
+          ? backupExp.classification
           : undefined;
         return {
           id: r.id,
@@ -1332,20 +1354,17 @@ async function getUserDataByEmail(
       cached?.data?.expenses
     );
 
-    const resolvedAnnual = (!hasSupabaseQueryError(annualRes) && Array.isArray(annualRes?.data) && annualRes.data.length > 0)
+    const resolvedAnnual = (!hasSupabaseQueryError(annualRes) && Array.isArray(annualRes?.data))
       ? annualRes.data.map((r: any) => ({ year: r.year, monthlyBudgets: r.monthly_budgets }))
-      : pickNonEmptyArray(
-          backupData?.annualPlanning,
-          hasSupabaseQueryError(annualRes) ? cached?.data?.annualPlanning : undefined
-        );
+      : pickNonEmptyArray(backupData?.annualPlanning, cached?.data?.annualPlanning);
 
-    const responseData: any = {
-      receiptTypes: resolveNameList(rTypesRes, backupData?.receiptTypes, cached?.data?.receiptTypes, DEFAULT_RECEIPT_TYPES),
-      receiptStatuses: resolveNameList(rStatusesRes, backupData?.receiptStatuses, cached?.data?.receiptStatuses, DEFAULT_RECEIPT_STATUSES),
-      paymentTypes: resolveNameList(pTypesRes, backupData?.paymentTypes, cached?.data?.paymentTypes, DEFAULT_PAYMENT_TYPES),
-      paymentStatuses: resolveNameList(pStatusesRes, backupData?.paymentStatuses, cached?.data?.paymentStatuses, DEFAULT_PAYMENT_STATUSES),
-      incomeCategories: resolveNameList(incCatsRes, backupData?.incomeCategories, cached?.data?.incomeCategories, DEFAULT_INCOME_CATEGORIES),
-      expenseCategories: resolveNameList(expCatsRes, backupData?.expenseCategories, cached?.data?.expenseCategories, DEFAULT_EXPENSE_CATEGORIES),
+    const rawResponseData: any = {
+      receiptTypes: resolveNameList(rTypesRes, backupData?.receiptTypes, cached?.data?.receiptTypes),
+      receiptStatuses: resolveNameList(rStatusesRes, backupData?.receiptStatuses, cached?.data?.receiptStatuses),
+      paymentTypes: resolveNameList(pTypesRes, backupData?.paymentTypes, cached?.data?.paymentTypes),
+      paymentStatuses: resolveNameList(pStatusesRes, backupData?.paymentStatuses, cached?.data?.paymentStatuses),
+      incomeCategories: resolveNameList(incCatsRes, backupData?.incomeCategories, cached?.data?.incomeCategories),
+      expenseCategories: resolveNameList(expCatsRes, backupData?.expenseCategories, cached?.data?.expenseCategories),
       incomes: resolveEntityList(
         incomesRes,
         (r: any) => ({
@@ -1361,18 +1380,7 @@ async function getUserDataByEmail(
         cached?.data?.incomes
       ),
       expenses: mappedExpenses,
-      annualPlanning: resolvedAnnual.length > 0
-        ? resolvedAnnual
-        : [
-            {
-              year: 2026,
-              monthlyBudgets: Array.from({ length: 12 }, (_, i) => ({
-                month: i,
-                incomeBudget: 0,
-                expenseBudget: 0
-              }))
-            }
-          ],
+      annualPlanning: resolvedAnnual,
       shoppingList: resolveEntityList(
         shopRes,
         (r: any) => ({
@@ -1432,42 +1440,28 @@ async function getUserDataByEmail(
         backupData?.investments,
         cached?.data?.investments
       ),
-      investmentTypes: resolveNameList(invTypesRes, backupData?.investmentTypes, cached?.data?.investmentTypes, DEFAULT_INVESTMENT_TYPES),
-      investmentStatuses: resolveNameList(invStatusesRes, backupData?.investmentStatuses, cached?.data?.investmentStatuses, DEFAULT_INVESTMENT_STATUSES)
+      investmentTypes: resolveNameList(invTypesRes, backupData?.investmentTypes, cached?.data?.investmentTypes),
+      investmentStatuses: resolveNameList(invStatusesRes, backupData?.investmentStatuses, cached?.data?.investmentStatuses),
+      _version: (!backupError && backupUserDataRes?.data?.updated_at) ? String(backupUserDataRes.data.updated_at) : undefined
     };
 
-    const finalResponse = ensureUserHasDefaults(responseData);
+    const responseData = !filterYear
+      ? applyThreeYearRetention(rawResponseData).prunedData
+      : rawResponseData;
 
-    if (failedTables.length === 0 || backupData) {
-      userDataCache.set(lowerEmail, { data: finalResponse, timestamp: Date.now() });
+    if (!filterYear && failedTables.length === 0 && !backupError) {
+      userDataCache.set(lowerEmail, { data: responseData, timestamp: Date.now() });
     }
 
-    return finalResponse;
+    return responseData;
   } catch (err: any) {
     console.warn("Erro ao ler dados relacionais no Supabase:", err?.message || err);
-
-    if (!bypassCache && cached && cached.data) {
-      return cached.data;
-    }
-
-    try {
-      const backupRowPromise = supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle();
-      const backupTimeout = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_BACKUP')), 5000));
-      const { data: backupRow, error: backupErr } = await Promise.race([backupRowPromise, backupTimeout]);
-      if (!backupErr && backupRow && backupRow.data) {
-        const completedData = ensureUserHasDefaults(backupRow.data);
-        userDataCache.set(lowerEmail, { data: completedData, timestamp: Date.now() });
-        return completedData;
-      }
-    } catch {
-      // ignora erro secundário para repassar erro original se throwOnError estiver ativo
-    }
 
     if (throwOnError) {
       throw err;
     }
 
-    if (cached && cached.data) {
+    if (!bypassCache && cached && cached.data) {
       return cached.data;
     }
 
@@ -1475,12 +1469,70 @@ async function getUserDataByEmail(
   }
 }
 
-// Helper: Diff-based sync for name-list tables (avoids wiping custom statuses/categories if insert fails)
+const TRASH_ENTITY_LABELS: Record<string, string> = {
+  incomes: 'Receita',
+  expenses: 'Despesa',
+  investments: 'Investimento',
+  trips: 'Viagem',
+  wishes: 'Desejo',
+  actionPlans: 'Meta / Plano de Ação',
+  deficitActions: 'Ação de Ajuste',
+  shoppingList: 'Lista de Compras'
+};
+
+function formatTrashLabel(entity: string, item: any): string {
+  if (!item || typeof item !== 'object') return TRASH_ENTITY_LABELS[entity] || 'Registro';
+  const baseLabel = String(
+    item.description || item.title || item.name || item.costCenter || item.correctionAction || item.id || 'Registro'
+  ).trim();
+  return baseLabel.slice(0, 140);
+}
+
+async function archiveDeletedItemsToTrash(
+  supabase: any,
+  lowerEmail: string,
+  entityKey: string,
+  itemsToArchive: any[]
+) {
+  if (!Array.isArray(itemsToArchive) || itemsToArchive.length === 0) return;
+
+  const now = Date.now();
+  const deletedAtIso = new Date(now).toISOString();
+  const expiresAtIso = new Date(now + TRASH_RETENTION_MS).toISOString();
+
+  const trashRows = itemsToArchive
+    .filter((it) => it && it.id)
+    .map((it) => ({
+      id: `trash_${crypto.randomUUID()}`,
+      email: lowerEmail,
+      entity: entityKey,
+      record_id: String(it.id),
+      label: formatTrashLabel(entityKey, it),
+      payload: it,
+      deleted_at: deletedAtIso,
+      expires_at: expiresAtIso
+    }));
+
+  if (trashRows.length === 0) return;
+
+  const { error } = await supabase.from('trash_items').insert(trashRows);
+  if (error) {
+    if (isMissingTableOrColumnError(error)) {
+      console.warn('[trash_items] Tabela ainda não criada no Supabase. Execute o Script Diferencial Seguro no Administrador → Conexão.');
+      return;
+    }
+    console.warn(`[trash_items] Falha não-crítica ao mover exclusão para lixeira (${entityKey}):`, error.message);
+  }
+}
+
+// Helper: Diff-based sync for name-list tables (paginated + strictly throws on any error)
 async function syncNameListTable(supabase: any, table: string, lowerEmail: string, desiredNames: string[]) {
   const uniqueDesired = Array.from(new Set(desiredNames.map((n: any) => String(n || '').trim()).filter(Boolean)));
-  const { data: existingRows, error: fetchErr } = await supabase.from(table).select('id, name').eq('email', lowerEmail);
+  const { data: existingRows, error: fetchErr } = await fetchAllPaginatedRows(
+    (from, to) => supabase.from(table).select('id, name').eq('email', lowerEmail).order('id', { ascending: true }).range(from, to),
+    `syncNameListTable:select:${table}`
+  );
   if (fetchErr) {
-    if (isMissingTableOrColumnError(fetchErr)) return;
     throw new Error(`[${table}] Erro ao ler registros atuais: ${fetchErr.message}`);
   }
 
@@ -1489,41 +1541,64 @@ async function syncNameListTable(supabase: any, table: string, lowerEmail: strin
   const desiredSet = new Set(uniqueDesired);
 
   const toInsert = uniqueDesired.filter(name => !existingNames.has(name)).map(name => ({ email: lowerEmail, name }));
-  if (toInsert.length > 0) {
-    const { error: insErr } = await supabase.from(table).insert(toInsert);
+  for (let i = 0; i < toInsert.length; i += 500) {
+    const chunk = toInsert.slice(i, i + 500);
+    const { error: insErr } = await withSupabaseRetry<any>(
+      () => supabase.from(table).insert(chunk),
+      `syncNameListTable:insert:${table}`
+    );
     if (insErr) {
       throw new Error(`[${table}] Erro ao inserir novos registros: ${insErr.message}`);
     }
   }
 
   const idsToDelete = existingList.filter((r: any) => !desiredSet.has(r.name)).map((r: any) => r.id).filter(Boolean);
-  if (idsToDelete.length > 0) {
-    const { error: delErr } = await supabase.from(table).delete().eq('email', lowerEmail).in('id', idsToDelete);
+  for (let i = 0; i < idsToDelete.length; i += 500) {
+    const chunk = idsToDelete.slice(i, i + 500);
+    const { error: delErr } = await withSupabaseRetry<any>(
+      () => supabase.from(table).delete().eq('email', lowerEmail).in('id', chunk),
+      `syncNameListTable:delete:${table}`
+    );
     if (delErr) {
       throw new Error(`[${table}] Erro ao remover registros antigos: ${delErr.message}`);
     }
   }
 }
 
-// Helper: Upsert-first sync for ID-based tables (never deletes existing rows if upsert fails)
+// Helper: Upsert-first sync for ID-based tables (paginated + chunked + soft-delete archive)
 async function syncIdEntityTable(
   supabase: any,
   table: string,
   lowerEmail: string,
   rows: any[],
-  mapFallbackRow?: (row: any) => any
+  mapFallbackRow?: (row: any) => any,
+  options?: {
+    entityKey?: GranularEntityKey;
+    skipTrash?: boolean;
+    skipTrashIds?: Set<string>;
+    previousItems?: any[];
+  }
 ) {
-  const { data: existingRows, error: fetchErr } = await supabase.from(table).select('id').eq('email', lowerEmail);
+  const { data: existingRows, error: fetchErr } = await fetchAllPaginatedRows(
+    (from, to) => supabase.from(table).select('id').eq('email', lowerEmail).order('id', { ascending: true }).range(from, to),
+    `syncIdEntityTable:select:${table}`
+  );
   if (fetchErr) {
-    if (isMissingTableOrColumnError(fetchErr)) return;
     throw new Error(`[${table}] Erro ao consultar IDs existentes: ${fetchErr.message}`);
   }
 
-  if (rows.length > 0) {
-    let { error: upErr } = await supabase.from(table).upsert(rows, { onConflict: 'id' });
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    let { error: upErr } = await withSupabaseRetry<any>(
+      () => supabase.from(table).upsert(chunk, { onConflict: 'id' }),
+      `syncIdEntityTable:upsert:${table}`
+    );
     if (upErr && mapFallbackRow && (upErr.code === '42703' || upErr.code === 'PGRST204' || String(upErr.message || '').includes('classification'))) {
-      const safeRows = rows.map(mapFallbackRow);
-      const retry = await supabase.from(table).upsert(safeRows, { onConflict: 'id' });
+      const safeRows = chunk.map(mapFallbackRow);
+      const retry = await withSupabaseRetry<any>(
+        () => supabase.from(table).upsert(safeRows, { onConflict: 'id' }),
+        `syncIdEntityTable:upsertFallback:${table}`
+      );
       upErr = retry.error;
     }
     if (upErr) {
@@ -1534,55 +1609,96 @@ async function syncIdEntityTable(
   const desiredIds = new Set(rows.map((r: any) => r.id));
   const idsToDelete = (existingRows || []).map((r: any) => r.id).filter((id: any) => id && !desiredIds.has(id));
   if (idsToDelete.length > 0) {
-    const { error: delErr } = await supabase.from(table).delete().eq('email', lowerEmail).in('id', idsToDelete);
-    if (delErr) {
-      throw new Error(`[${table}] Erro ao remover registros excluídos: ${delErr.message}`);
+    if (!options?.skipTrash && options?.entityKey) {
+      const idsForTrash = idsToDelete.filter((id: string) => !options?.skipTrashIds?.has(String(id)));
+      if (idsForTrash.length > 0) {
+        const prevMap = new Map((options.previousItems || []).map((it: any) => [String(it.id), it]));
+        const itemsToArchive = idsForTrash
+          .map((id: string) => prevMap.get(String(id)))
+          .filter(Boolean);
+        await archiveDeletedItemsToTrash(supabase, lowerEmail, options.entityKey, itemsToArchive);
+      }
+    }
+
+    for (let i = 0; i < idsToDelete.length; i += 500) {
+      const chunk = idsToDelete.slice(i, i + 500);
+      const { error: delErr } = await withSupabaseRetry<any>(
+        () => supabase.from(table).delete().eq('email', lowerEmail).in('id', chunk),
+        `syncIdEntityTable:delete:${table}`
+      );
+      if (delErr) {
+        throw new Error(`[${table}] Erro ao remover registros excluídos: ${delErr.message}`);
+      }
     }
   }
 }
 
 // Save/Update user workspace data strictly on Supabase (throws on failure, never saves locally)
-async function saveUserDataByEmail(email: string, data: any, changedKeys?: string[]): Promise<boolean> {
+function nextMonotonicVersion(prevVersion?: string): string {
+  const nowIso = new Date().toISOString();
+  if (prevVersion && prevVersion === nowIso) {
+    return new Date(Date.now() + 1).toISOString();
+  }
+  return nowIso;
+}
+
+async function saveUserDataByEmail(
+  email: string,
+  data: any,
+  changedKeys?: string[],
+  prevVersion?: string,
+  options?: { skipTrash?: boolean; previousData?: any }
+): Promise<string> {
   const lowerEmail = email.toLowerCase().trim();
   const supabase = requireSupabase();
-  const shouldSync = (key: string) => Boolean(data[key]) && (!changedKeys || changedKeys.includes(key));
+  const { _version, _expectedVersion, _allowClearAll, ...rawCleanPayload } = data || {};
+  const retentionResult = applyThreeYearRetention(rawCleanPayload);
+  const cleanPayload = retentionResult.prunedData;
+
+  const shouldSync = (key: string) => {
+    if (!cleanPayload[key]) return false;
+    if (!changedKeys) return true;
+    if (changedKeys.includes(key)) return true;
+    if (key === 'annualPlanning') return retentionResult.removedAnnualYears.length > 0;
+    return Array.isArray(retentionResult.removedByEntity[key]) && retentionResult.removedByEntity[key].length > 0;
+  };
 
   try {
     const promises: Promise<any>[] = [];
 
     // 1. Sync receiptTypes
     if (shouldSync('receiptTypes')) {
-      promises.push(syncNameListTable(supabase, 'receipt_types', lowerEmail, data.receiptTypes));
+      promises.push(syncNameListTable(supabase, 'receipt_types', lowerEmail, cleanPayload.receiptTypes));
     }
 
     // 2. Sync receiptStatuses
     if (shouldSync('receiptStatuses')) {
-      promises.push(syncNameListTable(supabase, 'receipt_statuses', lowerEmail, data.receiptStatuses));
+      promises.push(syncNameListTable(supabase, 'receipt_statuses', lowerEmail, cleanPayload.receiptStatuses));
     }
 
     // 3. Sync paymentTypes
     if (shouldSync('paymentTypes')) {
-      promises.push(syncNameListTable(supabase, 'payment_types', lowerEmail, data.paymentTypes));
+      promises.push(syncNameListTable(supabase, 'payment_types', lowerEmail, cleanPayload.paymentTypes));
     }
 
     // 4. Sync paymentStatuses
     if (shouldSync('paymentStatuses')) {
-      promises.push(syncNameListTable(supabase, 'payment_statuses', lowerEmail, data.paymentStatuses));
+      promises.push(syncNameListTable(supabase, 'payment_statuses', lowerEmail, cleanPayload.paymentStatuses));
     }
 
     // 5. Sync incomeCategories
     if (shouldSync('incomeCategories')) {
-      promises.push(syncNameListTable(supabase, 'income_categories', lowerEmail, data.incomeCategories));
+      promises.push(syncNameListTable(supabase, 'income_categories', lowerEmail, cleanPayload.incomeCategories));
     }
 
     // 6. Sync expenseCategories
     if (shouldSync('expenseCategories')) {
-      promises.push(syncNameListTable(supabase, 'expense_categories', lowerEmail, data.expenseCategories));
+      promises.push(syncNameListTable(supabase, 'expense_categories', lowerEmail, cleanPayload.expenseCategories));
     }
 
     // 7. Sync incomes
     if (shouldSync('incomes')) {
-      const rows = data.incomes.map((inc: any) => ({
+      const rows = cleanPayload.incomes.map((inc: any) => ({
         id: inc.id,
         email: lowerEmail,
         date: inc.date,
@@ -1592,12 +1708,17 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
         status: inc.status,
         payment_type: inc.paymentType
       }));
-      promises.push(syncIdEntityTable(supabase, 'incomes', lowerEmail, rows));
+      promises.push(syncIdEntityTable(supabase, 'incomes', lowerEmail, rows, undefined, {
+        entityKey: 'incomes',
+        skipTrash: options?.skipTrash,
+        skipTrashIds: new Set(retentionResult.removedByEntity.incomes),
+        previousItems: options?.previousData?.incomes
+      }));
     }
 
     // 8. Sync expenses
     if (shouldSync('expenses')) {
-      const rows = data.expenses.map((exp: any) => ({
+      const rows = cleanPayload.expenses.map((exp: any) => ({
         id: exp.id,
         email: lowerEmail,
         date: exp.date,
@@ -1609,21 +1730,53 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
         classification: exp.classification || null
       }));
       promises.push(
-        syncIdEntityTable(supabase, 'expenses', lowerEmail, rows, ({ classification, ...rest }: any) => rest)
+        syncIdEntityTable(supabase, 'expenses', lowerEmail, rows, ({ classification, ...rest }: any) => rest, {
+          entityKey: 'expenses',
+          skipTrash: options?.skipTrash,
+          skipTrashIds: new Set(retentionResult.removedByEntity.expenses),
+          previousItems: options?.previousData?.expenses
+        })
       );
     }
 
-    // 9. Sync annualPlanning
+    // 9. Sync annualPlanning (strictly throws on error, supports deletes & 3-year cleanup cleanly)
     if (shouldSync('annualPlanning')) {
       promises.push((async () => {
-        for (const plan of data.annualPlanning) {
-          const { error: planErr } = await supabase.from('annual_planning').upsert({
-            email: lowerEmail,
-            year: Number(plan.year),
-            monthly_budgets: plan.monthlyBudgets
-          }, { onConflict: 'email,year' });
-          if (planErr && !isMissingTableOrColumnError(planErr)) {
+        const { data: existingPlans, error: fetchPlanErr } = await fetchAllPaginatedRows(
+          (from, to) => supabase.from('annual_planning').select('id, year').eq('email', lowerEmail).order('year', { ascending: true }).range(from, to),
+          'saveUserDataByEmail:annual_planning:select'
+        );
+        if (fetchPlanErr) {
+          throw new Error(`[annual_planning] Erro ao consultar planejamento atual: ${fetchPlanErr.message}`);
+        }
+
+        const desiredYears = new Set<number>();
+        for (const plan of cleanPayload.annualPlanning) {
+          const planYear = Number(plan.year);
+          desiredYears.add(planYear);
+          const { error: planErr } = await withSupabaseRetry<any>(
+            () => supabase.from('annual_planning').upsert({
+              email: lowerEmail,
+              year: planYear,
+              monthly_budgets: plan.monthlyBudgets
+            }, { onConflict: 'email,year' }),
+            'saveUserDataByEmail:annual_planning:upsert'
+          );
+          if (planErr) {
             throw new Error(`[annual_planning] Erro ao salvar planejamento anual: ${planErr.message}`);
+          }
+        }
+
+        const yearsToDelete = (existingPlans || [])
+          .map((p: any) => Number(p.year))
+          .filter((y: number) => !isNaN(y) && !desiredYears.has(y));
+        if (yearsToDelete.length > 0) {
+          const { error: delPlanErr } = await withSupabaseRetry<any>(
+            () => supabase.from('annual_planning').delete().eq('email', lowerEmail).in('year', yearsToDelete),
+            'saveUserDataByEmail:annual_planning:delete'
+          );
+          if (delPlanErr) {
+            throw new Error(`[annual_planning] Erro ao remover anos excluídos: ${delPlanErr.message}`);
           }
         }
       })());
@@ -1631,7 +1784,7 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
 
     // 10. Sync shoppingList
     if (shouldSync('shoppingList')) {
-      const rows = data.shoppingList.map((item: any) => ({
+      const rows = cleanPayload.shoppingList.map((item: any) => ({
         id: item.id,
         email: lowerEmail,
         name: item.name,
@@ -1641,12 +1794,17 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
         checked: !!item.checked,
         date: item.date || null
       }));
-      promises.push(syncIdEntityTable(supabase, 'shopping_list', lowerEmail, rows));
+      promises.push(syncIdEntityTable(supabase, 'shopping_list', lowerEmail, rows, undefined, {
+        entityKey: 'shoppingList',
+        skipTrash: options?.skipTrash,
+        skipTrashIds: new Set(retentionResult.removedByEntity.shoppingList),
+        previousItems: options?.previousData?.shoppingList
+      }));
     }
 
     // 11. Sync actionPlans
     if (shouldSync('actionPlans')) {
-      const rows = data.actionPlans.map((plan: any) => ({
+      const rows = cleanPayload.actionPlans.map((plan: any) => ({
         id: plan.id,
         email: lowerEmail,
         title: plan.title,
@@ -1655,12 +1813,17 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
         value: Number(plan.value),
         status: plan.status
       }));
-      promises.push(syncIdEntityTable(supabase, 'action_plans', lowerEmail, rows));
+      promises.push(syncIdEntityTable(supabase, 'action_plans', lowerEmail, rows, undefined, {
+        entityKey: 'actionPlans',
+        skipTrash: options?.skipTrash,
+        skipTrashIds: new Set(retentionResult.removedByEntity.actionPlans),
+        previousItems: options?.previousData?.actionPlans
+      }));
     }
 
     // 12. Sync deficitActions
     if (shouldSync('deficitActions')) {
-      const rows = data.deficitActions.map((action: any) => ({
+      const rows = cleanPayload.deficitActions.map((action: any) => ({
         id: action.id,
         email: lowerEmail,
         cost_center: action.costCenter,
@@ -1670,23 +1833,33 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
         date: action.date,
         status: action.status
       }));
-      promises.push(syncIdEntityTable(supabase, 'deficit_actions', lowerEmail, rows));
+      promises.push(syncIdEntityTable(supabase, 'deficit_actions', lowerEmail, rows, undefined, {
+        entityKey: 'deficitActions',
+        skipTrash: options?.skipTrash,
+        skipTrashIds: new Set(retentionResult.removedByEntity.deficitActions),
+        previousItems: options?.previousData?.deficitActions
+      }));
     }
 
     // 13. Sync trips
     if (shouldSync('trips')) {
-      const rows = data.trips.map((trip: any) => ({
+      const rows = cleanPayload.trips.map((trip: any) => ({
         id: trip.id,
         email: lowerEmail,
         name: trip.name,
         expenses: trip.expenses || []
       }));
-      promises.push(syncIdEntityTable(supabase, 'trips', lowerEmail, rows));
+      promises.push(syncIdEntityTable(supabase, 'trips', lowerEmail, rows, undefined, {
+        entityKey: 'trips',
+        skipTrash: options?.skipTrash,
+        skipTrashIds: new Set(retentionResult.removedByEntity.trips),
+        previousItems: options?.previousData?.trips
+      }));
     }
 
     // 14. Sync wishes
     if (shouldSync('wishes')) {
-      const rows = data.wishes.map((wish: any) => ({
+      const rows = cleanPayload.wishes.map((wish: any) => ({
         id: wish.id,
         email: lowerEmail,
         title: wish.title,
@@ -1695,12 +1868,17 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
         value: Number(wish.value || 0),
         status: wish.status || 'Pendente'
       }));
-      promises.push(syncIdEntityTable(supabase, 'wishes', lowerEmail, rows));
+      promises.push(syncIdEntityTable(supabase, 'wishes', lowerEmail, rows, undefined, {
+        entityKey: 'wishes',
+        skipTrash: options?.skipTrash,
+        skipTrashIds: new Set(retentionResult.removedByEntity.wishes),
+        previousItems: options?.previousData?.wishes
+      }));
     }
 
     // 15. Sync investments
     if (shouldSync('investments')) {
-      const rows = data.investments.map((inv: any) => ({
+      const rows = cleanPayload.investments.map((inv: any) => ({
         id: inv.id,
         email: lowerEmail,
         name: inv.name,
@@ -1710,30 +1888,43 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
         status: inv.status,
         notes: inv.notes || null
       }));
-      promises.push(syncIdEntityTable(supabase, 'investments', lowerEmail, rows));
+      promises.push(syncIdEntityTable(supabase, 'investments', lowerEmail, rows, undefined, {
+        entityKey: 'investments',
+        skipTrash: options?.skipTrash,
+        skipTrashIds: new Set(retentionResult.removedByEntity.investments),
+        previousItems: options?.previousData?.investments
+      }));
     }
 
     // 16. Sync investmentTypes
     if (shouldSync('investmentTypes')) {
-      promises.push(syncNameListTable(supabase, 'investment_types', lowerEmail, data.investmentTypes));
+      promises.push(syncNameListTable(supabase, 'investment_types', lowerEmail, cleanPayload.investmentTypes));
     }
 
     // 17. Sync investmentStatuses
     if (shouldSync('investmentStatuses')) {
-      promises.push(syncNameListTable(supabase, 'investment_statuses', lowerEmail, data.investmentStatuses));
+      promises.push(syncNameListTable(supabase, 'investment_statuses', lowerEmail, cleanPayload.investmentStatuses));
     }
 
     await Promise.all(promises);
 
-    // Update user_data snapshot in Supabase after relational syncs succeed
-    const { error: backupErr } = await supabase.from('user_data').upsert({
-      email: lowerEmail,
-      data: data,
-      updated_at: new Date().toISOString()
-    });
+    // Update user_data snapshot in Supabase after ALL relational syncs succeed
+    const newVersion = nextMonotonicVersion(prevVersion);
+    const { error: backupErr } = await withSupabaseRetry<any>(
+      () => supabase.from('user_data').upsert({
+        email: lowerEmail,
+        data: cleanPayload,
+        updated_at: newVersion
+      }),
+      'saveUserDataByEmail:user_data:upsert'
+    );
     if (backupErr) {
       throw new Error(`Erro ao atualizar snapshot user_data no Supabase: ${backupErr.message}`);
     }
+
+    const versionedData = { ...cleanPayload, _version: newVersion };
+    userDataCache.set(lowerEmail, { data: versionedData, timestamp: Date.now() });
+    return newVersion;
   } catch (err: any) {
     if (err?.message?.includes("Invalid API key") || err?.hint?.includes("API key")) {
       markSupabaseKeyAsInvalid("Invalid API key");
@@ -1742,9 +1933,217 @@ async function saveUserDataByEmail(email: string, data: any, changedKeys?: strin
     }
     throw err;
   }
+}
 
-  userDataCache.set(lowerEmail, { data: { ...data }, timestamp: Date.now() });
-  return true;
+type GranularEntityKey =
+  | 'incomes'
+  | 'expenses'
+  | 'investments'
+  | 'trips'
+  | 'wishes'
+  | 'actionPlans'
+  | 'deficitActions'
+  | 'shoppingList';
+
+const ENTITY_TABLE_MAP: Record<GranularEntityKey, { table: string; mapRow: (email: string, item: any) => Record<string, any> }> = {
+  incomes: {
+    table: 'incomes',
+    mapRow: (email, inc) => ({
+      id: inc.id,
+      email,
+      date: inc.date,
+      description: inc.description,
+      value: Number(inc.value),
+      category: inc.category,
+      status: inc.status,
+      payment_type: inc.paymentType
+    })
+  },
+  expenses: {
+    table: 'expenses',
+    mapRow: (email, exp) => ({
+      id: exp.id,
+      email,
+      date: exp.date,
+      description: exp.description,
+      value: Number(exp.value),
+      category: exp.category,
+      status: exp.status,
+      payment_type: exp.paymentType,
+      classification: exp.classification || null
+    })
+  },
+  investments: {
+    table: 'investments',
+    mapRow: (email, inv) => ({
+      id: inv.id,
+      email,
+      name: inv.name,
+      type: inv.type,
+      date: inv.date,
+      value: Number(inv.value || 0),
+      status: inv.status,
+      notes: inv.notes || null
+    })
+  },
+  trips: {
+    table: 'trips',
+    mapRow: (email, trip) => ({
+      id: trip.id,
+      email,
+      name: trip.name,
+      expenses: trip.expenses || []
+    })
+  },
+  wishes: {
+    table: 'wishes',
+    mapRow: (email, wish) => ({
+      id: wish.id,
+      email,
+      title: wish.title,
+      description: wish.description || '',
+      target_date: wish.targetDate || null,
+      value: Number(wish.value || 0),
+      status: wish.status || 'Pendente'
+    })
+  },
+  actionPlans: {
+    table: 'action_plans',
+    mapRow: (email, plan) => ({
+      id: plan.id,
+      email,
+      title: plan.title,
+      description: plan.description,
+      target_date: plan.targetDate,
+      value: Number(plan.value),
+      status: plan.status
+    })
+  },
+  deficitActions: {
+    table: 'deficit_actions',
+    mapRow: (email, action) => ({
+      id: action.id,
+      email,
+      cost_center: action.costCenter,
+      reason: action.reason,
+      correction_action: action.correctionAction,
+      responsible: action.responsible,
+      date: action.date,
+      status: action.status
+    })
+  },
+  shoppingList: {
+    table: 'shopping_list',
+    mapRow: (email, item) => ({
+      id: item.id,
+      email,
+      name: item.name,
+      quantity: Number(item.quantity),
+      price: Number(item.price),
+      category: item.category,
+      checked: !!item.checked,
+      date: item.date || null
+    })
+  }
+};
+
+async function saveGranularEntityMutation(
+  email: string,
+  entity: GranularEntityKey,
+  action: 'upsert' | 'delete',
+  currentData: any,
+  item?: any,
+  id?: string
+): Promise<{ nextData: any; newVersion: string }> {
+  const lowerEmail = email.toLowerCase().trim();
+  const supabase = requireSupabase();
+  const meta = ENTITY_TABLE_MAP[entity];
+  const currentList = Array.isArray(currentData[entity]) ? [...currentData[entity]] : [];
+
+  let updatedList: any[];
+  if (action === 'upsert') {
+    if (!item || !item.id) {
+      throw new Error('Registro inválido para atualização incremental.');
+    }
+    const row = meta.mapRow(lowerEmail, item);
+    let { error: upErr } = await withSupabaseRetry<any>(
+      () => supabase.from(meta.table).upsert(row, { onConflict: 'id' }),
+      `granular:upsert:${meta.table}`
+    );
+    if (upErr && entity === 'expenses' && (upErr.code === '42703' || upErr.code === 'PGRST204' || String(upErr.message || '').includes('classification'))) {
+      const { classification, ...fallbackRow } = row;
+      const retry = await withSupabaseRetry<any>(
+        () => supabase.from(meta.table).upsert(fallbackRow, { onConflict: 'id' }),
+        `granular:upsertFallback:${meta.table}`
+      );
+      upErr = retry.error;
+    }
+    if (upErr) {
+      throw new Error(`[${meta.table}] Erro ao gravar registro: ${upErr.message}`);
+    }
+    const idx = currentList.findIndex((x: any) => x.id === item.id);
+    if (idx >= 0) {
+      currentList[idx] = item;
+      updatedList = currentList;
+    } else {
+      updatedList = [item, ...currentList];
+    }
+  } else {
+    const targetId = id || item?.id;
+    if (!targetId) {
+      throw new Error('ID do registro é obrigatório para exclusão.');
+    }
+    const deletedItem = currentList.find((x: any) => String(x.id) === String(targetId));
+    const { error: delErr } = await withSupabaseRetry<any>(
+      () => supabase.from(meta.table).delete().eq('email', lowerEmail).eq('id', targetId),
+      `granular:delete:${meta.table}`
+    );
+    if (delErr) {
+      throw new Error(`[${meta.table}] Erro ao excluir registro: ${delErr.message}`);
+    }
+    if (deletedItem) {
+      await archiveDeletedItemsToTrash(supabase, lowerEmail, entity, [deletedItem]);
+    }
+    updatedList = currentList.filter((x: any) => String(x.id) !== String(targetId));
+  }
+
+  const { _version, ...cleanCurrent } = currentData;
+  const retentionResult = applyThreeYearRetention({ ...cleanCurrent, [entity]: updatedList });
+  const nextCleanData = retentionResult.prunedData;
+
+  // Clean up any items exceeding 3-year retention directly from relational tables
+  for (const [remEntity, remIds] of Object.entries(retentionResult.removedByEntity)) {
+    if (remIds.length > 0 && Object.prototype.hasOwnProperty.call(ENTITY_TABLE_MAP, remEntity)) {
+      const tbl = ENTITY_TABLE_MAP[remEntity as GranularEntityKey].table;
+      await withSupabaseRetry<any>(
+        () => supabase.from(tbl).delete().eq('email', lowerEmail).in('id', remIds),
+        `granular:retentionCleanup:${tbl}`
+      );
+    }
+  }
+  if (retentionResult.removedAnnualYears.length > 0) {
+    await withSupabaseRetry<any>(
+      () => supabase.from('annual_planning').delete().eq('email', lowerEmail).in('year', retentionResult.removedAnnualYears),
+      'granular:retentionCleanup:annual_planning'
+    );
+  }
+
+  const newVersion = nextMonotonicVersion(currentData._version);
+  const { error: backupErr } = await withSupabaseRetry<any>(
+    () => supabase.from('user_data').upsert({
+      email: lowerEmail,
+      data: nextCleanData,
+      updated_at: newVersion
+    }),
+    'granular:user_data:upsert'
+  );
+  if (backupErr) {
+    throw new Error(`Erro ao sincronizar snapshot incremental: ${backupErr.message}`);
+  }
+
+  const nextVersioned = { ...nextCleanData, _version: newVersion };
+  userDataCache.set(lowerEmail, { data: nextVersioned, timestamp: Date.now() });
+  return { nextData: nextVersioned, newVersion };
 }
 
 // Get all users (Admin only) strictly from Supabase
@@ -1912,7 +2311,7 @@ async function auditSupabaseDatabaseSchema() {
     return idxA - idxB;
   });
 
-  const { differentialSql, fullSafeSql } = generateSafeSchemaScripts(existingSet, missingTables);
+  const { differentialSql, fullSafeSql, rlsHardeningSql } = generateSafeSchemaScripts(existingSet, missingTables);
 
   return {
     totalRequired: DATABASE_SCHEMA_CATALOG.length,
@@ -1921,9 +2320,59 @@ async function auditSupabaseDatabaseSchema() {
     missingTables,
     tables: results,
     differentialSql,
-    fullSafeSql
+    fullSafeSql,
+    rlsHardeningSql
   };
 }
+
+// Health Check Endpoint (Observability without leaking secrets)
+app.get("/api/health", async (_req, res) => {
+  const startedCheck = Date.now();
+  const client = getSupabaseClient();
+  let dbConnected = false;
+  let dbError: string | undefined;
+
+  if (client) {
+    try {
+      const { error } = await client.from("users").select("count", { count: "exact", head: true });
+      if (!error || error.code === "PGRST116" || error.code === "42P01") {
+        dbConnected = true;
+      } else {
+        dbError = "Falha ao consultar banco de dados";
+      }
+    } catch {
+      dbError = "Timeout ou indisponibilidade de rede";
+    }
+  } else {
+    dbError = "Supabase não configurado";
+  }
+
+  const latencyMs = Date.now() - startedCheck;
+  const payload = {
+    ok: dbConnected,
+    status: dbConnected ? "healthy" : "degraded",
+    uptimeSeconds: Math.floor((Date.now() - serverStartedAt) / 1000),
+    timestamp: new Date().toISOString(),
+    database: {
+      connected: dbConnected,
+      latencyMs,
+      usingServiceRole: isUsingServiceRole(),
+      ...(dbError ? { error: dbError } : {}),
+    },
+    security: {
+      jwtSecretConfigured: hasConfiguredJwtSecret,
+      rateLimitingEnabled: true,
+      corsRestricted: true,
+      optimisticLockingEnabled: true,
+    },
+    retention: {
+      dataYears: RETENTION_YEARS,
+      trashDays: TRASH_RETENTION_DAYS,
+    },
+  };
+
+  res.status(dbConnected ? 200 : 503).json(payload);
+});
 
 // Supabase Connection Status and Schema Info (Live Audit & Safe Differential Generator)
 app.get("/api/supabase-status", async (req, res) => {
@@ -1975,6 +2424,8 @@ app.get("/api/supabase-status", async (req, res) => {
     active,
     url,
     message,
+    usingServiceRole: isUsingServiceRole(),
+    jwtSecretConfigured: hasConfiguredJwtSecret,
     totalRequired: audit.totalRequired,
     existingCount: audit.existingCount,
     missingCount: audit.missingCount,
@@ -1982,7 +2433,8 @@ app.get("/api/supabase-status", async (req, res) => {
     tables: audit.tables,
     schema: audit.missingCount > 0 ? audit.differentialSql : audit.fullSafeSql,
     differentialSql: audit.differentialSql,
-    fullSafeSql: audit.fullSafeSql
+    fullSafeSql: audit.fullSafeSql,
+    rlsHardeningSql: audit.rlsHardeningSql
   });
 });
 
@@ -2137,8 +2589,8 @@ app.get("/api/auth/verify-session", async (req, res) => {
   }
 });
 
-// Login (direto no Supabase sem cache local obsoleto + migração transparente para hash scrypt)
-app.post("/api/auth/login", async (req, res) => {
+// Login (direto no Supabase sem cache local obsoleto + migração transparente para hash scrypt + brute-force protection)
+app.post("/api/auth/login", authLoginLimiter, async (req, res) => {
   const rawEmail = req.body?.email;
   const rawPassword = req.body?.password;
   if (!rawEmail || !rawPassword || typeof rawEmail !== "string" || typeof rawPassword !== "string") {
@@ -2146,19 +2598,60 @@ app.post("/api/auth/login", async (req, res) => {
   }
 
   const normalizedEmail = rawEmail.toLowerCase().trim();
+  const lockState = loginAttemptTracker.isLocked(normalizedEmail);
+  if (lockState.locked) {
+    await logAuditEvent({
+      actorEmail: normalizedEmail,
+      action: "LOGIN_RATE_LIMITED",
+      entity: "auth",
+      status: "blocked",
+      req,
+      details: { retryAfterSeconds: lockState.retryAfterSeconds }
+    });
+    return res.status(429).json({
+      error: `Muitas tentativas incorretas para esta conta. Aguarde ${lockState.retryAfterSeconds}s e tente novamente.`
+    });
+  }
 
   try {
     const user = await getUserByEmail(normalizedEmail, { bypassCache: true, throwOnError: true });
     if (!user) {
+      loginAttemptTracker.recordFailure(normalizedEmail);
+      await logAuditEvent({
+        actorEmail: normalizedEmail,
+        action: "LOGIN_FAILED",
+        entity: "auth",
+        status: "failed",
+        req,
+        details: { reason: "unknown_user" }
+      });
       return res.status(401).json({ error: "E-mail ou senha incorretos." });
     }
 
     const { valid, needsUpgrade } = verifyPassword(rawPassword, user.password || "");
     if (!valid) {
+      const attempt = loginAttemptTracker.recordFailure(normalizedEmail);
+      await logAuditEvent({
+        actorEmail: normalizedEmail,
+        action: "LOGIN_FAILED",
+        entity: "auth",
+        status: "failed",
+        req,
+        details: { reason: "invalid_password", failures: attempt.failures, locked: attempt.locked }
+      });
       return res.status(401).json({ error: "E-mail ou senha incorretos." });
     }
 
+    loginAttemptTracker.recordSuccess(normalizedEmail);
+
     if (user.isBlocked) {
+      await logAuditEvent({
+        actorEmail: normalizedEmail,
+        action: "LOGIN_BLOCKED",
+        entity: "auth",
+        status: "blocked",
+        req
+      });
       const rawReason = String(user.userMessage || user.mensagemUsuario || '').trim();
       return res.status(403).json({
         isBlocked: true,
@@ -2193,7 +2686,16 @@ app.post("/api/auth/login", async (req, res) => {
     userCache.set(normalizedEmail, { data: user, timestamp: Date.now() });
 
     const freshUserData = await getUserDataByEmail(normalizedEmail, { bypassCache: true, throwOnError: true });
-    const safeUserData = ensureUserHasDefaults(freshUserData);
+    const safeUserData = freshUserData || getEmptyUserData();
+
+    await logAuditEvent({
+      actorEmail: normalizedEmail,
+      action: "LOGIN_SUCCESS",
+      entity: "auth",
+      status: "success",
+      req,
+      details: { role: user.role }
+    });
 
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
@@ -2211,7 +2713,7 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 // Register
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", authSensitiveLimiter, async (req, res) => {
   const { email, password, name, address, phone, city, state, cpf } = req.body;
   if (!email || !password || !name || typeof email !== "string" || typeof password !== "string") {
     return res.status(400).json({ error: "Nome, E-mail e senha são obrigatórios." });
@@ -2276,13 +2778,18 @@ app.post("/api/auth/register", async (req, res) => {
 
     normalizeUserSubscription(newUser, trialDays);
     await saveUser(newUser);
-
-    const defaultData = getDefaultUserData();
-    await saveUserDataByEmail(lowerEmail, defaultData);
+    await logAuditEvent({
+      actorEmail: lowerEmail,
+      action: "USER_REGISTER",
+      entity: "users",
+      status: "success",
+      req,
+      details: { plan: initialPlan }
+    });
 
     const { password: _, ...userProfile } = newUser;
     const token = generateAuthToken({ email: newUser.email, role: newUser.role });
-    res.json({ user: userProfile, token, userData: defaultData });
+    res.json({ user: userProfile, token, userData: getEmptyUserData() });
   } catch (err) {
     console.error("Registration error:", err);
     res.status(503).json({ error: "Erro ao concluir cadastro no banco de dados. Tente novamente." });
@@ -2290,7 +2797,7 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 // Remember Password (sem expor senhas em logs)
-app.post("/api/auth/remember-password", async (req, res) => {
+app.post("/api/auth/remember-password", authSensitiveLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email || typeof email !== "string" || !email.trim()) {
     return res.status(400).json({ error: "O e-mail é obrigatório para recuperar a senha." });
@@ -2303,6 +2810,14 @@ app.post("/api/auth/remember-password", async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "O e-mail digitado é diferente do e-mail cadastrado na conta ou não existe no banco de dados." });
     }
+
+    await logAuditEvent({
+      actorEmail: lowerEmail,
+      action: "PASSWORD_RECOVERY_REQUEST",
+      entity: "auth",
+      status: "success",
+      req
+    });
 
     const userName = user.name || lowerEmail.split('@')[0];
     const isEncrypted = typeof user.password === "string" && user.password.startsWith("scrypt$");
@@ -2335,7 +2850,7 @@ app.post("/api/auth/remember-password", async (req, res) => {
 });
 
 // Change Password
-app.post("/api/auth/change-password", async (req, res) => {
+app.post("/api/auth/change-password", authSensitiveLimiter, async (req, res) => {
   const authUser = await requireAuth(req, res);
   if (!authUser) return;
 
@@ -2352,12 +2867,26 @@ app.post("/api/auth/change-password", async (req, res) => {
 
     const { valid } = verifyPassword(String(oldPassword), freshUser.password || "");
     if (!valid) {
+      await logAuditEvent({
+        actorEmail: authUser.email,
+        action: "PASSWORD_CHANGE_FAILED",
+        entity: "auth",
+        status: "failed",
+        req
+      });
       return res.status(400).json({ error: "A senha antiga está incorreta." });
     }
 
     freshUser.password = hashPassword(newPassword);
     await saveUser(freshUser);
     invalidateUserCache(freshUser.email);
+    await logAuditEvent({
+      actorEmail: freshUser.email,
+      action: "PASSWORD_CHANGED",
+      entity: "auth",
+      status: "success",
+      req
+    });
 
     res.json({ success: true, message: "Senha alterada com sucesso!" });
   } catch (err) {
@@ -2367,7 +2896,7 @@ app.post("/api/auth/change-password", async (req, res) => {
 });
 
 // Self Delete Account
-app.post("/api/auth/delete-account", async (req, res) => {
+app.post("/api/auth/delete-account", authSensitiveLimiter, async (req, res) => {
   const authUser = await requireAuth(req, res);
   if (!authUser) return;
 
@@ -2388,7 +2917,7 @@ app.post("/api/auth/delete-account", async (req, res) => {
       'payment_types', 'payment_statuses', 'income_categories', 'expense_categories',
       'incomes', 'expenses', 'annual_planning', 'shopping_list', 'action_plans',
       'deficit_actions', 'trips', 'wishes', 'investments', 'investment_types',
-      'investment_statuses', 'user_data'
+      'investment_statuses', 'user_data', 'trash_items'
     ];
 
     const deleteResults = await Promise.all(
@@ -2405,6 +2934,14 @@ app.post("/api/auth/delete-account", async (req, res) => {
 
     invalidateUserCache(lowerEmail);
     invalidateUserDataCache(lowerEmail);
+    await logAuditEvent({
+      actorEmail: lowerEmail,
+      targetEmail: lowerEmail,
+      action: "ACCOUNT_SELF_DELETED",
+      entity: "users",
+      status: "success",
+      req
+    });
 
     res.json({ success: true, message: "Sua conta foi excluída com sucesso." });
   } catch (err) {
@@ -2500,14 +3037,20 @@ app.get("/api/user/subscription-history", async (req, res) => {
   }
 });
 
-// Update Subscription
+// Update Subscription (self-service limited strictly to free trial; paid plans require Mercado Pago verification)
 app.post("/api/user/subscription", async (req, res) => {
   const authUser = await requireAuth(req, res);
   if (!authUser) return;
 
-  const { plan } = req.body;
+  const { plan } = req.body || {};
   if (!["gratis", "mensal", "anual"].includes(plan)) {
     return res.status(400).json({ error: "Plano inválido." });
+  }
+
+  if (plan !== "gratis") {
+    return res.status(403).json({
+      error: "Planos pagos exigem confirmação de pagamento oficial via Mercado Pago."
+    });
   }
 
   try {
@@ -2527,51 +3070,25 @@ app.post("/api/user/subscription", async (req, res) => {
     }
 
     const trialDays = await getFreeTrialDays();
-    if (plan === "gratis") {
-      if (user.subscription.freePlanUsed) {
-        return res.status(400).json({ error: `Você já utilizou o período grátis de ${trialDays} dias anteriormente.` });
-      }
-      user.subscription = {
-        plan: "gratis",
-        validUntil: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString(),
-        selectedAt: new Date().toISOString(),
-        freePlanUsed: true,
-        approved: true,
-      };
-    } else if (plan === "mensal") {
-      user.subscription = {
-        plan: "mensal",
-        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        selectedAt: new Date().toISOString(),
-        freePlanUsed: user.subscription.freePlanUsed || false,
-        approved: true,
-      };
-    } else if (plan === "anual") {
-      user.subscription = {
-        plan: "anual",
-        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-        selectedAt: new Date().toISOString(),
-        freePlanUsed: user.subscription.freePlanUsed || false,
-        approved: true,
-      };
+    if (user.subscription.freePlanUsed) {
+      return res.status(400).json({ error: `Você já utilizou o período grátis de ${trialDays} dias anteriormente.` });
     }
 
-    const currentPrices = await getPlanPrices();
-    const priceFormatted = plan === "gratis"
-      ? "Grátis"
-      : plan === "mensal"
-      ? `R$ ${currentPrices.mensal_por}/mês`
-      : `R$ ${currentPrices.anual_por}/ano`;
+    user.subscription = {
+      plan: "gratis",
+      validUntil: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString(),
+      selectedAt: new Date().toISOString(),
+      freePlanUsed: true,
+      approved: true,
+    };
 
     addSubscriptionHistoryEntry(user, {
-      plan,
+      plan: "gratis",
       validUntil: user.subscription.validUntil,
-      source: plan === "gratis" ? "teste_gratis" : "assinatura",
+      source: "teste_gratis",
       status: "Ativo",
-      price: priceFormatted,
-      description: plan === "gratis"
-        ? "Período Grátis de Experiência Ativado"
-        : `Assinatura Plano ${plan === "mensal" ? "Mensal" : "Anual"}`
+      price: "Grátis",
+      description: "Período Grátis de Experiência Ativado"
     });
 
     normalizeUserSubscription(user, trialDays);
@@ -2584,6 +3101,116 @@ app.post("/api/user/subscription", async (req, res) => {
     res.status(503).json({ error: "Erro ao atualizar assinatura no banco de dados." });
   }
 });
+
+function hasRealMercadoPagoToken(): boolean {
+  const token = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+  return Boolean(
+    token &&
+    token.trim() !== "" &&
+    !isPlaceholderValue(token) &&
+    token.trim() !== "YOUR_ACCESS_TOKEN" &&
+    token.trim() !== "INSIRA_SUA_ANON_KEY_DO_SUPABASE_AQUI"
+  );
+}
+
+async function activatePaidSubscriptionFromPayment(params: {
+  targetEmail: string;
+  plan: "mensal" | "anual";
+  isSimulated: boolean;
+  paymentId?: string;
+  action?: string;
+  req: express.Request;
+}) {
+  const lowerEmail = params.targetEmail.toLowerCase().trim();
+  const user = await getUserByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
+  if (!user) return { found: false, alreadyProcessed: false };
+
+  if (
+    params.paymentId &&
+    Array.isArray(user.subscriptionHistory) &&
+    user.subscriptionHistory.some((h: any) => h?.paymentId && String(h.paymentId) === String(params.paymentId))
+  ) {
+    return { found: true, alreadyProcessed: true, user };
+  }
+
+  const currentPrices = await getPlanPrices();
+  const priceFormatted = params.plan === "mensal" ? `R$ ${currentPrices.mensal_por}` : `R$ ${currentPrices.anual_por}`;
+  const newValidUntil = params.plan === "mensal"
+    ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+  user.subscription = {
+    plan: params.plan,
+    validUntil: newValidUntil,
+    selectedAt: new Date().toISOString(),
+    freePlanUsed: user.subscription?.freePlanUsed || false,
+    approved: true,
+  };
+
+  addSubscriptionHistoryEntry(user, {
+    plan: params.plan,
+    validUntil: newValidUntil,
+    source: params.isSimulated ? "Mercado Pago (Simulado)" : "Mercado Pago",
+    status: "Ativo",
+    price: priceFormatted,
+    paymentId: params.paymentId,
+    description: `Pagamento Aprovado - Plano ${params.plan === "mensal" ? "Mensal" : "Anual"}`
+  });
+
+  normalizeUserSubscription(user);
+  await saveUser(user);
+  invalidateUserCache(lowerEmail);
+  await logAuditEvent({
+    actorEmail: lowerEmail,
+    action: params.action || "PAYMENT_APPROVED",
+    entity: "subscriptions",
+    status: "success",
+    req: params.req,
+    details: { plan: params.plan, simulated: params.isSimulated, paymentId: params.paymentId || null }
+  });
+
+  return { found: true, alreadyProcessed: false, user };
+}
+
+async function verifyMercadoPagoPaymentById(paymentId: string): Promise<{
+  verified: boolean;
+  status: string;
+  email?: string;
+  plan?: "mensal" | "anual";
+}> {
+  const token = (process.env.MERCADO_PAGO_ACCESS_TOKEN || "").trim();
+  if (!token || !paymentId) {
+    return { verified: false, status: "unverified" };
+  }
+  const resp = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    }
+  });
+  if (!resp.ok) {
+    return { verified: false, status: `http_${resp.status}` };
+  }
+  const mpPayment: any = await resp.json();
+  const status = String(mpPayment?.status || "").toLowerCase();
+  const extRef = typeof mpPayment?.external_reference === "string" ? mpPayment.external_reference : "";
+  const lastColonIdx = extRef.lastIndexOf(":");
+  let parsedEmail: string | undefined;
+  let parsedPlan: "mensal" | "anual" | undefined;
+  if (lastColonIdx > 0) {
+    parsedEmail = extRef.slice(0, lastColonIdx).toLowerCase().trim();
+    const rawPlan = extRef.slice(lastColonIdx + 1).trim();
+    if (rawPlan === "mensal" || rawPlan === "anual") {
+      parsedPlan = rawPlan;
+    }
+  }
+  return {
+    verified: status === "approved",
+    status,
+    email: parsedEmail,
+    plan: parsedPlan
+  };
+}
 
 // Create Mercado Pago Payment Preference
 app.post("/api/payment/create-preference", async (req, res) => {
@@ -2602,13 +3229,14 @@ app.post("/api/payment/create-preference", async (req, res) => {
   const configuredPrice = parseFloat(configuredPriceStr.replace(",", "."));
   const unitPrice = (!isNaN(configuredPrice) && configuredPrice > 0) ? configuredPrice : (planName === "mensal" ? 19.90 : 149.00);
 
+  const hasToken = hasRealMercadoPagoToken();
   const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
-  
+
   // Detect real appUrl from request headers to prevent redirect issues if APP_URL env variable is not set or misconfigured
   const host = req.headers.host || "";
   const protocol = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
   const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : "");
-  
+
   let appUrl = process.env.APP_URL;
   if (!appUrl || appUrl.trim() === "") {
     if (origin) {
@@ -2620,15 +3248,14 @@ app.post("/api/payment/create-preference", async (req, res) => {
     }
   }
 
-  // Remove trailing slash if present for consistent URLs
   if (appUrl.endsWith("/")) {
     appUrl = appUrl.substring(0, appUrl.length - 1);
   }
 
-  if (accessToken && accessToken.trim() !== "" && accessToken.trim() !== "YOUR_ACCESS_TOKEN" && accessToken.trim() !== "INSIRA_SUA_ANON_KEY_DO_SUPABASE_AQUI") {
+  if (hasToken && accessToken) {
     try {
       console.log(`[Mercado Pago] Solicitando preferência de pagamento para ${email}. Plano: ${planName}, Preço: ${price}, Callback URL base: ${appUrl}`);
-      
+
       const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
         method: "POST",
         headers: {
@@ -2643,7 +3270,7 @@ app.post("/api/payment/create-preference", async (req, res) => {
               quantity: 1,
               unit_price: unitPrice,
               currency_id: "BRL",
-            category_id: "services"
+              category_id: "services"
             }
           ],
           payer: {
@@ -2654,6 +3281,7 @@ app.post("/api/payment/create-preference", async (req, res) => {
             failure: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&status=failed`,
             pending: `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&status=pending`
           },
+          notification_url: `${appUrl}/api/payment/webhook`,
           auto_return: "approved",
           external_reference: `${email}:${planName}`
         })
@@ -2663,8 +3291,8 @@ app.post("/api/payment/create-preference", async (req, res) => {
       if (!response.ok) {
         console.error("[Mercado Pago] Erro retornado pela API do Mercado Pago:", data);
         const detail = data.message || (data.cause && data.cause[0] && data.cause[0].description) || JSON.stringify(data);
-        return res.status(400).json({ 
-          error: `Erro ao gerar checkout do Mercado Pago: ${detail}. Verifique se as suas chaves do Mercado Pago em .env estão corretas.` 
+        return res.status(400).json({
+          error: `Erro ao gerar checkout do Mercado Pago: ${detail}. Verifique se as suas chaves do Mercado Pago em .env estão corretas.`
         });
       }
 
@@ -2672,22 +3300,58 @@ app.post("/api/payment/create-preference", async (req, res) => {
       return res.json({ init_point: data.init_point });
     } catch (err: any) {
       console.error("Mercado Pago Preference Error:", err);
-      return res.status(500).json({ 
-        error: `Erro ao conectar com a API do Mercado Pago: ${err.message || err}` 
+      return res.status(500).json({
+        error: `Erro ao conectar com a API do Mercado Pago: ${err.message || err}`
       });
     }
   }
 
-  // Simulation mode (Fallback when ACCESS_TOKEN is missing)
+  // Simulation mode (Fallback exclusively when ACCESS_TOKEN is absent)
   console.log(`[PAYMENT SIMULATION] Criando checkout simulado de Mercado Pago para ${email} (Plano: ${planName})`);
   const simSig = crypto.createHmac("sha256", JWT_SECRET).update(`${email}:${planName}`).digest("hex");
   const simulationUrl = `${appUrl}/api/payment/callback?email=${encodeURIComponent(email)}&plan=${planName}&status=approved&simulated=true&sig=${simSig}`;
   res.json({ init_point: simulationUrl });
 });
 
+// Mercado Pago Webhook Endpoint (Server-to-Server authoritative payment confirmation)
+app.post("/api/payment/webhook", async (req, res) => {
+  try {
+    const topic = String(req.body?.type || req.body?.topic || req.query?.topic || req.query?.type || "").toLowerCase();
+    const rawPaymentId =
+      req.body?.data?.id ||
+      req.query?.["data.id"] ||
+      (topic === "payment" ? (req.body?.id || req.query?.id) : undefined);
+
+    if (!rawPaymentId || (topic && topic !== "payment")) {
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    if (!hasRealMercadoPagoToken()) {
+      return res.status(200).json({ received: true, skipped: "no_token" });
+    }
+
+    const verification = await verifyMercadoPagoPaymentById(String(rawPaymentId));
+    if (verification.verified && verification.email && verification.plan) {
+      await activatePaidSubscriptionFromPayment({
+        targetEmail: verification.email,
+        plan: verification.plan,
+        isSimulated: false,
+        paymentId: String(rawPaymentId),
+        action: "PAYMENT_WEBHOOK_APPROVED",
+        req
+      });
+    }
+
+    return res.status(200).json({ received: true, verified: verification.verified });
+  } catch (err) {
+    console.error("Mercado Pago webhook error:", err);
+    return res.status(200).json({ received: true });
+  }
+});
+
 // Mercado Pago Payment Callback Handler
 app.get("/api/payment/callback", async (req, res) => {
-  const { email, plan, status, simulated, sig } = req.query;
+  const { email, plan, status, simulated, sig, payment_id, collection_id } = req.query;
 
   if (!email || !status || typeof email !== "string" || typeof status !== "string") {
     return res.status(400).send(`
@@ -2716,11 +3380,7 @@ app.get("/api/payment/callback", async (req, res) => {
   const targetEmail = email.toLowerCase().trim();
   const safePlan = plan === "mensal" || plan === "anual" ? plan : null;
   const isSimulated = simulated === "true";
-  const hasRealToken = Boolean(
-    process.env.MERCADO_PAGO_ACCESS_TOKEN &&
-    process.env.MERCADO_PAGO_ACCESS_TOKEN.trim() !== "" &&
-    process.env.MERCADO_PAGO_ACCESS_TOKEN.trim() !== "YOUR_ACCESS_TOKEN"
-  );
+  const hasRealToken = hasRealMercadoPagoToken();
 
   let isValidSignature = false;
   if (safePlan && typeof sig === "string") {
@@ -2734,42 +3394,48 @@ app.get("/api/payment/callback", async (req, res) => {
     }
   }
 
-  if (status === "approved" && safePlan && isValidSignature && !(isSimulated && hasRealToken)) {
-    try {
-      const user = await getUserByEmail(targetEmail, { bypassCache: true, throwOnError: true });
-      if (user) {
-        const currentPrices = await getPlanPrices();
-        const priceFormatted = safePlan === "mensal" ? `R$ ${currentPrices.mensal_por}` : `R$ ${currentPrices.anual_por}`;
-        const newValidUntil = safePlan === "mensal"
-          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-          : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  let confirmedApproved = false;
+  let verifiedPlan: "mensal" | "anual" | null = safePlan;
+  let verifiedEmail = targetEmail;
+  let mpPaymentId: string | undefined;
 
-        user.subscription = {
-          plan: safePlan,
-          validUntil: newValidUntil,
-          selectedAt: new Date().toISOString(),
-          freePlanUsed: user.subscription?.freePlanUsed || false,
-          approved: true,
-        };
+  if (hasRealToken) {
+    mpPaymentId =
+      (typeof payment_id === "string" && payment_id.trim()) ||
+      (typeof collection_id === "string" && collection_id.trim()) ||
+      undefined;
 
-        addSubscriptionHistoryEntry(user, {
-          plan: safePlan,
-          validUntil: newValidUntil,
-          source: isSimulated ? 'Mercado Pago (Simulado)' : 'Mercado Pago',
-          status: 'Ativo',
-          price: priceFormatted,
-          description: `Pagamento Aprovado - Plano ${safePlan === 'mensal' ? 'Mensal' : 'Anual'}`
-        });
-
-        normalizeUserSubscription(user);
-        await saveUser(user);
-        invalidateUserCache(targetEmail);
+    if (!isSimulated && mpPaymentId && mpPaymentId !== "null") {
+      try {
+        const verification = await verifyMercadoPagoPaymentById(mpPaymentId);
+        if (verification.verified && verification.plan && verification.email === targetEmail) {
+          confirmedApproved = true;
+          verifiedPlan = verification.plan;
+          verifiedEmail = verification.email;
+        }
+      } catch (err) {
+        console.error("Callback Mercado Pago verification error:", err);
       }
+    }
+  } else {
+    confirmedApproved = status === "approved" && Boolean(safePlan) && isValidSignature;
+  }
+
+  if (confirmedApproved && verifiedPlan) {
+    try {
+      await activatePaidSubscriptionFromPayment({
+        targetEmail: verifiedEmail,
+        plan: verifiedPlan,
+        isSimulated: !hasRealToken && isSimulated,
+        paymentId: mpPaymentId,
+        action: "PAYMENT_APPROVED",
+        req
+      });
     } catch (err) {
       console.error("Callback subscription activation error:", err);
     }
 
-    const planLabel = safePlan === "mensal" ? "MENSAL" : "ANUAL";
+    const planLabel = verifiedPlan === "mensal" ? "MENSAL" : "ANUAL";
     return res.send(`
       <html>
         <head>
@@ -2786,11 +3452,37 @@ app.get("/api/payment/callback", async (req, res) => {
         </head>
         <body>
           <div class="card">
-            <div class="badge">${isSimulated ? "Simulação Concluída" : "Transação Concluída"}</div>
+            <div class="badge">${!hasRealToken && isSimulated ? "Simulação Concluída" : "Transação Concluída"}</div>
             <h1>Pagamento Confirmado!</h1>
             <p>Sua assinatura do plano <strong>${planLabel}</strong> foi ativada com sucesso e sua conta do <strong>FinanFly</strong> já está liberada!</p>
             <p style="font-size:0.8rem; margin-top: 1rem;">Clique abaixo para retornar e explorar o painel.</p>
             <button onclick="window.location.href='/'">Entrar no FinanFly</button>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+
+  // Pending confirmation page (when Mercado Pago redirected without confirmed approved status yet)
+  if (status === "pending" || (hasRealToken && status === "approved" && !confirmedApproved)) {
+    return res.send(`
+      <html>
+        <head>
+          <title>Pagamento em Análise - FinanFly</title>
+          <style>
+            body { font-family: sans-serif; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: #1e293b; padding: 2.5rem; border-radius: 1.5rem; text-align: center; max-width: 450px; border: 1px solid #334155; }
+            h1 { color: #f59e0b; margin-top: 0; }
+            p { color: #94a3b8; line-height: 1.5; }
+            button { background: #2563eb; color: white; border: none; padding: 0.85rem 2rem; border-radius: 0.75rem; font-weight: bold; cursor: pointer; margin-top: 1.5rem; width: 100%; }
+            button:hover { background: #1d4ed8; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Aguardando Confirmação</h1>
+            <p>Seu pagamento está sendo validado pelo Mercado Pago. Assim que a compensação for confirmada, seu plano será liberado automaticamente.</p>
+            <button onclick="window.location.href='/'">Voltar ao Sistema</button>
           </div>
         </body>
       </html>
@@ -2822,26 +3514,27 @@ app.get("/api/payment/callback", async (req, res) => {
   `);
 });
 
-// Get User Data
+// Get User Data (supports optional ?year=YYYY query filter for scalable loading)
 app.get("/api/user/data", async (req, res) => {
   const authUser = await requireAuth(req, res);
   if (!authUser) return;
 
   try {
-    const userData = await getUserDataByEmail(authUser.email, { throwOnError: true });
-    if (!userData) {
-      const defaultUserObj = getDefaultUserData();
-      return res.json(defaultUserObj);
+    const rawYear = req.query.year ? Number(req.query.year) : undefined;
+    const year = rawYear && Number.isInteger(rawYear) && rawYear >= 2000 && rawYear <= 2100 ? rawYear : undefined;
+    const userData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true, year });
+    const payload = userData || getEmptyUserData();
+    if (payload._version) {
+      res.setHeader("X-Data-Version", String(payload._version));
     }
-
-    res.json(ensureUserHasDefaults(userData));
+    res.json(payload);
   } catch (err) {
     console.error("User data get error:", err);
     res.status(503).json({ error: "Falha temporária ao carregar dados do banco. Tente atualizar novamente." });
   }
 });
 
-// Update User Data (serializado por usuário para evitar sobrescrita concorrente)
+// Update User Data (serializado por usuário + controle de concorrência otimista por versão + retenção de 3 anos)
 app.post("/api/user/data", async (req, res) => {
   const authUser = await requireAuth(req, res);
   if (!authUser) return;
@@ -2855,77 +3548,473 @@ app.post("/api/user/data", async (req, res) => {
     const result = await withUserWriteLock(authUser.email, async () => {
       const currentData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
       if (!currentData || typeof currentData !== "object") {
-        return { status: 503, body: { error: "Não foi possível validar os dados atuais antes de salvar." } };
+        return { status: 503, body: { error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." } };
       }
 
       if (
-        Array.isArray(newData.expenses) &&
-        newData.expenses.length === 0 &&
-        Array.isArray(currentData.expenses) &&
-        currentData.expenses.length > 1 &&
-        !newData._allowClearAll
+        typeof newData._expectedVersion === "string" &&
+        newData._expectedVersion.trim() !== "" &&
+        typeof currentData._version === "string" &&
+        currentData._version.trim() !== "" &&
+        newData._expectedVersion !== currentData._version
       ) {
+        await logAuditEvent({
+          actorEmail: authUser.email,
+          action: "DATA_VERSION_CONFLICT",
+          entity: "user_data",
+          status: "conflict",
+          req,
+          details: { expected: newData._expectedVersion, current: currentData._version }
+        });
         return {
           status: 409,
-          body: { error: "Operação bloqueada por segurança para evitar perda em massa de despesas. Atualize a página e tente novamente." }
+          body: {
+            conflict: true,
+            error: "Outro dispositivo ou aba atualizou seus dados recentemente. Os dados foram recarregados para evitar sobrescrita."
+          }
         };
       }
 
-      if (
-        Array.isArray(newData.incomes) &&
-        newData.incomes.length === 0 &&
-        Array.isArray(currentData.incomes) &&
-        currentData.incomes.length > 1 &&
-        !newData._allowClearAll
-      ) {
-        return {
-          status: 409,
-          body: { error: "Operação bloqueada por segurança para evitar perda em massa de receitas. Atualize a página e tente novamente." }
-        };
-      }
+      const activeCurrent = applyThreeYearRetention(currentData).prunedData;
 
-      const protectedConfigKeys: Array<[string, string]> = [
-        ['paymentStatuses', 'situações de pagamento'],
-        ['paymentTypes', 'formas de pagamento'],
-        ['receiptStatuses', 'situações de recebimento'],
-        ['receiptTypes', 'tipos de recebimento'],
-        ['incomeCategories', 'categorias de receitas'],
-        ['expenseCategories', 'categorias de despesas'],
-        ['investmentTypes', 'tipos de investimentos'],
-        ['investmentStatuses', 'situações de investimentos'],
-        ['annualPlanning', 'planejamento anual']
+      const protectedEntityKeys: Array<[string, string]> = [
+        ['expenses', 'despesas'],
+        ['incomes', 'receitas'],
+        ['investments', 'investimentos'],
+        ['trips', 'viagens'],
+        ['wishes', 'desejos'],
+        ['actionPlans', 'objetivos e metas'],
+        ['deficitActions', 'planos de ajuste'],
+        ['shoppingList', 'itens da lista de compras']
       ];
 
-      for (const [key, label] of protectedConfigKeys) {
+      for (const [key, label] of protectedEntityKeys) {
         if (
           Array.isArray(newData[key]) &&
           newData[key].length === 0 &&
-          Array.isArray(currentData[key]) &&
-          currentData[key].length > 0
+          Array.isArray(activeCurrent[key]) &&
+          activeCurrent[key].length > 1 &&
+          !newData._allowClearAll
         ) {
+          await logAuditEvent({
+            actorEmail: authUser.email,
+            action: "MASS_DELETE_BLOCKED",
+            entity: key,
+            status: "warning",
+            req,
+            details: { previousCount: activeCurrent[key].length }
+          });
           return {
             status: 409,
-            body: { error: `A lista de ${label} não pode ficar vazia.` }
+            body: { error: `Operação bloqueada por segurança para evitar perda em massa de ${label}. Atualize a página e tente novamente.` }
           };
         }
       }
 
-      const { _allowClearAll, ...sanitizedNewData } = newData;
+      const protectedConfigKeys: Array<[string, string, number]> = [
+        ['paymentStatuses', 'situações de pagamento', 1],
+        ['paymentTypes', 'formas de pagamento', 1],
+        ['receiptStatuses', 'situações de recebimento', 1],
+        ['receiptTypes', 'tipos de recebimento', 1],
+        ['incomeCategories', 'categorias de receitas', 1],
+        ['expenseCategories', 'categorias de despesas', 1],
+        ['investmentTypes', 'tipos de investimentos', 1],
+        ['investmentStatuses', 'situações de investimentos', 1],
+        ['annualPlanning', 'planejamento anual', 0]
+      ];
+
+      for (const [key, label, minProtectedLen] of protectedConfigKeys) {
+        if (
+          Array.isArray(newData[key]) &&
+          newData[key].length === 0 &&
+          Array.isArray(activeCurrent[key]) &&
+          activeCurrent[key].length > minProtectedLen &&
+          !newData._allowClearAll
+        ) {
+          await logAuditEvent({
+            actorEmail: authUser.email,
+            action: "MASS_CONFIG_DELETE_BLOCKED",
+            entity: key,
+            status: "warning",
+            req,
+            details: { previousCount: activeCurrent[key].length }
+          });
+          return {
+            status: 409,
+            body: { error: `Operação bloqueada por segurança para evitar perda em massa de ${label}.` }
+          };
+        }
+      }
+
+      const { _allowClearAll, _expectedVersion, _version, ...sanitizedNewData } = newData;
       const changedKeys = Object.keys(sanitizedNewData);
 
-      const updatedData = {
-        ...currentData,
+      const { _version: currentVersion, ...cleanCurrentData } = currentData;
+      const mergedUpdatedData = {
+        ...cleanCurrentData,
         ...sanitizedNewData,
       };
+      const retentionResult = applyThreeYearRetention(mergedUpdatedData);
+      const prunedUpdatedData = retentionResult.prunedData;
 
-      await saveUserDataByEmail(authUser.email, updatedData, changedKeys);
-      return { status: 200, body: { success: true, data: updatedData } };
+      const newVersion = await saveUserDataByEmail(
+        authUser.email,
+        prunedUpdatedData,
+        changedKeys,
+        currentVersion,
+        { previousData: currentData }
+      );
+      return {
+        status: 200,
+        version: newVersion,
+        body: {
+          success: true,
+          _version: newVersion,
+          retentionCleanedCount: retentionResult.totalRemoved,
+          data: { ...prunedUpdatedData, _version: newVersion }
+        }
+      };
     });
 
+    if ((result as any).version) {
+      res.setHeader("X-Data-Version", String((result as any).version));
+    }
     res.status(result.status).json(result.body);
   } catch (err) {
     console.error("User data post error:", err);
-    res.status(503).json({ error: "Erro ao salvar dados no banco. Seus registros anteriores foram preservados." });
+    res.status(503).json({ error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." });
+  }
+});
+
+// Granular Single-Item Save/Delete Endpoint (prevents unnecessary bulk diffs on single mutations)
+app.post("/api/user/entity/:entity", async (req, res) => {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  const entity = req.params.entity as GranularEntityKey;
+  if (!Object.prototype.hasOwnProperty.call(ENTITY_TABLE_MAP, entity)) {
+    return res.status(400).json({ error: "Entidade financeira inválida." });
+  }
+
+  const { action, item, id, _expectedVersion } = req.body || {};
+  if (action !== "upsert" && action !== "delete") {
+    return res.status(400).json({ error: "Ação incremental inválida. Use 'upsert' ou 'delete'." });
+  }
+
+  try {
+    const result = await withUserWriteLock(authUser.email, async () => {
+      const currentData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
+      if (!currentData || typeof currentData !== "object") {
+        return { status: 503, body: { error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." } };
+      }
+
+      if (
+        typeof _expectedVersion === "string" &&
+        _expectedVersion.trim() !== "" &&
+        typeof currentData._version === "string" &&
+        currentData._version.trim() !== "" &&
+        _expectedVersion !== currentData._version
+      ) {
+        return {
+          status: 409,
+          body: {
+            conflict: true,
+            error: "Outro dispositivo ou aba atualizou seus dados recentemente. Os dados foram recarregados para evitar sobrescrita."
+          }
+        };
+      }
+
+      const { nextData, newVersion } = await saveGranularEntityMutation(authUser.email, entity, action, currentData, item, id);
+      return { status: 200, version: newVersion, body: { success: true, _version: newVersion, data: nextData } };
+    });
+
+    if ((result as any).version) {
+      res.setHeader("X-Data-Version", String((result as any).version));
+    }
+    res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("Granular entity post error:", err);
+    res.status(503).json({ error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." });
+  }
+});
+
+// Soft Delete Trash: list deleted items within strictly the last 3 days
+app.get("/api/user/trash", async (req, res) => {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  try {
+    const supabase = requireSupabase();
+    const lowerEmail = authUser.email.toLowerCase().trim();
+    const cutoffIso = new Date(Date.now() - TRASH_RETENTION_MS).toISOString();
+
+    // Auto-purge expired items older than 3 days
+    const { error: purgeErr } = await supabase
+      .from('trash_items')
+      .delete()
+      .eq('email', lowerEmail)
+      .lt('deleted_at', cutoffIso);
+
+    if (purgeErr) {
+      if (isMissingTableOrColumnError(purgeErr)) {
+        return res.json({ items: [], tableMissing: true, retentionDays: TRASH_RETENTION_DAYS });
+      }
+      throw new Error(purgeErr.message);
+    }
+
+    const { data, error } = await fetchAllPaginatedRows(
+      (from, to) =>
+        supabase
+          .from('trash_items')
+          .select('*')
+          .eq('email', lowerEmail)
+          .gte('deleted_at', cutoffIso)
+          .order('deleted_at', { ascending: false })
+          .range(from, to),
+      'getUserTrash'
+    );
+
+    if (error) {
+      if (isMissingTableOrColumnError(error)) {
+        return res.json({ items: [], tableMissing: true, retentionDays: TRASH_RETENTION_DAYS });
+      }
+      throw new Error(error.message);
+    }
+
+    const items = (data || [])
+      .filter((row: any) => isWithinTrashRestoreWindow(row.deleted_at))
+      .map((row: any) => ({
+        id: row.id,
+        entity: row.entity,
+        entityLabel: TRASH_ENTITY_LABELS[row.entity] || row.entity,
+        recordId: row.record_id,
+        label: row.label || formatTrashLabel(row.entity, row.payload),
+        payload: row.payload,
+        deletedAt: row.deleted_at,
+        expiresAt: row.expires_at
+      }));
+
+    res.json({ items, tableMissing: false, retentionDays: TRASH_RETENTION_DAYS });
+  } catch (err) {
+    console.error("Get user trash error:", err);
+    res.status(503).json({ error: "Erro ao consultar lixeira de exclusões recentes." });
+  }
+});
+
+// Soft Delete Trash: restore an item deleted in the last 3 days
+app.post("/api/user/trash/restore", async (req, res) => {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  const { trashId } = req.body || {};
+  if (!trashId || typeof trashId !== "string") {
+    return res.status(400).json({ error: "Identificador do item da lixeira inválido." });
+  }
+
+  try {
+    const result = await withUserWriteLock(authUser.email, async () => {
+      const supabase = requireSupabase();
+      const lowerEmail = authUser.email.toLowerCase().trim();
+
+      const { data: trashRow, error: fetchErr } = await supabase
+        .from('trash_items')
+        .select('*')
+        .eq('id', trashId)
+        .eq('email', lowerEmail)
+        .maybeSingle();
+
+      if (fetchErr) {
+        if (isMissingTableOrColumnError(fetchErr)) {
+          return { status: 400, body: { error: "Tabela de lixeira ainda não configurada no banco." } };
+        }
+        throw new Error(fetchErr.message);
+      }
+
+      if (!trashRow) {
+        return { status: 404, body: { error: "Item não encontrado na lixeira." } };
+      }
+
+      if (!isWithinTrashRestoreWindow(trashRow.deleted_at)) {
+        await supabase.from('trash_items').delete().eq('id', trashId).eq('email', lowerEmail);
+        return {
+          status: 410,
+          body: { error: `O prazo de ${TRASH_RETENTION_DAYS} dias para restaurar este item expirou.` }
+        };
+      }
+
+      const entity = trashRow.entity as GranularEntityKey;
+      if (!Object.prototype.hasOwnProperty.call(ENTITY_TABLE_MAP, entity) || !trashRow.payload) {
+        return { status: 400, body: { error: "Registro da lixeira inválido para restauração." } };
+      }
+
+      const currentData = await getUserDataByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
+      const { nextData, newVersion } = await saveGranularEntityMutation(
+        lowerEmail,
+        entity,
+        'upsert',
+        currentData,
+        trashRow.payload
+      );
+
+      await supabase.from('trash_items').delete().eq('id', trashId).eq('email', lowerEmail);
+
+      await logAuditEvent({
+        actorEmail: lowerEmail,
+        action: "TRASH_ITEM_RESTORED",
+        entity,
+        status: "success",
+        req,
+        details: { trashId, recordId: trashRow.record_id, label: trashRow.label }
+      });
+
+      return {
+        status: 200,
+        version: newVersion,
+        body: {
+          success: true,
+          _version: newVersion,
+          data: nextData,
+          restoredLabel: trashRow.label || formatTrashLabel(entity, trashRow.payload)
+        }
+      };
+    });
+
+    if ((result as any).version) {
+      res.setHeader("X-Data-Version", String((result as any).version));
+    }
+    res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("Restore trash error:", err);
+    res.status(503).json({ error: "Erro ao restaurar registro da lixeira." });
+  }
+});
+
+// Soft Delete Trash: permanently delete a trash item
+app.delete("/api/user/trash/:id", async (req, res) => {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  const trashId = String(req.params.id || "").trim();
+  if (!trashId) {
+    return res.status(400).json({ error: "Identificador inválido." });
+  }
+
+  try {
+    const supabase = requireSupabase();
+    const lowerEmail = authUser.email.toLowerCase().trim();
+    const { error } = await supabase.from('trash_items').delete().eq('id', trashId).eq('email', lowerEmail);
+    if (error && !isMissingTableOrColumnError(error)) {
+      throw new Error(error.message);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete trash item error:", err);
+    res.status(503).json({ error: "Erro ao remover item da lixeira." });
+  }
+});
+
+// JSON Full Backup Export (authenticated user)
+app.get("/api/user/backup/export", async (req, res) => {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  try {
+    const userData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
+    const { _version, ...cleanData } = userData || getEmptyUserData();
+    const exportedAt = new Date().toISOString();
+    const dateStamp = exportedAt.slice(0, 10);
+
+    await logAuditEvent({
+      actorEmail: authUser.email,
+      action: "BACKUP_EXPORTED",
+      entity: "user_data",
+      status: "success",
+      req
+    });
+
+    res.setHeader("Content-Disposition", `attachment; filename="finanfly-backup-${dateStamp}.json"`);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.json({
+      app: "FinanFly",
+      formatVersion: 1,
+      exportedAt,
+      retentionYears: RETENTION_YEARS,
+      email: authUser.email,
+      userData: cleanData
+    });
+  } catch (err) {
+    console.error("Export backup error:", err);
+    res.status(503).json({ error: "Erro ao exportar backup dos seus dados." });
+  }
+});
+
+// JSON Backup Restore (authenticated user, enforces 3-year retention policy)
+app.post("/api/user/backup/restore", async (req, res) => {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  const rawPayload = req.body?.userData || req.body;
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return res.status(400).json({ error: "Arquivo de backup inválido." });
+  }
+
+  const baseEmpty = getEmptyUserData();
+  const allowedKeys = Object.keys(baseEmpty);
+  const hasAnyRecognizedArray = allowedKeys.some((k) => Array.isArray(rawPayload[k]));
+  if (!hasAnyRecognizedArray) {
+    return res.status(400).json({ error: "O arquivo JSON não contém estruturas válidas do FinanFly." });
+  }
+
+  const normalizedCandidate: Record<string, any> = { ...baseEmpty };
+  for (const key of allowedKeys) {
+    if (Array.isArray(rawPayload[key])) {
+      normalizedCandidate[key] = rawPayload[key];
+    }
+  }
+
+  const retentionResult = applyThreeYearRetention(normalizedCandidate);
+
+  try {
+    const result = await withUserWriteLock(authUser.email, async () => {
+      const currentData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
+      const newVersion = await saveUserDataByEmail(
+        authUser.email,
+        retentionResult.prunedData,
+        undefined,
+        currentData?._version,
+        { skipTrash: true, previousData: currentData }
+      );
+
+      await logAuditEvent({
+        actorEmail: authUser.email,
+        action: "BACKUP_RESTORED",
+        entity: "user_data",
+        status: "success",
+        req,
+        details: {
+          removedOlderThanThreeYears: retentionResult.totalRemoved
+        }
+      });
+
+      return {
+        status: 200,
+        version: newVersion,
+        body: {
+          success: true,
+          _version: newVersion,
+          removedOlderThanThreeYears: retentionResult.totalRemoved,
+          data: { ...retentionResult.prunedData, _version: newVersion }
+        }
+      };
+    });
+
+    if ((result as any).version) {
+      res.setHeader("X-Data-Version", String((result as any).version));
+    }
+    res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("Restore backup error:", err);
+    res.status(503).json({ error: "Falha ao restaurar backup no banco de dados. Tente novamente." });
   }
 });
 
@@ -3106,6 +4195,14 @@ app.post("/api/admin/approve-user", async (req, res) => {
     normalizeUserSubscription(targetUser);
     await saveUser(targetUser);
     invalidateUserCache(targetEmail);
+    await logAuditEvent({
+      actorEmail: adminUser.email,
+      targetEmail,
+      action: approve ? "ADMIN_APPROVE_USER" : "ADMIN_REVOKE_APPROVAL",
+      entity: "subscriptions",
+      status: "success",
+      req
+    });
     res.json({ success: true });
   } catch (err) {
     console.error("Admin approve-user error:", err);
@@ -3175,9 +4272,15 @@ app.post("/api/admin/create-user", async (req, res) => {
 
     normalizeUserSubscription(newUser, trialDays);
     await saveUser(newUser);
-
-    const defaultData = getDefaultUserData();
-    await saveUserDataByEmail(lowerTargetEmail, defaultData);
+    await logAuditEvent({
+      actorEmail: adminUser.email,
+      targetEmail: lowerTargetEmail,
+      action: "ADMIN_CREATE_USER",
+      entity: "users",
+      status: "success",
+      req,
+      details: { role: newUser.role, plan: newUser.subscription.plan }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error("Admin create-user error:", err);
@@ -3302,6 +4405,15 @@ app.post("/api/admin/edit-user", async (req, res) => {
     normalizeUserSubscription(user, trialDays);
     await saveUser(user);
     invalidateUserCache(lowerTargetEmail);
+    await logAuditEvent({
+      actorEmail: adminUser.email,
+      targetEmail: lowerTargetEmail,
+      action: isBlocked === true ? "ADMIN_BLOCK_USER" : isBlocked === false ? "ADMIN_UNBLOCK_USER" : "ADMIN_EDIT_USER",
+      entity: "users",
+      status: "success",
+      req,
+      details: { plan: user.subscription?.plan, role: user.role, isBlocked: !!user.isBlocked }
+    });
     res.json({ success: true });
   } catch (err) {
     console.error("Admin edit-user error:", err);
@@ -3361,6 +4473,15 @@ app.post("/api/admin/extend-subscription", async (req, res) => {
     normalizeUserSubscription(user);
     await saveUser(user);
     invalidateUserCache(lowerTargetEmail);
+    await logAuditEvent({
+      actorEmail: adminUser.email,
+      targetEmail: lowerTargetEmail,
+      action: "ADMIN_EXTEND_SUBSCRIPTION",
+      entity: "subscriptions",
+      status: "success",
+      req,
+      details: { plan: user.subscription?.plan, validUntil: user.subscription?.validUntil }
+    });
 
     const { password: _, ...safeUser } = user;
     res.json({ success: true, user: safeUser });
@@ -3468,7 +4589,7 @@ app.post("/api/admin/delete-user", async (req, res) => {
       'payment_types', 'payment_statuses', 'income_categories', 'expense_categories',
       'incomes', 'expenses', 'annual_planning', 'shopping_list', 'action_plans',
       'deficit_actions', 'trips', 'wishes', 'investments', 'investment_types',
-      'investment_statuses', 'user_data'
+      'investment_statuses', 'user_data', 'trash_items'
     ];
 
     const deleteResults = await Promise.all(
@@ -3485,11 +4606,59 @@ app.post("/api/admin/delete-user", async (req, res) => {
 
     invalidateUserCache(lowerTargetEmail);
     invalidateUserDataCache(lowerTargetEmail);
+    await logAuditEvent({
+      actorEmail: adminUser.email,
+      targetEmail: lowerTargetEmail,
+      action: "ADMIN_DELETE_USER",
+      entity: "users",
+      status: "success",
+      req
+    });
 
     res.json({ success: true });
   } catch (err) {
     console.error("Admin delete-user error:", err);
     res.status(503).json({ error: "Erro ao excluir usuário no Supabase." });
+  }
+});
+
+// Admin Audit Logs viewer (reads audit_logs gracefully even if table not yet created in Supabase)
+app.get("/api/admin/audit-logs", async (req, res) => {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  try {
+    const supabase = requireSupabase();
+    const actionFilter = typeof req.query.action === "string" ? req.query.action.trim() : "";
+    const emailFilter = typeof req.query.email === "string" ? req.query.email.trim().toLowerCase() : "";
+    const rawLimit = Number(req.query.limit || 150);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 10), 500) : 150;
+
+    let query = supabase
+      .from("audit_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (actionFilter) {
+      query = query.eq("action", actionFilter);
+    }
+    if (emailFilter) {
+      query = query.or(`actor_email.ilike.%${emailFilter}%,target_email.ilike.%${emailFilter}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      if (isMissingTableOrColumnError(error)) {
+        return res.json({ logs: [], tableMissing: true });
+      }
+      throw error;
+    }
+
+    res.json({ logs: data || [], tableMissing: false });
+  } catch (err) {
+    console.error("Admin audit-logs error:", err);
+    res.status(503).json({ error: "Erro ao consultar logs de auditoria no Supabase." });
   }
 });
 

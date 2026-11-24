@@ -22,36 +22,13 @@ import {
 
 interface PageProps {
   userData: UserData;
-  onUpdateUserData: (newData: Partial<UserData>) => void;
+  onUpdateUserData: (newData: Partial<UserData>) => Promise<void>;
 }
-
-const DEFAULT_TYPES = [
-  'Ações',
-  'Fundos Imobiliários (FIIs)',
-  'Renda Fixa',
-  'CDB / LCI / LCA',
-  'Tesouro Direto',
-  'Criptomoedas',
-  'Previdência Privada',
-  'Outros'
-];
-
-const DEFAULT_STATUSES = [
-  'Ativo',
-  'Resgatado',
-  'Em Andamento',
-  'Pendente',
-  'Cancelado'
-];
 
 export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const investments = userData.investments || [];
-  const investmentTypes = (userData.investmentTypes && userData.investmentTypes.length > 0)
-    ? userData.investmentTypes
-    : DEFAULT_TYPES;
-  const investmentStatuses = (userData.investmentStatuses && userData.investmentStatuses.length > 0)
-    ? userData.investmentStatuses
-    : DEFAULT_STATUSES;
+  const investmentTypes = userData.investmentTypes || [];
+  const investmentStatuses = userData.investmentStatuses || [];
 
   // Filters State
   const [filterType, setFilterType] = useState<string>('todos');
@@ -63,8 +40,8 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
 
   // Form Fields State
   const [name, setName] = useState<string>('');
-  const [type, setType] = useState<string>(investmentTypes[0] || 'Ações');
-  const [status, setStatus] = useState<string>(investmentStatuses[0] || 'Ativo');
+  const [type, setType] = useState<string>(investmentTypes[0] || '');
+  const [status, setStatus] = useState<string>(investmentStatuses[0] || '');
   const [value, setValue] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState<string>('');
@@ -140,51 +117,55 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
   }, [filteredInvestments]);
 
   // Handle Add / Edit Submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !value) return;
+    if (!name.trim() || !value || !type || !status) return;
 
     const numericValue = parseFloat(value.replace(',', '.'));
     if (isNaN(numericValue) || numericValue < 0) return;
 
-    if (editingId) {
-      // Edit
-      const updated = investments.map((inv) =>
-        inv.id === editingId
-          ? {
-              ...inv,
-              name: name.trim(),
-              type,
-              status,
-              value: numericValue,
-              date,
-              notes: notes.trim()
-            }
-          : inv
-      );
-      onUpdateUserData({ investments: updated });
-    } else {
-      // Create
-      const newInv: Investment = {
-        id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-        name: name.trim(),
-        type,
-        status,
-        value: numericValue,
-        date,
-        notes: notes.trim()
-      };
-      onUpdateUserData({ investments: [newInv, ...investments] });
-    }
+    try {
+      if (editingId) {
+        // Edit
+        const updated = investments.map((inv) =>
+          inv.id === editingId
+            ? {
+                ...inv,
+                name: name.trim(),
+                type,
+                status,
+                value: numericValue,
+                date,
+                notes: notes.trim()
+              }
+            : inv
+        );
+        await onUpdateUserData({ investments: updated });
+      } else {
+        // Create
+        const newInv: Investment = {
+          id: 'inv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+          name: name.trim(),
+          type,
+          status,
+          value: numericValue,
+          date,
+          notes: notes.trim()
+        };
+        await onUpdateUserData({ investments: [newInv, ...investments] });
+      }
 
-    closeModal();
+      closeModal();
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   const handleEditClick = (inv: Investment) => {
     setEditingId(inv.id);
     setName(inv.name);
-    setType(inv.type || investmentTypes[0]);
-    setStatus(inv.status || investmentStatuses[0]);
+    setType(inv.type || investmentTypes[0] || '');
+    setStatus(inv.status || investmentStatuses[0] || '');
     setValue(inv.value.toString());
     setDate(inv.date || new Date().toISOString().split('T')[0]);
     setNotes(inv.notes || '');
@@ -197,61 +178,85 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
     setItemToDelete(inv);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     const updated = investments.filter((inv) => inv.id !== itemToDelete.id);
-    onUpdateUserData({ investments: updated });
-    setItemToDelete(null);
+    try {
+      await onUpdateUserData({ investments: updated });
+      setItemToDelete(null);
+    } catch {
+      setItemToDelete(null);
+    }
   };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingId(null);
     setName('');
-    setType(investmentTypes[0] || 'Ações');
-    setStatus(investmentStatuses[0] || 'Ativo');
+    setType(investmentTypes[0] || '');
+    setStatus(investmentStatuses[0] || '');
     setValue('');
     setDate(new Date().toISOString().split('T')[0]);
     setNotes('');
   };
 
   // Type & Status Management
-  const handleAddType = () => {
+  const handleAddType = async () => {
     if (!newTypeName.trim()) return;
     const cleanType = newTypeName.trim();
     if (!investmentTypes.includes(cleanType)) {
       const updated = [...investmentTypes, cleanType];
-      onUpdateUserData({ investmentTypes: updated });
+      try {
+        await onUpdateUserData({ investmentTypes: updated });
+        setType(cleanType);
+        setNewTypeName('');
+      } catch {
+        // Falha tratada pelo popup centralizado de erro de conexão
+      }
+    } else {
+      setNewTypeName('');
     }
-    setNewTypeName('');
   };
 
-  const handleDeleteType = (typeToDelete: string) => {
-    if (investmentTypes.length <= 1) {
-      alert('É necessário manter ao menos um tipo cadastrado.');
-      return;
-    }
+  const handleDeleteType = async (typeToDelete: string) => {
     const updated = investmentTypes.filter((t) => t !== typeToDelete);
-    onUpdateUserData({ investmentTypes: updated });
+    try {
+      await onUpdateUserData({ investmentTypes: updated });
+      if (type === typeToDelete) {
+        setType(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
-  const handleAddStatus = () => {
+  const handleAddStatus = async () => {
     if (!newStatusName.trim()) return;
     const cleanStatus = newStatusName.trim();
     if (!investmentStatuses.includes(cleanStatus)) {
       const updated = [...investmentStatuses, cleanStatus];
-      onUpdateUserData({ investmentStatuses: updated });
+      try {
+        await onUpdateUserData({ investmentStatuses: updated });
+        setStatus(cleanStatus);
+        setNewStatusName('');
+      } catch {
+        // Falha tratada pelo popup centralizado de erro de conexão
+      }
+    } else {
+      setNewStatusName('');
     }
-    setNewStatusName('');
   };
 
-  const handleDeleteStatus = (statusToDelete: string) => {
-    if (investmentStatuses.length <= 1) {
-      alert('É necessário manter ao menos um status cadastrado.');
-      return;
-    }
+  const handleDeleteStatus = async (statusToDelete: string) => {
     const updated = investmentStatuses.filter((s) => s !== statusToDelete);
-    onUpdateUserData({ investmentStatuses: updated });
+    try {
+      await onUpdateUserData({ investmentStatuses: updated });
+      if (status === statusToDelete) {
+        setStatus(updated[0] || '');
+      }
+    } catch {
+      // Falha tratada pelo popup centralizado de erro de conexão
+    }
   };
 
   const formatCurrency = (val: number) => {
@@ -677,10 +682,12 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                     </button>
                   </div>
                   <select
+                    required
                     value={type}
                     onChange={(e) => setType(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
                   >
+                    <option value="" disabled>Selecione o tipo...</option>
                     {investmentTypes.map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
@@ -702,10 +709,12 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                     </button>
                   </div>
                   <select
+                    required
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
                   >
+                    <option value="" disabled>Selecione o status...</option>
                     {investmentStatuses.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
@@ -918,9 +927,9 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
         itemName={itemToDelete?.name}
         itemDetails={itemToDelete ? [
           { label: 'Valor', value: `R$ ${itemToDelete.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
-          { label: 'Tipo', value: itemToDelete.type || 'Ações' },
+          { label: 'Tipo', value: itemToDelete.type || '-' },
           { label: 'Data', value: itemToDelete.date.split('-').reverse().join('/') },
-          { label: 'Status', value: itemToDelete.status || 'Ativo' },
+          { label: 'Status', value: itemToDelete.status || '-' },
         ] : []}
         confirmLabel="Excluir Ativo"
       />

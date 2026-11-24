@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, UserData } from './types';
 import { Login } from './components/Login';
 import { FinanFlyLogo } from './components/FinanFlyLogo';
@@ -8,6 +9,7 @@ import { isUserSubscriptionActive } from './utils/subscriptionUtils';
 import { FloatingMenuButton } from './components/FloatingMenuButton';
 import { PullToRefresh } from './components/PullToRefresh';
 import { clearAuthToken, getAuthHeaders } from './utils/authToken';
+import { detectSingleGranularMutation } from './utils/dataDiff';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
 const Home = lazy(() => import('./components/Home').then(m => ({ default: m.Home })));
@@ -81,19 +83,21 @@ import {
 } from 'lucide-react';
 
 function clearLegacyLocalData() {
-  try {
-    localStorage.removeItem('finanfly_user');
-    localStorage.removeItem('finanfy_user');
-    localStorage.removeItem('finanfly_token');
-    localStorage.removeItem('finanfly_last_activity');
+  const scrubStorage = (storage: Storage | undefined) => {
+    if (!storage) return;
     const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('finanfly_data_')) {
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key && (key.startsWith('finanfly') || key.startsWith('finanfy'))) {
         keysToRemove.push(key);
       }
     }
-    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    keysToRemove.forEach((k) => storage.removeItem(k));
+  };
+
+  try {
+    scrubStorage(typeof localStorage !== 'undefined' ? localStorage : undefined);
+    scrubStorage(typeof sessionStorage !== 'undefined' ? sessionStorage : undefined);
   } catch {
     // ignore storage errors
   }
@@ -106,6 +110,7 @@ export default function App() {
   const [subscriptionWarning, setSubscriptionWarning] = useState<string>('');
   const [inactivityNotice, setInactivityNotice] = useState<string>('');
   const [saveError, setSaveError] = useState<string>('');
+  const [saveFailurePopup, setSaveFailurePopup] = useState<{ title: string; message: string } | null>(null);
 
   // Sidebar toggle for responsive mobile views
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -114,16 +119,8 @@ export default function App() {
   // Dados menu submenus expanded status
   const [dadosExpanded, setDadosExpanded] = useState(false);
 
-  // Floating menu (menu suspenso flutuante) ativado ou desativado pelo usuário
-  const [floatingMenuEnabled, setFloatingMenuEnabled] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('finanfly_floating_menu_enabled');
-      if (saved !== null) {
-        return saved === 'true';
-      }
-    } catch {}
-    return true; // Ativado por padrão
-  });
+  // Floating menu (menu suspenso flutuante) apenas em memória de sessão
+  const [floatingMenuEnabled, setFloatingMenuEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     const handleFloatingMenuChanged = (e: Event) => {
@@ -138,9 +135,6 @@ export default function App() {
 
   const handleToggleFloatingMenu = (enabled: boolean) => {
     setFloatingMenuEnabled(enabled);
-    try {
-      localStorage.setItem('finanfly_floating_menu_enabled', String(enabled));
-    } catch {}
   };
 
   // Refs and auto-scroll for sidebar menu sections
@@ -149,9 +143,15 @@ export default function App() {
   const dadosSectionRef = useRef<HTMLDivElement>(null);
   const skipNextFetchUserDataRef = useRef<boolean>(false);
   const userDataRef = useRef<UserData | null>(null);
+  const dataVersionRef = useRef<string | null>(null);
   const dataMutationVersionRef = useRef<number>(0);
 
   const updateUserDataState = (nextData: UserData | null) => {
+    if (nextData && typeof nextData._version === 'string' && nextData._version.trim() !== '') {
+      dataVersionRef.current = nextData._version;
+    } else if (nextData === null) {
+      dataVersionRef.current = null;
+    }
     userDataRef.current = nextData;
     setUserData(nextData);
   };
@@ -218,10 +218,7 @@ export default function App() {
 
   // Auto-detect language and enforce Português (Brasil) - pt-BR
   useEffect(() => {
-    const detectedLang = navigator.language || (navigator.languages && navigator.languages[0]) || 'pt-BR';
-    console.log(`[Idioma] Idioma detectado do navegador: ${detectedLang}. Selecionado Português (Brasil) - pt-BR automaticamente.`);
     document.documentElement.lang = 'pt-BR';
-    localStorage.setItem('finanfly_language', 'pt-BR');
   }, []);
 
   // Auto-detect mobile devices and screen resizes
@@ -254,22 +251,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sidebarOpen]);
 
-  // Theme layout: clear vs dark state
+  // Theme layout: clear vs dark state (in-memory only, no local storage persistence)
   const [isDark, setIsDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem('finanfly_theme');
-    if (saved) {
-      return saved === 'dark';
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return false;
   });
 
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('finanfly_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('finanfly_theme', 'light');
     }
   }, [isDark]);
 
@@ -367,24 +361,42 @@ export default function App() {
     }
   };
 
-  const handleUpdateUserData = async (newData: Partial<UserData>) => {
+  const handleUpdateUserData = async (newData: Partial<UserData>): Promise<void> => {
     const baseData = userDataRef.current || userData;
-    if (!currentUser || !baseData) return;
+    if (!currentUser || !baseData) {
+      throw new Error('Sessão de usuário não inicializada.');
+    }
 
     const writeVersion = ++dataMutationVersionRef.current;
     const merged = { ...baseData, ...newData };
 
     setSaveError('');
+    setSaveFailurePopup(null);
     updateUserDataState(merged); // Optimistic UI update using latest ref
 
     try {
-      const res = await fetch('/api/user/data', {
+      const granularMutation = detectSingleGranularMutation(baseData as Record<string, any>, newData as Record<string, any>);
+      const endpoint = granularMutation
+        ? `/api/user/entity/${granularMutation.entity}`
+        : '/api/user/data';
+      const payloadToSend = granularMutation
+        ? {
+            action: granularMutation.action,
+            item: granularMutation.item,
+            id: granularMutation.id,
+            ...(dataVersionRef.current ? { _expectedVersion: dataVersionRef.current } : {})
+          }
+        : (dataVersionRef.current
+            ? { ...newData, _expectedVersion: dataVersionRef.current }
+            : newData);
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: getAuthHeaders({
           'Content-Type': 'application/json',
           'x-user-email': currentUser.email
         }),
-        body: JSON.stringify(newData),
+        body: JSON.stringify(payloadToSend),
       });
 
       let data: any = null;
@@ -402,7 +414,7 @@ export default function App() {
 
       if (res.status === 401 || res.status === 403 || data?.isBlocked) {
         handleLogout();
-        return;
+        throw new Error(data?.error || 'Sessão expirada. Faça login novamente.');
       }
 
       if (!res.ok) {
@@ -411,20 +423,36 @@ export default function App() {
         } else if (dataMutationVersionRef.current === writeVersion) {
           updateUserDataState(baseData);
         }
-        const msg = data?.error || 'Erro ao salvar dados no Supabase. Nenhuma alteração foi salva localmente.';
+        const msg = res.status === 409
+          ? (data?.error || 'Conflito de atualização detectado. Os dados foram recarregados do banco; tente gravar novamente.')
+          : 'Houve uma falha na gravação por instabilidade de conexão com o banco de dados. Por favor, tente gravar novamente.';
         setSaveError(msg);
+        setSaveFailurePopup({
+          title: 'Falha na gravação',
+          message: msg
+        });
         throw new Error(msg);
       }
 
       if (data?.data && dataMutationVersionRef.current === writeVersion) {
         updateUserDataState(data.data);
+      } else if (data?._version) {
+        dataVersionRef.current = data._version;
       }
     } catch (err: any) {
       console.error('Error saving user data:', err);
-      if (dataMutationVersionRef.current === writeVersion && !saveError) {
+      if (dataMutationVersionRef.current === writeVersion) {
         updateUserDataState(baseData);
       }
-      setSaveError(err?.message || 'Erro de conexão ao salvar no Supabase. Suas alterações anteriores foram mantidas.');
+      const msg = err?.message && (err.message.includes('instabilidade') || err.message.includes('Conflito'))
+        ? err.message
+        : 'Houve uma falha na gravação por instabilidade de conexão com o banco de dados. Por favor, tente gravar novamente.';
+      setSaveError(msg);
+      setSaveFailurePopup({
+        title: 'Falha na gravação',
+        message: msg
+      });
+      throw new Error(msg);
     }
   };
 
@@ -744,14 +772,14 @@ export default function App() {
           <ListManagerPage
             title="Tipo de Recebimento"
             description="Cadastre as opções que você utiliza para receber suas receitas (Pix, Transferência Bancária, Boleto, Depósito, Dinheiro, etc)."
-            items={userData.receiptTypes && userData.receiptTypes.length > 0 ? userData.receiptTypes : ['Pix', 'Transferência Bancária', 'Dinheiro', 'Boleto', 'Cartão de Débito', 'Cartão de Crédito', 'Outros']}
+            items={userData.receiptTypes || []}
             placeholder="Ex: Transferência Bancária"
             onUpdateItems={(items) => handleUpdateUserData({ receiptTypes: items })}
             onRenameItem={(oldVal, newVal) => {
-              const currentList = userData.receiptTypes && userData.receiptTypes.length > 0 ? userData.receiptTypes : ['Pix', 'Transferência Bancária', 'Dinheiro', 'Boleto', 'Cartão de Débito', 'Cartão de Crédito', 'Outros'];
+              const currentList = userData.receiptTypes || [];
               const updatedTypes = currentList.map(t => t === oldVal ? newVal : t);
               const updatedIncomes = userData.incomes.map(i => i.paymentType === oldVal ? { ...i, paymentType: newVal } : i);
-              handleUpdateUserData({
+              return handleUpdateUserData({
                 receiptTypes: updatedTypes,
                 incomes: updatedIncomes
               });
@@ -765,14 +793,14 @@ export default function App() {
           <ListManagerPage
             title="Tipo de Pagamento"
             description="Cadastre as opções que você utiliza para pagar despesas (Cartão de Crédito, Cartão de Débito, Pix, Boleto, etc)."
-            items={userData.paymentTypes && userData.paymentTypes.length > 0 ? userData.paymentTypes : ['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Boleto', 'Dinheiro', 'Transferência Bancária', 'Débito Automático', 'Outros']}
+            items={userData.paymentTypes || []}
             placeholder="Ex: Cartão de Débito"
             onUpdateItems={(items) => handleUpdateUserData({ paymentTypes: items })}
             onRenameItem={(oldVal, newVal) => {
-              const currentList = userData.paymentTypes && userData.paymentTypes.length > 0 ? userData.paymentTypes : ['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Boleto', 'Dinheiro', 'Transferência Bancária', 'Débito Automático', 'Outros'];
+              const currentList = userData.paymentTypes || [];
               const updatedTypes = currentList.map(t => t === oldVal ? newVal : t);
               const updatedExpenses = userData.expenses.map(e => e.paymentType === oldVal ? { ...e, paymentType: newVal } : e);
-              handleUpdateUserData({
+              return handleUpdateUserData({
                 paymentTypes: updatedTypes,
                 expenses: updatedExpenses
               });
@@ -786,14 +814,14 @@ export default function App() {
           <ListManagerPage
             title="Situação de Recebimento"
             description="Defina as tags de situação para acompanhar o status de recebimento de suas receitas (Recebido, Pendente, Atrasado, etc)."
-            items={userData.receiptStatuses && userData.receiptStatuses.length > 0 ? userData.receiptStatuses : ['Recebido', 'Pendente', 'Cancelado', 'Atrasado']}
+            items={userData.receiptStatuses || []}
             placeholder="Ex: Em Cobrança"
             onUpdateItems={(items) => handleUpdateUserData({ receiptStatuses: items })}
             onRenameItem={(oldVal, newVal) => {
-              const currentList = userData.receiptStatuses && userData.receiptStatuses.length > 0 ? userData.receiptStatuses : ['Recebido', 'Pendente', 'Cancelado', 'Atrasado'];
+              const currentList = userData.receiptStatuses || [];
               const updatedStatuses = currentList.map(s => s === oldVal ? newVal : s);
               const updatedIncomes = userData.incomes.map(i => i.status === oldVal ? { ...i, status: newVal } : i);
-              handleUpdateUserData({
+              return handleUpdateUserData({
                 receiptStatuses: updatedStatuses,
                 incomes: updatedIncomes
               });
@@ -807,14 +835,14 @@ export default function App() {
           <ListManagerPage
             title="Situação de Pagamento"
             description="Defina as tags de situação para acompanhar contas em aberto ou já quitadas (Pago, Pendente, Atrasado, etc)."
-            items={userData.paymentStatuses && userData.paymentStatuses.length > 0 ? userData.paymentStatuses : ['Pago', 'Pendente', 'Atrasado', 'Cancelado']}
+            items={userData.paymentStatuses || []}
             placeholder="Ex: Em Análise"
             onUpdateItems={(items) => handleUpdateUserData({ paymentStatuses: items })}
             onRenameItem={(oldVal, newVal) => {
-              const currentList = userData.paymentStatuses && userData.paymentStatuses.length > 0 ? userData.paymentStatuses : ['Pago', 'Pendente', 'Atrasado', 'Cancelado'];
+              const currentList = userData.paymentStatuses || [];
               const updatedStatuses = currentList.map(s => s === oldVal ? newVal : s);
               const updatedExpenses = userData.expenses.map(e => e.status === oldVal ? { ...e, status: newVal } : e);
-              handleUpdateUserData({
+              return handleUpdateUserData({
                 paymentStatuses: updatedStatuses,
                 expenses: updatedExpenses
               });
@@ -829,14 +857,14 @@ export default function App() {
           <ListManagerPage
             title="Cadastro Categoria Receitas"
             description="Organize suas fontes de renda por categoria (Salário, Investimentos, Freelance, Bônus, etc)."
-            items={userData.incomeCategories && userData.incomeCategories.length > 0 ? userData.incomeCategories : ['Salário', 'Investimentos', 'Freelance / Extra', 'Aluguel Recebido', 'Bônus / Comissões', 'Outros']}
+            items={userData.incomeCategories || []}
             placeholder="Ex: Aluguel Recebido"
             onUpdateItems={(items) => handleUpdateUserData({ incomeCategories: items })}
             onRenameItem={(oldVal, newVal) => {
-              const currentList = userData.incomeCategories && userData.incomeCategories.length > 0 ? userData.incomeCategories : ['Salário', 'Investimentos', 'Freelance / Extra', 'Aluguel Recebido', 'Bônus / Comissões', 'Outros'];
+              const currentList = userData.incomeCategories || [];
               const updatedCategories = currentList.map(c => c === oldVal ? newVal : c);
               const updatedIncomes = userData.incomes.map(i => i.category === oldVal ? { ...i, category: newVal } : i);
-              handleUpdateUserData({
+              return handleUpdateUserData({
                 incomeCategories: updatedCategories,
                 incomes: updatedIncomes
               });
@@ -851,26 +879,12 @@ export default function App() {
           <ListManagerPage
             title="Cadastro Categoria Despesas"
             description="Agrupe seus custos mensais para entender onde você gasta mais (Moradia, Alimentação, Saúde, Transporte, etc)."
-            items={userData.expenseCategories && userData.expenseCategories.length > 0 ? userData.expenseCategories : [
-              'Alimentação',
-              'Limpeza',
-              'Frutas/Verduras',
-              'Açougue',
-              'Aluguel',
-              'Combustível',
-              'Educação',
-              'Lazer',
-              'Impostos',
-              'Manutenção casa',
-              'Ajuda pessoas',
-              'Reserva de emergência',
-              'Investimentos'
-            ]}
+            items={userData.expenseCategories || []}
             placeholder="Ex: Serviços de Streaming"
             onUpdateItems={(items) => handleUpdateUserData({ expenseCategories: items })}
             onRenameItem={(oldVal, newVal) => {
               const updates = renameExpenseCategoryInUserData(userData, oldVal, newVal);
-              handleUpdateUserData(updates);
+              return handleUpdateUserData(updates);
             }}
           />
         );
@@ -905,6 +919,7 @@ export default function App() {
             userProfile={currentUser}
             onUpdateUserData={handleUpdateUserData}
             onUpdateUserProfile={handleUpdateUserProfileInState}
+            onUserDataReplaced={updateUserDataState}
             onLogout={handleLogout}
           />
         );
@@ -1328,6 +1343,45 @@ export default function App() {
           </Suspense>
         </PullToRefresh>
       </main>
+
+      {/* Popup Modal Centralizado de Falha na Gravação (Acima de todos os modais) */}
+      {saveFailurePopup && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
+          onClick={() => setSaveFailurePopup(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border-2 border-rose-500/40 dark:border-rose-500/50 shadow-2xl p-6 text-center space-y-4"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="save-failure-title"
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+            <div className="space-y-2">
+              <h3 id="save-failure-title" className="text-lg font-extrabold text-slate-900 dark:text-white">
+                {saveFailurePopup.title}
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                {saveFailurePopup.message}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Nenhuma informação foi gravada localmente e seus dados preenchidos foram mantidos na tela para você tentar gravar novamente.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaveFailurePopup(null)}
+              className="w-full rounded-xl bg-rose-600 hover:bg-rose-500 text-white py-2.5 px-4 text-sm font-bold shadow-md shadow-rose-600/20 transition-colors cursor-pointer"
+            >
+              Entendi, tentar gravar novamente
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

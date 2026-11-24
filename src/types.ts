@@ -157,5 +157,6 @@ export interface UserData {
   investments?: Investment[];
   investmentTypes?: string[];
   investmentStatuses?: string[];
+  _version?: string;
 }
 
