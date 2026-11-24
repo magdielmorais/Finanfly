@@ -115,10 +115,13 @@ import { createClient } from "@supabase/supabase-js";
 let supabaseClient: any = null;
 let lastTestedKey: string = "";
 let isSupabaseKeyInvalid: boolean = false;
+let invalidKeyMarkedAt: number = 0;
 
 function markSupabaseKeyAsInvalid(reason?: string) {
-  if (!isSupabaseKeyInvalid) {
+  const now = Date.now();
+  if (!isSupabaseKeyInvalid || (now - invalidKeyMarkedAt > 15000)) {
     isSupabaseKeyInvalid = true;
+    invalidKeyMarkedAt = now;
     supabaseClient = null;
     console.error(`[Supabase Erro] A chave do Supabase é inválida ou expirou${reason ? ` (${reason})` : ""}. Configure SUPABASE_URL e SUPABASE_ANON_KEY válidas nas variáveis de ambiente.`);
   }
@@ -134,10 +137,16 @@ function getSupabaseClient() {
   if (cleanKey !== lastTestedKey) {
     lastTestedKey = cleanKey;
     isSupabaseKeyInvalid = false;
+    invalidKeyMarkedAt = 0;
   }
 
   if (isSupabaseKeyInvalid) {
-    return null;
+    if (Date.now() - invalidKeyMarkedAt > 15000) {
+      isSupabaseKeyInvalid = false;
+      invalidKeyMarkedAt = 0;
+    } else {
+      return null;
+    }
   }
 
   if (cleanUrl && cleanKey && !isPlaceholderValue(cleanUrl) && !isPlaceholderValue(cleanKey)) {
@@ -170,6 +179,7 @@ function isTransientNetworkError(err: any): boolean {
     msg.includes("timeout") ||
     msg.includes("econnreset") ||
     msg.includes("etimedout") ||
+    msg.includes("econnrefused") ||
     msg.includes("fetch failed") ||
     msg.includes("network") ||
     msg.includes("502") ||
@@ -178,7 +188,7 @@ function isTransientNetworkError(err: any): boolean {
   );
 }
 
-async function withSupabaseRetry<T = any>(fn: () => PromiseLike<T>, label: string, retries = 1): Promise<T> {
+async function withSupabaseRetry<T = any>(fn: () => PromiseLike<T>, label: string, retries = 2): Promise<T> {
   let lastErr: any;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -742,7 +752,7 @@ async function getUserByEmail(
         supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
         supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
       ]);
-      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER')), 10000));
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER')), 15000));
       return Promise.race([queryPromise, timeoutPromise]);
     }, `getUserByEmail:${lowerEmail}`);
 
@@ -1119,7 +1129,16 @@ function ensureUserHasDefaults(data: any) {
 
 function isMissingTableOrColumnError(err: any): boolean {
   if (!err) return false;
-  return err.code === '42P01' || err.code === 'PGRST205' || String(err.message || '').includes('schema cache');
+  const msg = String(err.message || '').toLowerCase();
+  return (
+    err.code === '42P01' ||
+    err.code === '42703' ||
+    err.code === 'PGRST205' ||
+    err.code === 'PGRST204' ||
+    msg.includes('schema cache') ||
+    msg.includes('does not exist') ||
+    msg.includes('could not find')
+  );
 }
 
 function hasSupabaseQueryError(res: any): boolean {
@@ -1191,11 +1210,11 @@ async function getUserDataByEmail(
         supabase.from('investment_statuses').select('name').eq('email', lowerEmail),
         supabase.from('user_data').select('data').eq('email', lowerEmail).maybeSingle()
       ]);
-      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 15000));
+      const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER_DATA')), 25000));
       return Promise.race([queryPromise, timeoutPromise]);
     }, `getUserDataByEmail:${lowerEmail}`);
 
-    const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && res.error.code === '42P01');
+    const relationMissing = [pTypesRes, incomesRes, expensesRes].some(res => res.error && isMissingTableOrColumnError(res.error));
 
     if (relationMissing) {
       const { data, error } = await supabase
@@ -1238,14 +1257,28 @@ async function getUserDataByEmail(
       ['investment_statuses', invStatusesRes]
     ];
 
-    const failedTables = queryChecks.filter(([, r]) => hasSupabaseQueryError(r)).map(([name]) => name);
+    const coreTables = new Set([
+      'payment_types',
+      'payment_statuses',
+      'income_categories',
+      'expense_categories',
+      'incomes',
+      'expenses'
+    ]);
+
+    const failedEntries = queryChecks.filter(([, r]) => hasSupabaseQueryError(r));
+    const failedTables = failedEntries.map(([name]) => name);
+    const coreFailedTables = failedEntries.filter(([name]) => coreTables.has(name)).map(([name]) => name);
     const backupError = hasSupabaseQueryError(backupUserDataRes);
     const backupData = !backupError ? backupUserDataRes?.data?.data : null;
 
-    if (failedTables.length > 0) {
-      console.warn(`[getUserDataByEmail] Erros parciais ao consultar Supabase para ${lowerEmail}:`, failedTables.join(', '));
-      if (throwOnError && !backupData && !cached?.data) {
-        throw new Error(`Falha ao consultar tabelas no Supabase (${failedTables.join(', ')}).`);
+    if (failedEntries.length > 0) {
+      const details = failedEntries
+        .map(([name, r]) => `${name}: [${r?.error?.code || 'ERR'}] ${r?.error?.message || 'Erro desconhecido'}`)
+        .join(' | ');
+      console.warn(`[getUserDataByEmail] Erros parciais ao consultar Supabase para ${lowerEmail}:`, details);
+      if (throwOnError && (coreFailedTables.length > 0 || failedEntries.length === queryChecks.length) && !backupData && !cached?.data) {
+        throw new Error(`Falha ao consultar tabelas principais no Supabase (${(coreFailedTables.length > 0 ? coreFailedTables : failedTables).join(', ')}).`);
       }
     }
 
@@ -1954,7 +1987,12 @@ app.get("/api/supabase-status", async (req, res) => {
 });
 
 // ---------------- AUTENTICAÇÃO E SESSÃO SEGURA (JWT) ----------------
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
+const rawJwtSecret = cleanEnvString(process.env.JWT_SECRET);
+const hasConfiguredJwtSecret = Boolean(rawJwtSecret && !isPlaceholderValue(rawJwtSecret) && rawJwtSecret.length >= 16);
+if (!hasConfiguredJwtSecret) {
+  console.warn("[Segurança] Variável JWT_SECRET não configurada (ou muito curta). Usando segredo temporário em memória; configure JWT_SECRET fixa nas variáveis de ambiente de produção.");
+}
+const JWT_SECRET = hasConfiguredJwtSecret ? rawJwtSecret : crypto.randomBytes(32).toString("hex");
 
 function generateAuthToken(payload: { email: string; role: string }): string {
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
@@ -2132,16 +2170,22 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
-    // Migra senha legada em texto plano para hash scrypt no Supabase
+    // Migra senha legada em texto plano para hash scrypt no Supabase (sem impedir login se houver restrição pontual)
     if (needsUpgrade) {
-      const upgradedHash = hashPassword(rawPassword);
-      const supabase = requireSupabase();
-      const { error: upgradeErr } = await supabase
-        .from('users')
-        .update({ password: upgradedHash })
-        .eq('email', normalizedEmail);
-      if (!upgradeErr) {
-        user.password = upgradedHash;
+      try {
+        const upgradedHash = hashPassword(rawPassword);
+        const supabase = requireSupabase();
+        const { error: upgradeErr } = await supabase
+          .from('users')
+          .update({ password: upgradedHash })
+          .eq('email', user.email || normalizedEmail);
+        if (!upgradeErr) {
+          user.password = upgradedHash;
+        } else {
+          console.warn(`[Login] Aviso ao migrar hash de senha para ${normalizedEmail}:`, upgradeErr.message);
+        }
+      } catch (upgradeCatch: any) {
+        console.warn(`[Login] Exceção não fatal ao migrar hash de senha para ${normalizedEmail}:`, upgradeCatch?.message || upgradeCatch);
       }
     }
 
@@ -2154,8 +2198,14 @@ app.post("/api/auth/login", async (req, res) => {
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
     res.json({ user: userProfile, token, userData: safeUserData });
-  } catch (err) {
-    console.error("Login error:", err);
+  } catch (err: any) {
+    const errMsg = String(err?.message || err || "");
+    console.error("Login error:", errMsg);
+    if (errMsg.includes("não configurado")) {
+      return res.status(503).json({
+        error: "Banco de dados Supabase não configurado no ambiente do servidor. Verifique as variáveis SUPABASE_URL e SUPABASE_ANON_KEY."
+      });
+    }
     res.status(503).json({ error: "Instabilidade temporária ao conectar ao banco de dados. Aguarde alguns instantes e tente novamente." });
   }
 });
