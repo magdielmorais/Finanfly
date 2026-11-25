@@ -2464,14 +2464,33 @@ app.get("/api/health", async (_req, res) => {
 
   if (client) {
     try {
-      const { error } = await client.from("users").select("count", { count: "exact", head: true });
+      const { error, status } = await client.from("users").select("email").limit(1);
       if (!error || error.code === "PGRST116" || error.code === "42P01") {
         dbConnected = true;
       } else {
-        dbError = "Falha ao consultar banco de dados";
+        const rawErrMsg = String(error.message || "").toLowerCase();
+        const rawHint = String(error.hint || "").toLowerCase();
+        console.error(`[Health] Falha na consulta Supabase (HTTP ${status || "?"}, code=${error.code || "none"}):`, error.message || error.details || "sem mensagem");
+        if (rawErrMsg.includes("invalid api key") || rawHint.includes("api key") || error.code === "PGRST301" || status === 401) {
+          dbError = usingServiceRoleKey
+            ? "Chave SUPABASE_SERVICE_ROLE_KEY inválida"
+            : "Chave SUPABASE_ANON_KEY inválida";
+        } else if (rawErrMsg.includes("fetch failed") || rawErrMsg.includes("enotfound") || rawErrMsg.includes("econnrefused")) {
+          dbError = "URL SUPABASE_URL inacessível ou inválida";
+        } else if (rawErrMsg.includes("permission denied") || error.code === "42501" || status === 403) {
+          dbError = "Permissão negada pelo banco (verifique SUPABASE_SERVICE_ROLE_KEY ou RLS)";
+        } else {
+          const detailTag = error.code || (status ? `HTTP ${status}` : "");
+          dbError = detailTag ? `Falha ao consultar banco de dados (${detailTag})` : "Falha ao consultar banco de dados";
+        }
       }
-    } catch {
-      dbError = "Timeout ou indisponibilidade de rede";
+    } catch (catchErr: any) {
+      const catchMsg = String(catchErr?.message || "").toLowerCase();
+      if (catchMsg.includes("enotfound") || catchMsg.includes("fetch failed") || catchMsg.includes("invalid url")) {
+        dbError = "URL SUPABASE_URL inacessível ou inválida";
+      } else {
+        dbError = "Timeout ou indisponibilidade de rede";
+      }
     }
   } else {
     dbError = "Supabase não configurado";
