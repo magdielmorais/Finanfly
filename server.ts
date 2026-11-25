@@ -63,10 +63,12 @@ function isPlaceholderValue(v?: string): boolean {
   const clean = v.trim().replace(/^["']|["']$/g, "").toLowerCase();
   if (!clean) return true;
   return (
-    clean.includes("insira") ||
+    clean.includes("insira_") ||
+    clean.includes("insira ") ||
     clean.includes("your_") ||
     clean.includes("placeholder") ||
-    clean.includes("aqui") ||
+    clean.includes("_aqui") ||
+    clean === "aqui" ||
     clean.includes("<") ||
     clean.includes(">") ||
     clean.includes("seu_") ||
@@ -2827,7 +2829,7 @@ app.post("/api/auth/login", authLoginLimiter, async (req, res) => {
     console.error("Login error:", errMsg);
     if (errMsg.includes("não configurado")) {
       return res.status(503).json({
-        error: "Banco de dados Supabase não configurado no ambiente do servidor. Verifique as variáveis SUPABASE_URL e SUPABASE_ANON_KEY."
+        error: "Banco de dados Supabase não configurado no ambiente deste servidor. Verifique as variáveis SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (ou SUPABASE_ANON_KEY) e JWT_SECRET nas configurações de publicação/produção."
       });
     }
     res.status(503).json({ error: "Instabilidade temporária ao conectar ao banco de dados. Aguarde alguns instantes e tente novamente." });
@@ -5587,7 +5589,8 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const cwdDist = path.join(process.cwd(), "dist");
+    const distPath = fs.existsSync(path.join(cwdDist, "index.html")) ? cwdDist : _dirname;
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
