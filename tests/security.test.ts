@@ -38,6 +38,10 @@ import {
   isPasswordResetTokenActive,
   buildPasswordResetEmailPayload,
 } from "../src/server/passwordReset";
+import {
+  ServerHealthMonitor,
+  buildHealthPayload,
+} from "../src/server/healthMonitor";
 import { generateRecordId } from "../src/utils/id";
 
 describe("FinanFly Schema Safety & Performance Catalog", () => {
@@ -485,6 +489,45 @@ describe("FinanFly Self-Service Password Reset Tokens", () => {
     });
     assert.equal(payload.html.includes("<script>"), false);
     assert.ok(payload.html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
+  });
+});
+
+describe("FinanFly Health Monitor & 5xx Alert Telemetry", () => {
+  it("contabiliza requisições e 5xx sem query string, respeita cooldown de alertas e monta payload /api/health", () => {
+    const alerts: any[] = [];
+    const monitor = new ServerHealthMonitor({
+      alertCooldownMs: 60_000,
+      onAlert: (ev) => alerts.push(ev),
+    });
+
+    monitor.recordRequest(200, "/api/user/data?year=2026", 1000);
+    monitor.recordRequest(503, "/api/user/data?token=segredo", 2000);
+    monitor.recordRequest(500, "/api/payment/webhook", 3000);
+    monitor.recordMaintenanceRun(4, 4000);
+
+    const snap = monitor.getSnapshot();
+    assert.equal(snap.totalRequests, 3);
+    assert.equal(snap.total5xx, 2);
+    assert.equal(snap.last5xxPath, "/api/payment/webhook");
+    assert.equal(snap.lastMaintenanceCleanedCount, 4);
+    assert.equal(alerts.length, 1, "Cooldown deve evitar rajada de alertas repetidos");
+    assert.equal(alerts[0].path, "/api/user/data");
+
+    const health = buildHealthPayload({
+      dbConnected: true,
+      latencyMs: 12,
+      usingServiceRole: true,
+      jwtSecretConfigured: true,
+      uptimeSeconds: 120,
+      retentionYears: 3,
+      trashDays: 3,
+      backupDays: 3,
+      monitorSnapshot: snap,
+    });
+    assert.equal(health.ok, true);
+    assert.equal(health.status, "healthy");
+    assert.equal(health.monitoring.total5xx, 2);
+    assert.equal(health.retention.backupDays, 3);
   });
 });
 

@@ -45,6 +45,12 @@ import {
   isPasswordResetTokenActive,
   buildPasswordResetEmailPayload,
 } from "./src/server/passwordReset";
+import {
+  ServerHealthMonitor,
+  createHttpTelemetryMiddleware,
+  sendMonitoringAlertWebhook,
+  buildHealthPayload,
+} from "./src/server/healthMonitor";
 
 // Define _dirname de forma segura para ambientes ES Module (ESM) e CommonJS (CJS)
 const _dirname = typeof __dirname !== "undefined"
@@ -148,10 +154,20 @@ const app = express();
 const PORT = 3000;
 const serverStartedAt = Date.now();
 
+const healthMonitor = new ServerHealthMonitor({
+  onAlert: (event) => {
+    const webhookUrl = (process.env.MONITORING_ALERT_WEBHOOK_URL || "").trim();
+    if (webhookUrl && !isPlaceholderValue(webhookUrl)) {
+      void sendMonitoringAlertWebhook(webhookUrl, event);
+    }
+  },
+});
+
 app.set("trust proxy", 1);
 app.use(createSecurityHeadersMiddleware());
 app.use("/api", createStrictCorsMiddleware());
 app.use(express.json({ limit: "5mb" }));
+app.use("/api", createHttpTelemetryMiddleware(healthMonitor));
 app.use("/api", createApiGeneralLimiter());
 
 const authLoginLimiter = createAuthLoginIpLimiter();
@@ -2460,28 +2476,22 @@ app.get("/api/health", async (_req, res) => {
   }
 
   const latencyMs = Date.now() - startedCheck;
-  const payload = {
-    ok: dbConnected,
-    status: dbConnected ? "healthy" : "degraded",
+  if (!dbConnected && dbError) {
+    healthMonitor.notifyDbDegraded(dbError);
+  }
+
+  const payload = buildHealthPayload({
+    dbConnected,
+    latencyMs,
+    dbError,
+    usingServiceRole: isUsingServiceRole(),
+    jwtSecretConfigured: hasConfiguredJwtSecret,
     uptimeSeconds: Math.floor((Date.now() - serverStartedAt) / 1000),
-    timestamp: new Date().toISOString(),
-    database: {
-      connected: dbConnected,
-      latencyMs,
-      usingServiceRole: isUsingServiceRole(),
-      ...(dbError ? { error: dbError } : {}),
-    },
-    security: {
-      jwtSecretConfigured: hasConfiguredJwtSecret,
-      rateLimitingEnabled: true,
-      corsRestricted: true,
-      optimisticLockingEnabled: true,
-    },
-    retention: {
-      dataYears: RETENTION_YEARS,
-      trashDays: TRASH_RETENTION_DAYS,
-    },
-  };
+    retentionYears: RETENTION_YEARS,
+    trashDays: TRASH_RETENTION_DAYS,
+    backupDays: BACKUP_RETENTION_DAYS,
+    monitorSnapshot: healthMonitor.getSnapshot(),
+  });
 
   res.status(dbConnected ? 200 : 503).json(payload);
 });
@@ -5551,6 +5561,25 @@ async function startServer() {
     res.status(404).end();
   });
 
+  // Global Express Error Handler for /api routes (evita vazamento de stack trace e registra 5xx)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) {
+      return next(err);
+    }
+    const status = Number(err?.status || err?.statusCode || 500);
+    if (status >= 500) {
+      console.error(`[API Error] ${req.method} ${req.path}:`, err?.message || err);
+    }
+    if (req.path.startsWith("/api")) {
+      return res.status(status >= 400 && status < 600 ? status : 500).json({
+        error: status === 413
+          ? "Tamanho da requisição excede o limite permitido."
+          : "Erro interno temporário no servidor. Tente novamente em instantes.",
+      });
+    }
+    return next(err);
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -5565,9 +5594,71 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const runExpiredMaintenanceCleanup = async () => {
+    const client = getSupabaseClient();
+    if (!client) return;
+    const nowIso = new Date().toISOString();
+    let cleaned = 0;
+    try {
+      const { data: trashDel } = await client
+        .from("trash_items")
+        .delete()
+        .lt("expires_at", nowIso)
+        .select("id");
+      if (Array.isArray(trashDel)) cleaned += trashDel.length;
+    } catch {
+      // ignora silenciosamente se tabela ainda não existir
+    }
+    try {
+      const { data: bkpDel } = await client
+        .from("user_backups")
+        .delete()
+        .lt("expires_at", nowIso)
+        .select("id");
+      if (Array.isArray(bkpDel)) cleaned += bkpDel.length;
+    } catch {
+      // ignora silenciosamente se tabela ainda não existir
+    }
+    try {
+      const { data: resetRows } = await client
+        .from("system_settings")
+        .select("key, value")
+        .like("key", `${PASSWORD_RESET_SETTING_PREFIX}%`)
+        .limit(100);
+      const expiredResetKeys = (resetRows || [])
+        .filter((r: any) => !isPasswordResetTokenActive(r?.value))
+        .map((r: any) => r.key);
+      if (expiredResetKeys.length > 0) {
+        await client.from("system_settings").delete().in("key", expiredResetKeys);
+        cleaned += expiredResetKeys.length;
+      }
+    } catch {
+      // ignora silenciosamente
+    }
+    healthMonitor.recordMaintenanceRun(cleaned);
+  };
+
+  setTimeout(() => {
+    void runExpiredMaintenanceCleanup();
+  }, 45_000).unref();
+  setInterval(() => {
+    void runExpiredMaintenanceCleanup();
+  }, 6 * 60 * 60 * 1000).unref();
+
+  const httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
+
+  const handleGracefulShutdown = (signal: string) => {
+    console.log(`[Shutdown] Sinal ${signal} recebido. Encerrando servidor HTTP com segurança...`);
+    httpServer.close(() => {
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 8000).unref();
+  };
+
+  process.once("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
+  process.once("SIGINT", () => handleGracefulShutdown("SIGINT"));
 }
 
 startServer();
