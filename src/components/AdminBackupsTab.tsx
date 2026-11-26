@@ -545,7 +545,7 @@ export const AdminBackupsTab: React.FC<AdminBackupsTabProps> = ({
                       Nenhum backup dos últimos 3 dias encontrado para os filtros selecionados.
                     </p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                      Os backups automáticos são gravados conforme os usuários salvam alterações, ou você pode gerar um ponto de backup agora mesmo.
+                      Os backups automáticos são gravados 1 vez por dia no primeiro acesso do usuário, ou você pode gerar um ponto de backup agora mesmo.
                     </p>
                     {!tableMissing && (
                       <button

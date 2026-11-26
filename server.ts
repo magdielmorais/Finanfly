@@ -1592,15 +1592,28 @@ async function archiveDeletedItemsToTrash(
 }
 
 type BackupTriggerType = 'auto' | 'manual' | 'pre_restore' | 'user_restore';
-const AUTO_BACKUP_THROTTLE_MS = 15 * 60 * 1000;
-const lastAutoBackupAt = new Map<string, number>();
+const BACKUP_DAY_TIMEZONE = 'America/Sao_Paulo';
+const lastDailyAutoBackupDay = new Map<string, string>();
+const dailyAutoBackupInFlight = new Map<string, Promise<void>>();
+
+function getBrazilCalendarDayInfo(nowMs = Date.now()): { dayKey: string; startOfDayIso: string } {
+  const dayKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BACKUP_DAY_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(nowMs));
+  // America/Sao_Paulo opera em UTC-03:00 sem horário de verão
+  const startOfDayIso = new Date(`${dayKey}T00:00:00-03:00`).toISOString();
+  return { dayKey, startOfDayIso };
+}
 
 async function createUserBackupSnapshot(
   supabase: any,
   email: string,
   data: any,
   triggerType: BackupTriggerType = 'auto',
-  options?: { respectThrottle?: boolean; allowEmpty?: boolean }
+  options?: { allowEmpty?: boolean }
 ): Promise<{ created: boolean; tableMissing?: boolean; backupId?: string; skippedReason?: string }> {
   const lowerEmail = email.toLowerCase().trim();
   if (!lowerEmail || !data || typeof data !== 'object') {
@@ -1608,14 +1621,7 @@ async function createUserBackupSnapshot(
   }
 
   const now = Date.now();
-  if (options?.respectThrottle) {
-    const lastTs = lastAutoBackupAt.get(lowerEmail) || 0;
-    if (now - lastTs < AUTO_BACKUP_THROTTLE_MS) {
-      return { created: false, skippedReason: 'throttled' };
-    }
-  }
-
-  const { _version, _expectedVersion, _allowClearAll, ...rawSnapshot } = data;
+  const { _version, _expectedVersion, _allowClearAll, _loadedYear, ...rawSnapshot } = data;
   const retention = applyThreeYearRetention(rawSnapshot);
   const cleanSnapshot = retention.prunedData;
   const summary = summarizeUserDataSnapshot(cleanSnapshot);
@@ -1655,13 +1661,70 @@ async function createUserBackupSnapshot(
     }
 
     if (triggerType === 'auto') {
-      lastAutoBackupAt.set(lowerEmail, now);
+      const { dayKey } = getBrazilCalendarDayInfo(now);
+      lastDailyAutoBackupDay.set(lowerEmail, dayKey);
     }
     return { created: true, backupId };
   } catch (err: any) {
     console.warn(`[user_backups] Exceção ao gravar snapshot para ${lowerEmail}:`, err?.message || err);
     return { created: false, skippedReason: err?.message || 'error' };
   }
+}
+
+async function ensureDailyAccessBackup(supabase: any, email: string, data: any): Promise<void> {
+  if (!supabase || !email || !data || typeof data !== 'object' || data._loadedYear) {
+    return;
+  }
+
+  const lowerEmail = email.toLowerCase().trim();
+  if (!lowerEmail) return;
+
+  const { dayKey, startOfDayIso } = getBrazilCalendarDayInfo();
+  if (lastDailyAutoBackupDay.get(lowerEmail) === dayKey) {
+    return;
+  }
+
+  const existingTask = dailyAutoBackupInFlight.get(lowerEmail);
+  if (existingTask) {
+    return existingTask;
+  }
+
+  const task = (async () => {
+    try {
+      if (lastDailyAutoBackupDay.get(lowerEmail) === dayKey) {
+        return;
+      }
+
+      const { data: existingToday, error: checkErr } = await supabase
+        .from('user_backups')
+        .select('id')
+        .eq('email', lowerEmail)
+        .eq('trigger_type', 'auto')
+        .gte('created_at', startOfDayIso)
+        .limit(1);
+
+      if (checkErr) {
+        if (!isMissingTableOrColumnError(checkErr)) {
+          console.warn(`[user_backups] Falha ao verificar backup diário para ${lowerEmail}:`, checkErr.message);
+        }
+        return;
+      }
+
+      if (Array.isArray(existingToday) && existingToday.length > 0) {
+        lastDailyAutoBackupDay.set(lowerEmail, dayKey);
+        return;
+      }
+
+      await createUserBackupSnapshot(supabase, lowerEmail, data, 'auto');
+    } catch (err: any) {
+      console.warn(`[user_backups] Erro no backup automático diário para ${lowerEmail}:`, err?.message || err);
+    } finally {
+      dailyAutoBackupInFlight.delete(lowerEmail);
+    }
+  })();
+
+  dailyAutoBackupInFlight.set(lowerEmail, task);
+  return task;
 }
 
 // Helper: Diff-based sync for name-list tables (paginated + strictly throws on any error)
@@ -2110,11 +2173,8 @@ async function saveUserDataByEmail(
       throw new Error(`Erro ao atualizar snapshot user_data no Supabase: ${backupErr.message}`);
     }
 
-    if (!options?.skipAutoBackup) {
-      void createUserBackupSnapshot(supabase, lowerEmail, cleanPayload, 'auto', { respectThrottle: true }).catch((bkpErr) => {
-        console.warn('[user_backups] Falha em segundo plano no snapshot automático:', bkpErr?.message || bkpErr);
-      });
-    }
+    // Backups automáticos não são mais criados a cada salvamento (ocorrem 1x/dia no primeiro acesso)
+    void options?.skipAutoBackup;
 
     const versionedData = { ...cleanPayload, _version: newVersion };
     userDataCache.set(lowerEmail, { data: versionedData, timestamp: Date.now() });
@@ -2340,9 +2400,7 @@ async function saveGranularEntityMutation(
     throw new Error(`Erro ao sincronizar snapshot incremental: ${backupErr.message}`);
   }
 
-  void createUserBackupSnapshot(supabase, lowerEmail, nextCleanData, 'auto', { respectThrottle: true }).catch((bkpErr) => {
-    console.warn('[user_backups] Falha em segundo plano no snapshot incremental:', bkpErr?.message || bkpErr);
-  });
+  // Backups automáticos não são criados ao lançar dados individuais (ocorrem 1x/dia no primeiro acesso)
 
   const nextVersioned = { ...nextCleanData, _version: newVersion };
   userDataCache.set(lowerEmail, { data: nextVersioned, timestamp: Date.now() });
@@ -2916,6 +2974,9 @@ app.post("/api/auth/login", authLoginLimiter, async (req, res) => {
     const { password: _, ...userProfile } = user;
     const token = generateAuthToken({ email: user.email, role: user.role });
     res.json({ user: userProfile, token, userData: safeUserData });
+
+    // Garante no máximo 1 backup automático por dia no primeiro acesso
+    void ensureDailyAccessBackup(getSupabaseClient(), normalizedEmail, safeUserData);
   } catch (err: any) {
     const errMsg = String(err?.message || err || "");
     console.error("Login error:", errMsg);
@@ -3991,6 +4052,11 @@ app.get("/api/user/data", async (req, res) => {
       res.setHeader("X-Data-Version", String(payload._version));
     }
     res.json(payload);
+
+    // No carregamento completo dos dados (primeiro acesso do dia), garante 1 backup diário automático
+    if (!year && userData) {
+      void ensureDailyAccessBackup(getSupabaseClient(), authUser.email, payload);
+    }
   } catch (err) {
     console.error("User data get error:", err);
     res.status(503).json({ error: "Falha temporária ao carregar dados do banco. Tente atualizar novamente." });
@@ -5386,7 +5452,6 @@ app.post("/api/admin/user-backups/create", async (req, res) => {
         if (!lowerEmail) continue;
         const data = await getUserDataByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
         const result = await createUserBackupSnapshot(supabase, lowerEmail, data, "manual", {
-          respectThrottle: false,
           allowEmpty: false
         });
         if (result.tableMissing) {
@@ -5437,7 +5502,6 @@ app.post("/api/admin/user-backups/create", async (req, res) => {
 
     const currentData = await getUserDataByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
     const result = await createUserBackupSnapshot(supabase, lowerTargetEmail, currentData, "manual", {
-      respectThrottle: false,
       allowEmpty: true
     });
 
@@ -5529,7 +5593,6 @@ app.post("/api/admin/user-backups/restore", async (req, res) => {
     await withUserWriteLock(lowerTargetEmail, async () => {
       const currentData = await getUserDataByEmail(lowerTargetEmail, { bypassCache: true, throwOnError: true });
       await createUserBackupSnapshot(supabase, lowerTargetEmail, currentData, "pre_restore", {
-        respectThrottle: false,
         allowEmpty: true
       });
 
@@ -5642,7 +5705,13 @@ async function startServer() {
   // Explicit static serving for public folder icons and PWA assets
   const publicDir = path.join(process.cwd(), "public");
   if (fs.existsSync(publicDir)) {
-    app.use(express.static(publicDir));
+    app.use(express.static(publicDir, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(`${path.sep}sw.js`) || filePath.endsWith(`${path.sep}index.html`)) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        }
+      },
+    }));
   }
 
   // Explicit route handlers for favicon and app icons
@@ -5716,8 +5785,20 @@ async function startServer() {
   } else {
     const cwdDist = path.join(process.cwd(), "dist");
     const distPath = fs.existsSync(path.join(cwdDist, "index.html")) ? cwdDist : _dirname;
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(`${path.sep}index.html`) || filePath.endsWith(`${path.sep}sw.js`)) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    }));
     app.get("*", (req, res) => {
+      if (req.path.startsWith("/api/")) {
+        return res.status(404).json({ error: "Rota não encontrada." });
+      }
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
