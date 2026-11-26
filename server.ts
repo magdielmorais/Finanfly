@@ -1729,8 +1729,27 @@ async function syncIdEntityTable(
     throw new Error(`[${table}] Erro ao consultar IDs existentes: ${fetchErr.message}`);
   }
 
-  for (let i = 0; i < rows.length; i += 500) {
-    const chunk = rows.slice(i, i + 500);
+  const existingIdSet = new Set((existingRows || []).map((r: any) => String(r?.id || '').trim()).filter(Boolean));
+  let rowsToUpsert = rows;
+  if (options?.entityKey && Array.isArray(options.previousItems) && Object.prototype.hasOwnProperty.call(ENTITY_TABLE_MAP, options.entityKey)) {
+    const mapper = ENTITY_TABLE_MAP[options.entityKey].mapRow;
+    const prevMappedById = new Map<string, string>();
+    for (const prevItem of options.previousItems) {
+      if (!prevItem || !prevItem.id) continue;
+      const mapped = mapper(lowerEmail, prevItem);
+      prevMappedById.set(String(mapped.id), JSON.stringify(mapped));
+    }
+    rowsToUpsert = rows.filter((r: any) => {
+      const id = String(r?.id || '').trim();
+      if (!id || !existingIdSet.has(id)) return true;
+      const prevJson = prevMappedById.get(id);
+      if (!prevJson) return true;
+      return prevJson !== JSON.stringify(r);
+    });
+  }
+
+  for (let i = 0; i < rowsToUpsert.length; i += 500) {
+    const chunk = rowsToUpsert.slice(i, i + 500);
     await assertNoForeignRowOwnership(
       supabase,
       table,
@@ -1888,35 +1907,55 @@ async function saveUserDataByEmail(
       );
     }
 
-    // 9. Sync annualPlanning (strictly throws on error, supports deletes & 3-year cleanup cleanly)
+    // 9. Sync annualPlanning (batch upsert + parallel existing-year check, strictly throws on error)
     if (shouldSync('annualPlanning')) {
       promises.push((async () => {
-        const { data: existingPlans, error: fetchPlanErr } = await fetchAllPaginatedRows(
-          (from, to) => supabase.from('annual_planning').select('id, year').eq('email', lowerEmail).order('year', { ascending: true }).range(from, to),
-          'saveUserDataByEmail:annual_planning:select'
-        );
-        if (fetchPlanErr) {
-          throw new Error(`[annual_planning] Erro ao consultar planejamento atual: ${fetchPlanErr.message}`);
-        }
-
-        const desiredYears = new Set<number>();
-        for (const plan of cleanPayload.annualPlanning) {
-          const planYear = Number(plan.year);
-          desiredYears.add(planYear);
-          const { error: planErr } = await withSupabaseRetry<any>(
-            () => supabase.from('annual_planning').upsert({
-              email: lowerEmail,
-              year: planYear,
-              monthly_budgets: plan.monthlyBudgets
-            }, { onConflict: 'email,year' }),
-            'saveUserDataByEmail:annual_planning:upsert'
-          );
-          if (planErr) {
-            throw new Error(`[annual_planning] Erro ao salvar planejamento anual: ${planErr.message}`);
+        const prevPlansMap = new Map<number, string>();
+        if (Array.isArray(options?.previousData?.annualPlanning)) {
+          for (const prevPlan of options.previousData.annualPlanning) {
+            const y = Number(prevPlan?.year);
+            if (!isNaN(y)) {
+              prevPlansMap.set(y, JSON.stringify(prevPlan.monthlyBudgets || []));
+            }
           }
         }
 
-        const yearsToDelete = (existingPlans || [])
+        const desiredYears = new Set<number>();
+        const annualRowsToUpsert: Array<{ email: string; year: number; monthly_budgets: any }> = [];
+        for (const plan of cleanPayload.annualPlanning) {
+          const planYear = Number(plan.year);
+          desiredYears.add(planYear);
+          const serializedBudgets = JSON.stringify(plan.monthlyBudgets || []);
+          if (!prevPlansMap.has(planYear) || prevPlansMap.get(planYear) !== serializedBudgets) {
+            annualRowsToUpsert.push({
+              email: lowerEmail,
+              year: planYear,
+              monthly_budgets: plan.monthlyBudgets
+            });
+          }
+        }
+
+        const [existingPlansRes, upsertRes] = await Promise.all([
+          fetchAllPaginatedRows(
+            (from, to) => supabase.from('annual_planning').select('id, year').eq('email', lowerEmail).order('year', { ascending: true }).range(from, to),
+            'saveUserDataByEmail:annual_planning:select'
+          ),
+          annualRowsToUpsert.length > 0
+            ? withSupabaseRetry<any>(
+                () => supabase.from('annual_planning').upsert(annualRowsToUpsert, { onConflict: 'email,year' }),
+                'saveUserDataByEmail:annual_planning:upsertBatch'
+              )
+            : Promise.resolve({ error: null })
+        ]);
+
+        if (existingPlansRes.error) {
+          throw new Error(`[annual_planning] Erro ao consultar planejamento atual: ${existingPlansRes.error.message}`);
+        }
+        if (upsertRes.error) {
+          throw new Error(`[annual_planning] Erro ao salvar planejamento anual: ${upsertRes.error.message}`);
+        }
+
+        const yearsToDelete = (existingPlansRes.data || [])
           .map((p: any) => Number(p.year))
           .filter((y: number) => !isNaN(y) && !desiredYears.has(y));
         if (yearsToDelete.length > 0) {
@@ -2221,7 +2260,10 @@ async function saveGranularEntityMutation(
       throw new Error('Registro inválido para atualização incremental.');
     }
     const cleanId = item.id.trim();
-    await assertNoForeignRowOwnership(supabase, meta.table, lowerEmail, [cleanId], withSupabaseRetry);
+    const isAlreadyOwnedInList = currentList.some((x: any) => String(x?.id || '').trim() === cleanId);
+    if (!isAlreadyOwnedInList) {
+      await assertNoForeignRowOwnership(supabase, meta.table, lowerEmail, [cleanId], withSupabaseRetry);
+    }
     const row = meta.mapRow(lowerEmail, { ...item, id: cleanId });
     let { error: upErr } = await withSupabaseRetry<any>(
       () => supabase.from(meta.table).upsert(row, { onConflict: 'id' }),
@@ -5724,12 +5766,31 @@ async function startServer() {
     healthMonitor.recordMaintenanceRun(cleaned);
   };
 
+  const runSupabaseKeepAlive = async () => {
+    const client = getSupabaseClient();
+    if (!client) return;
+    try {
+      const { error } = await client.from("users").select("email").limit(1);
+      if (error && error.code !== "PGRST116" && error.code !== "42P01") {
+        console.warn("[KeepAlive] Falha no sinal leve ao Supabase:", error.message || error.code);
+      } else {
+        console.log("[KeepAlive] Sinal leve enviado ao Supabase com sucesso.");
+      }
+    } catch {
+      // ignora erro transitório de rede no keep-alive interno
+    }
+  };
+
   setTimeout(() => {
     void runExpiredMaintenanceCleanup();
   }, 45_000).unref();
   setInterval(() => {
     void runExpiredMaintenanceCleanup();
   }, 6 * 60 * 60 * 1000).unref();
+  // Sinal leve extra a cada 5 dias caso o servidor permaneça continuamente ligado
+  setInterval(() => {
+    void runSupabaseKeepAlive();
+  }, 5 * 24 * 60 * 60 * 1000).unref();
 
   const httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);

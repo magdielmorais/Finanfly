@@ -1,0 +1,67 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # Executa automaticamente a cada 5 dias às 09:00 UTC (06:00 BRT)
+    # para impedir que o projeto gratuito do Supabase entre em pausa (7 dias de inatividade)
+    - cron: '0 9 */5 * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    name: Enviar sinal leve ao Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Ping leve no banco Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          APP_HEALTH_URL: ${{ secrets.APP_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+
+          PINGED=false
+
+          if [ -n "${SUPABASE_URL:-}" ]; then
+            API_KEY="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_ANON_KEY:-}}"
+            if [ -z "$API_KEY" ]; then
+              echo "::error::SUPABASE_URL configurada, mas falta SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_ANON_KEY nos Secrets do GitHub."
+              exit 1
+            fi
+
+            BASE_URL="${SUPABASE_URL%/}"
+            HTTP_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 \
+              -H "apikey: $API_KEY" \
+              -H "Authorization: Bearer $API_KEY" \
+              "$BASE_URL/rest/v1/users?select=email&limit=1")
+
+            echo "Supabase REST keep-alive HTTP status: $HTTP_STATUS"
+            if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+              echo "::error::Falha no sinal leve para o Supabase (HTTP $HTTP_STATUS)."
+              exit 1
+            fi
+            PINGED=true
+          fi
+
+          if [ -n "${APP_HEALTH_URL:-}" ]; then
+            HEALTH_BASE="${APP_HEALTH_URL%/}"
+            APP_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 25 \
+              "$HEALTH_BASE/api/health")
+
+            echo "App /api/health keep-alive HTTP status: $APP_STATUS"
+            if [ "$APP_STATUS" -lt 200 ] || [ "$APP_STATUS" -ge 300 ]; then
+              echo "::error::Falha ao consultar $HEALTH_BASE/api/health (HTTP $APP_STATUS)."
+              exit 1
+            fi
+            PINGED=true
+          fi
+
+          if [ "$PINGED" = false ]; then
+            echo "::error::Configure os Secrets SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (ou SUPABASE_ANON_KEY) em Settings > Secrets and variables > Actions no GitHub."
+            exit 1
+          fi
+
+          echo "Keep-alive concluido com sucesso."
