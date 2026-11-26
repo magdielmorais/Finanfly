@@ -153,7 +153,7 @@ function loadEnvFilesReadOnly() {
 loadEnvFilesReadOnly();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const serverStartedAt = Date.now();
 
 const healthMonitor = new ServerHealthMonitor({
@@ -2936,8 +2936,14 @@ app.post("/api/auth/register", authSensitiveLimiter, async (req, res) => {
     const { password: _, ...userProfile } = newUser;
     const token = generateAuthToken({ email: newUser.email, role: newUser.role });
     res.json({ user: userProfile, token, userData: getEmptyUserData() });
-  } catch (err) {
-    console.error("Registration error:", err);
+  } catch (err: any) {
+    const errMsg = String(err?.message || err || "");
+    console.error("Registration error:", errMsg);
+    if (errMsg.includes("não configurado")) {
+      return res.status(503).json({
+        error: "Banco de dados Supabase não configurado no ambiente deste servidor. Verifique as variáveis SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (ou SUPABASE_ANON_KEY) e JWT_SECRET nas configurações de publicação/produção."
+      });
+    }
     res.status(503).json({ error: "Erro ao concluir cadastro no banco de dados. Tente novamente." });
   }
 });
