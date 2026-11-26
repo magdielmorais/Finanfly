@@ -460,9 +460,10 @@ export default function App() {
 
     try {
       const granularMutation = detectSingleGranularMutation(baseData as Record<string, any>, newData as Record<string, any>);
+      const compactQuery = fullHistoryLoadedRef.current ? '?compact=1' : '';
       const endpoint = granularMutation
-        ? `/api/user/entity/${granularMutation.entity}`
-        : '/api/user/data';
+        ? `/api/user/entity/${granularMutation.entity}${compactQuery}`
+        : `/api/user/data${compactQuery}`;
       const scopedYearToSend =
         !granularMutation && !fullHistoryLoadedRef.current && activeScopedYearRef.current !== null
           ? activeScopedYearRef.current
@@ -480,26 +481,67 @@ export default function App() {
             ...(scopedYearToSend ? { _scopedYear: scopedYearToSend } : {})
           };
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: getAuthHeaders({
-          'Content-Type': 'application/json',
-          'x-user-email': currentUser.email
-        }),
-        body: JSON.stringify(payloadToSend),
+      const requestBody = JSON.stringify(payloadToSend);
+      const requestHeaders = getAuthHeaders({
+        'Content-Type': 'application/json',
+        'x-user-email': currentUser.email
       });
 
+      const MAX_SAVE_ATTEMPTS = 3;
+      let res: Response | null = null;
       let data: any = null;
-      try {
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          data = await res.json();
-        } else {
-          const rawText = await res.text();
-          data = JSON.parse(rawText);
+      let lastFetchErr: any = null;
+
+      for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS; attempt++) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 600 : 1400));
         }
-      } catch {
-        data = null;
+
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), 5000) : null;
+
+        try {
+          res = await fetch(endpoint, {
+            method: 'POST',
+            headers: requestHeaders,
+            body: requestBody,
+            ...(controller ? { signal: controller.signal } : {})
+          });
+          if (timeoutId) clearTimeout(timeoutId);
+
+          data = null;
+          try {
+            const contentType = res.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+              data = await res.json();
+            } else {
+              const rawText = await res.text();
+              data = JSON.parse(rawText);
+            }
+          } catch {
+            data = null;
+          }
+
+          const serverMsg = typeof data?.error === 'string' ? data.error : '';
+          const isTransientGatewayOrDb =
+            (res.status === 502 || res.status === 503 || res.status === 504) &&
+            !serverMsg.includes('não configurado');
+
+          if (res.ok || !isTransientGatewayOrDb || attempt === MAX_SAVE_ATTEMPTS - 1) {
+            lastFetchErr = null;
+            break;
+          }
+        } catch (fetchErr: any) {
+          if (timeoutId) clearTimeout(timeoutId);
+          lastFetchErr = fetchErr;
+          if (attempt === MAX_SAVE_ATTEMPTS - 1) {
+            throw fetchErr;
+          }
+        }
+      }
+
+      if (!res) {
+        throw lastFetchErr || new Error('Falha de rede ao gravar dados.');
       }
 
       if (res.status === 401 || data?.isBlocked || (res.status === 403 && !String(data?.error || '').includes('identificador'))) {
@@ -538,6 +580,9 @@ export default function App() {
         updateUserDataState(data.data);
       } else if (data?._version) {
         dataVersionRef.current = data._version;
+        if (userDataRef.current && dataMutationVersionRef.current === writeVersion) {
+          userDataRef.current = { ...userDataRef.current, _version: data._version };
+        }
       }
     } catch (err: any) {
       console.error('Error saving user data:', err);
@@ -621,9 +666,19 @@ export default function App() {
       }
     };
 
+    let lastWakePingAt = Date.now();
     const handleVisibilityOrFocus = () => {
       if (Date.now() - lastActivityTime >= INACTIVITY_TIMEOUT_MS) {
         performLogout();
+        return;
+      }
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastWakePingAt > 30_000) {
+        lastWakePingAt = now;
+        void fetch('/api/health', { cache: 'no-store' }).catch(() => {});
       }
     };
 

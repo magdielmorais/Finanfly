@@ -1511,6 +1511,30 @@ async function getUserDataByEmail(
   }
 }
 
+// Fast version-checked read for writes: verifies remote _version with 1 PK query before skipping 18-table reload
+async function getCurrentUserDataForWrite(email: string): Promise<any> {
+  const lowerEmail = email.toLowerCase().trim();
+  const cached = userDataCache.get(lowerEmail);
+
+  if (cached && cached.data && cached.data._version && (Date.now() - cached.timestamp < 5 * 60 * 1000)) {
+    try {
+      const supabase = requireSupabase();
+      const { data: verRow, error: verErr } = await withSupabaseRetry<any>(
+        () => supabase.from('user_data').select('updated_at').eq('email', lowerEmail).maybeSingle(),
+        `getCurrentUserDataForWrite:versionCheck:${lowerEmail}`
+      );
+      if (!verErr && verRow?.updated_at && String(verRow.updated_at) === String(cached.data._version)) {
+        cached.timestamp = Date.now();
+        return cached.data;
+      }
+    } catch {
+      // fallback to full reload below
+    }
+  }
+
+  return getUserDataByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
+}
+
 const TRASH_ENTITY_LABELS: Record<string, string> = {
   incomes: 'Receita',
   expenses: 'Despesa',
@@ -2048,7 +2072,9 @@ async function saveUserDataByEmail(
     }
 
     if (!options?.skipAutoBackup) {
-      await createUserBackupSnapshot(supabase, lowerEmail, cleanPayload, 'auto', { respectThrottle: true });
+      void createUserBackupSnapshot(supabase, lowerEmail, cleanPayload, 'auto', { respectThrottle: true }).catch((bkpErr) => {
+        console.warn('[user_backups] Falha em segundo plano no snapshot automático:', bkpErr?.message || bkpErr);
+      });
     }
 
     const versionedData = { ...cleanPayload, _version: newVersion };
@@ -2183,7 +2209,7 @@ async function saveGranularEntityMutation(
   currentData: any,
   item?: any,
   id?: string
-): Promise<{ nextData: any; newVersion: string }> {
+): Promise<{ nextData: any; newVersion: string; retentionCleanedCount: number }> {
   const lowerEmail = email.toLowerCase().trim();
   const supabase = requireSupabase();
   const meta = ENTITY_TABLE_MAP[entity];
@@ -2272,11 +2298,13 @@ async function saveGranularEntityMutation(
     throw new Error(`Erro ao sincronizar snapshot incremental: ${backupErr.message}`);
   }
 
-  await createUserBackupSnapshot(supabase, lowerEmail, nextCleanData, 'auto', { respectThrottle: true });
+  void createUserBackupSnapshot(supabase, lowerEmail, nextCleanData, 'auto', { respectThrottle: true }).catch((bkpErr) => {
+    console.warn('[user_backups] Falha em segundo plano no snapshot incremental:', bkpErr?.message || bkpErr);
+  });
 
   const nextVersioned = { ...nextCleanData, _version: newVersion };
   userDataCache.set(lowerEmail, { data: nextVersioned, timestamp: Date.now() });
-  return { nextData: nextVersioned, newVersion };
+  return { nextData: nextVersioned, newVersion, retentionCleanedCount: retentionResult.totalRemoved };
 }
 
 // Get all users (Admin only) strictly from Supabase
@@ -3937,9 +3965,11 @@ app.post("/api/user/data", async (req, res) => {
     return res.status(400).json({ error: "Payload de dados inválido." });
   }
 
+  const wantCompact = req.query.compact === "1";
+
   try {
     const result = await withUserWriteLock(authUser.email, async () => {
-      const currentData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
+      const currentData = await getCurrentUserDataForWrite(authUser.email);
       if (!currentData || typeof currentData !== "object") {
         return { status: 503, body: { error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." } };
       }
@@ -4081,7 +4111,9 @@ app.post("/api/user/data", async (req, res) => {
           success: true,
           _version: newVersion,
           retentionCleanedCount: retentionResult.totalRemoved,
-          data: { ...prunedUpdatedData, _version: newVersion }
+          ...(!wantCompact || retentionResult.totalRemoved > 0
+            ? { data: { ...prunedUpdatedData, _version: newVersion } }
+            : {})
         }
       };
     });
@@ -4134,9 +4166,11 @@ app.post("/api/user/entity/:entity", async (req, res) => {
     return res.status(400).json({ error: "ID do registro inválido para exclusão." });
   }
 
+  const wantCompact = req.query.compact === "1";
+
   try {
     const result = await withUserWriteLock(authUser.email, async () => {
-      const currentData = await getUserDataByEmail(authUser.email, { bypassCache: true, throwOnError: true });
+      const currentData = await getCurrentUserDataForWrite(authUser.email);
       if (!currentData || typeof currentData !== "object") {
         return { status: 503, body: { error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." } };
       }
@@ -4157,8 +4191,17 @@ app.post("/api/user/entity/:entity", async (req, res) => {
         };
       }
 
-      const { nextData, newVersion } = await saveGranularEntityMutation(authUser.email, entity, action, currentData, item, id);
-      return { status: 200, version: newVersion, body: { success: true, _version: newVersion, data: nextData } };
+      const { nextData, newVersion, retentionCleanedCount } = await saveGranularEntityMutation(authUser.email, entity, action, currentData, item, id);
+      return {
+        status: 200,
+        version: newVersion,
+        body: {
+          success: true,
+          _version: newVersion,
+          retentionCleanedCount,
+          ...(!wantCompact || retentionCleanedCount > 0 ? { data: nextData } : {})
+        }
+      };
     });
 
     if ((result as any).version) {
