@@ -513,11 +513,15 @@ export default function App() {
         } else if (dataMutationVersionRef.current === writeVersion) {
           updateUserDataState(baseData);
         }
+        const serverError = typeof data?.error === 'string' && data.error.trim() ? data.error.trim() : '';
+        const isHtmlResponse = !(res.headers.get('content-type') || '').includes('application/json') && !data;
         const msg = res.status === 409
-          ? (data?.error || 'Conflito de atualização detectado. Os dados foram recarregados do banco; tente gravar novamente.')
+          ? (serverError || 'Conflito de atualização detectado. Os dados foram recarregados do banco; tente gravar novamente.')
           : res.status === 403
-          ? (data?.error || 'Operação negada por segurança.')
-          : 'Houve uma falha na gravação por instabilidade de conexão com o banco de dados. Por favor, tente gravar novamente.';
+          ? (serverError || 'Operação negada por segurança.')
+          : isHtmlResponse
+          ? 'A sessão de preview/servidor expirou ou ficou indisponível no navegador. Recarregue a página e tente gravar novamente.'
+          : (serverError || 'Houve uma falha na gravação por instabilidade de conexão com o banco de dados. Por favor, tente gravar novamente.');
         setSaveError(msg);
         setSaveFailurePopup({
           title: 'Falha na gravação',
@@ -540,8 +544,18 @@ export default function App() {
       if (dataMutationVersionRef.current === writeVersion) {
         updateUserDataState(baseData);
       }
-      const msg = err?.message && (err.message.includes('instabilidade') || err.message.includes('Conflito') || err.message.includes('negada'))
-        ? err.message
+      const errMsg = typeof err?.message === 'string' ? err.message.trim() : '';
+      const isSpecificMsg =
+        errMsg &&
+        (errMsg.includes('instabilidade') ||
+          errMsg.includes('Conflito') ||
+          errMsg.includes('negada') ||
+          errMsg.includes('Supabase') ||
+          errMsg.includes('Sessão') ||
+          errMsg.includes('sessão') ||
+          errMsg.includes('inválid'));
+      const msg = isSpecificMsg
+        ? errMsg
         : 'Houve uma falha na gravação por instabilidade de conexão com o banco de dados. Por favor, tente gravar novamente.';
       setSaveError(msg);
       setSaveFailurePopup({

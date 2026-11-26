@@ -1652,14 +1652,14 @@ async function syncNameListTable(supabase: any, table: string, lowerEmail: strin
   }
 
   const existingList = existingRows || [];
-  const existingNames = new Set(existingList.map((r: any) => r.name));
+  const existingNames = new Set(existingList.map((r: any) => String(r.name || '').trim()).filter(Boolean));
   const desiredSet = new Set(uniqueDesired);
 
   const toInsert = uniqueDesired.filter(name => !existingNames.has(name)).map(name => ({ email: lowerEmail, name }));
   for (let i = 0; i < toInsert.length; i += 500) {
     const chunk = toInsert.slice(i, i + 500);
     const { error: insErr } = await withSupabaseRetry<any>(
-      () => supabase.from(table).insert(chunk),
+      () => supabase.from(table).upsert(chunk, { onConflict: 'email,name', ignoreDuplicates: true }),
       `syncNameListTable:insert:${table}`
     );
     if (insErr) {
@@ -1667,7 +1667,10 @@ async function syncNameListTable(supabase: any, table: string, lowerEmail: strin
     }
   }
 
-  const idsToDelete = existingList.filter((r: any) => !desiredSet.has(r.name)).map((r: any) => r.id).filter(Boolean);
+  const idsToDelete = existingList
+    .filter((r: any) => !desiredSet.has(String(r.name || '').trim()))
+    .map((r: any) => r.id)
+    .filter(Boolean);
   for (let i = 0; i < idsToDelete.length; i += 500) {
     const chunk = idsToDelete.slice(i, i + 500);
     const { error: delErr } = await withSupabaseRetry<any>(
@@ -1821,14 +1824,14 @@ async function saveUserDataByEmail(
     // 7. Sync incomes
     if (shouldSync('incomes')) {
       const rows = cleanPayload.incomes.map((inc: any) => ({
-        id: inc.id,
+        id: String(inc.id || '').trim(),
         email: lowerEmail,
-        date: inc.date,
-        description: inc.description,
-        value: Number(inc.value),
-        category: inc.category,
-        status: inc.status,
-        payment_type: inc.paymentType
+        date: String(inc.date || '').trim() || new Date().toISOString().split('T')[0],
+        description: String(inc.description || ''),
+        value: Number.isFinite(Number(inc.value)) ? Number(inc.value) : 0,
+        category: String(inc.category || 'Outros'),
+        status: String(inc.status || 'Recebido'),
+        payment_type: String(inc.paymentType || 'Outro')
       }));
       promises.push(syncIdEntityTable(supabase, 'incomes', lowerEmail, rows, undefined, {
         entityKey: 'incomes',
@@ -1841,14 +1844,14 @@ async function saveUserDataByEmail(
     // 8. Sync expenses
     if (shouldSync('expenses')) {
       const rows = cleanPayload.expenses.map((exp: any) => ({
-        id: exp.id,
+        id: String(exp.id || '').trim(),
         email: lowerEmail,
-        date: exp.date,
-        description: exp.description,
-        value: Number(exp.value),
-        category: exp.category,
-        status: exp.status,
-        payment_type: exp.paymentType,
+        date: String(exp.date || '').trim() || new Date().toISOString().split('T')[0],
+        description: String(exp.description || ''),
+        value: Number.isFinite(Number(exp.value)) ? Number(exp.value) : 0,
+        category: String(exp.category || 'Outros'),
+        status: String(exp.status || 'Pendente'),
+        payment_type: String(exp.paymentType || 'Outro'),
         classification: exp.classification || null
       }));
       promises.push(
@@ -1907,14 +1910,14 @@ async function saveUserDataByEmail(
     // 10. Sync shoppingList
     if (shouldSync('shoppingList')) {
       const rows = cleanPayload.shoppingList.map((item: any) => ({
-        id: item.id,
+        id: String(item.id || '').trim(),
         email: lowerEmail,
-        name: item.name,
-        quantity: Number(item.quantity),
-        price: Number(item.price),
-        category: item.category,
+        name: String(item.name || ''),
+        quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 1,
+        price: Number.isFinite(Number(item.price)) ? Number(item.price) : 0,
+        category: String(item.category || 'Geral'),
         checked: !!item.checked,
-        date: item.date || null
+        date: String(item.date || '').trim() || null
       }));
       promises.push(syncIdEntityTable(supabase, 'shopping_list', lowerEmail, rows, undefined, {
         entityKey: 'shoppingList',
@@ -1927,13 +1930,13 @@ async function saveUserDataByEmail(
     // 11. Sync actionPlans
     if (shouldSync('actionPlans')) {
       const rows = cleanPayload.actionPlans.map((plan: any) => ({
-        id: plan.id,
+        id: String(plan.id || '').trim(),
         email: lowerEmail,
-        title: plan.title,
-        description: plan.description,
-        target_date: plan.targetDate,
-        value: Number(plan.value),
-        status: plan.status
+        title: String(plan.title || ''),
+        description: String(plan.description || ''),
+        target_date: String(plan.targetDate || '').trim() || null,
+        value: Number.isFinite(Number(plan.value)) ? Number(plan.value) : 0,
+        status: String(plan.status || 'Pendente')
       }));
       promises.push(syncIdEntityTable(supabase, 'action_plans', lowerEmail, rows, undefined, {
         entityKey: 'actionPlans',
@@ -1946,14 +1949,14 @@ async function saveUserDataByEmail(
     // 12. Sync deficitActions
     if (shouldSync('deficitActions')) {
       const rows = cleanPayload.deficitActions.map((action: any) => ({
-        id: action.id,
+        id: String(action.id || '').trim(),
         email: lowerEmail,
-        cost_center: action.costCenter,
-        reason: action.reason,
-        correction_action: action.correctionAction,
-        responsible: action.responsible,
-        date: action.date,
-        status: action.status
+        cost_center: String(action.costCenter || ''),
+        reason: String(action.reason || ''),
+        correction_action: String(action.correctionAction || ''),
+        responsible: String(action.responsible || ''),
+        date: String(action.date || '').trim() || new Date().toISOString().split('T')[0],
+        status: String(action.status || 'Pendente')
       }));
       promises.push(syncIdEntityTable(supabase, 'deficit_actions', lowerEmail, rows, undefined, {
         entityKey: 'deficitActions',
@@ -1966,10 +1969,10 @@ async function saveUserDataByEmail(
     // 13. Sync trips
     if (shouldSync('trips')) {
       const rows = cleanPayload.trips.map((trip: any) => ({
-        id: trip.id,
+        id: String(trip.id || '').trim(),
         email: lowerEmail,
-        name: trip.name,
-        expenses: trip.expenses || []
+        name: String(trip.name || ''),
+        expenses: Array.isArray(trip.expenses) ? trip.expenses : []
       }));
       promises.push(syncIdEntityTable(supabase, 'trips', lowerEmail, rows, undefined, {
         entityKey: 'trips',
@@ -1982,13 +1985,13 @@ async function saveUserDataByEmail(
     // 14. Sync wishes
     if (shouldSync('wishes')) {
       const rows = cleanPayload.wishes.map((wish: any) => ({
-        id: wish.id,
+        id: String(wish.id || '').trim(),
         email: lowerEmail,
-        title: wish.title,
-        description: wish.description || '',
-        target_date: wish.targetDate || null,
-        value: Number(wish.value || 0),
-        status: wish.status || 'Pendente'
+        title: String(wish.title || ''),
+        description: String(wish.description || ''),
+        target_date: String(wish.targetDate || '').trim() || null,
+        value: Number.isFinite(Number(wish.value)) ? Number(wish.value) : 0,
+        status: String(wish.status || 'Pendente')
       }));
       promises.push(syncIdEntityTable(supabase, 'wishes', lowerEmail, rows, undefined, {
         entityKey: 'wishes',
@@ -2001,13 +2004,13 @@ async function saveUserDataByEmail(
     // 15. Sync investments
     if (shouldSync('investments')) {
       const rows = cleanPayload.investments.map((inv: any) => ({
-        id: inv.id,
+        id: String(inv.id || '').trim(),
         email: lowerEmail,
-        name: inv.name,
-        type: inv.type,
-        date: inv.date,
-        value: Number(inv.value || 0),
-        status: inv.status,
+        name: String(inv.name || ''),
+        type: String(inv.type || 'Outro'),
+        date: String(inv.date || '').trim() || new Date().toISOString().split('T')[0],
+        value: Number.isFinite(Number(inv.value)) ? Number(inv.value) : 0,
+        status: String(inv.status || 'Ativo'),
         notes: inv.notes || null
       }));
       promises.push(syncIdEntityTable(supabase, 'investments', lowerEmail, rows, undefined, {
@@ -2075,100 +2078,100 @@ const ENTITY_TABLE_MAP: Record<GranularEntityKey, { table: string; mapRow: (emai
   incomes: {
     table: 'incomes',
     mapRow: (email, inc) => ({
-      id: inc.id,
+      id: String(inc.id || '').trim(),
       email,
-      date: inc.date,
-      description: inc.description,
-      value: Number(inc.value),
-      category: inc.category,
-      status: inc.status,
-      payment_type: inc.paymentType
+      date: String(inc.date || '').trim() || new Date().toISOString().split('T')[0],
+      description: String(inc.description || ''),
+      value: Number.isFinite(Number(inc.value)) ? Number(inc.value) : 0,
+      category: String(inc.category || 'Outros'),
+      status: String(inc.status || 'Recebido'),
+      payment_type: String(inc.paymentType || 'Outro')
     })
   },
   expenses: {
     table: 'expenses',
     mapRow: (email, exp) => ({
-      id: exp.id,
+      id: String(exp.id || '').trim(),
       email,
-      date: exp.date,
-      description: exp.description,
-      value: Number(exp.value),
-      category: exp.category,
-      status: exp.status,
-      payment_type: exp.paymentType,
+      date: String(exp.date || '').trim() || new Date().toISOString().split('T')[0],
+      description: String(exp.description || ''),
+      value: Number.isFinite(Number(exp.value)) ? Number(exp.value) : 0,
+      category: String(exp.category || 'Outros'),
+      status: String(exp.status || 'Pendente'),
+      payment_type: String(exp.paymentType || 'Outro'),
       classification: exp.classification || null
     })
   },
   investments: {
     table: 'investments',
     mapRow: (email, inv) => ({
-      id: inv.id,
+      id: String(inv.id || '').trim(),
       email,
-      name: inv.name,
-      type: inv.type,
-      date: inv.date,
-      value: Number(inv.value || 0),
-      status: inv.status,
+      name: String(inv.name || ''),
+      type: String(inv.type || 'Outro'),
+      date: String(inv.date || '').trim() || new Date().toISOString().split('T')[0],
+      value: Number.isFinite(Number(inv.value)) ? Number(inv.value) : 0,
+      status: String(inv.status || 'Ativo'),
       notes: inv.notes || null
     })
   },
   trips: {
     table: 'trips',
     mapRow: (email, trip) => ({
-      id: trip.id,
+      id: String(trip.id || '').trim(),
       email,
-      name: trip.name,
-      expenses: trip.expenses || []
+      name: String(trip.name || ''),
+      expenses: Array.isArray(trip.expenses) ? trip.expenses : []
     })
   },
   wishes: {
     table: 'wishes',
     mapRow: (email, wish) => ({
-      id: wish.id,
+      id: String(wish.id || '').trim(),
       email,
-      title: wish.title,
-      description: wish.description || '',
-      target_date: wish.targetDate || null,
-      value: Number(wish.value || 0),
-      status: wish.status || 'Pendente'
+      title: String(wish.title || ''),
+      description: String(wish.description || ''),
+      target_date: String(wish.targetDate || '').trim() || null,
+      value: Number.isFinite(Number(wish.value)) ? Number(wish.value) : 0,
+      status: String(wish.status || 'Pendente')
     })
   },
   actionPlans: {
     table: 'action_plans',
     mapRow: (email, plan) => ({
-      id: plan.id,
+      id: String(plan.id || '').trim(),
       email,
-      title: plan.title,
-      description: plan.description,
-      target_date: plan.targetDate,
-      value: Number(plan.value),
-      status: plan.status
+      title: String(plan.title || ''),
+      description: String(plan.description || ''),
+      target_date: String(plan.targetDate || '').trim() || null,
+      value: Number.isFinite(Number(plan.value)) ? Number(plan.value) : 0,
+      status: String(plan.status || 'Pendente')
     })
   },
   deficitActions: {
     table: 'deficit_actions',
     mapRow: (email, action) => ({
-      id: action.id,
+      id: String(action.id || '').trim(),
       email,
-      cost_center: action.costCenter,
-      reason: action.reason,
-      correction_action: action.correctionAction,
-      responsible: action.responsible,
-      date: action.date,
-      status: action.status
+      cost_center: String(action.costCenter || ''),
+      reason: String(action.reason || ''),
+      correction_action: String(action.correctionAction || ''),
+      responsible: String(action.responsible || ''),
+      date: String(action.date || '').trim() || new Date().toISOString().split('T')[0],
+      status: String(action.status || 'Pendente')
     })
   },
   shoppingList: {
     table: 'shopping_list',
     mapRow: (email, item) => ({
-      id: item.id,
+      id: String(item.id || '').trim(),
       email,
-      name: item.name,
-      quantity: Number(item.quantity),
-      price: Number(item.price),
-      category: item.category,
+      name: String(item.name || ''),
+      quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 1,
+      price: Number.isFinite(Number(item.price)) ? Number(item.price) : 0,
+      category: String(item.category || 'Geral'),
       checked: !!item.checked,
-      date: item.date || null
+      date: String(item.date || '').trim() || null
     })
   }
 };
@@ -4099,7 +4102,13 @@ app.post("/api/user/data", async (req, res) => {
       });
       return res.status(403).json({ error: "Operação negada: identificador pertence a outra conta." });
     }
-    console.error("User data post error:", err);
+    const errMsg = String(err?.message || err || "");
+    console.error("User data post error:", errMsg);
+    if (errMsg.includes("não configurado")) {
+      return res.status(503).json({
+        error: "Banco de dados Supabase não configurado no ambiente deste servidor. Verifique as variáveis SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (ou SUPABASE_ANON_KEY) e JWT_SECRET."
+      });
+    }
     res.status(503).json({ error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." });
   }
 });
@@ -4168,7 +4177,13 @@ app.post("/api/user/entity/:entity", async (req, res) => {
       });
       return res.status(403).json({ error: "Operação negada: identificador pertence a outra conta." });
     }
-    console.error("Granular entity post error:", err);
+    const errMsg = String(err?.message || err || "");
+    console.error("Granular entity post error:", errMsg);
+    if (errMsg.includes("não configurado")) {
+      return res.status(503).json({
+        error: "Banco de dados Supabase não configurado no ambiente deste servidor. Verifique as variáveis SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (ou SUPABASE_ANON_KEY) e JWT_SECRET."
+      });
+    }
     res.status(503).json({ error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." });
   }
 });
