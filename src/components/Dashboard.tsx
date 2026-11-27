@@ -36,37 +36,25 @@ const MONTH_NAMES = [
 
 type DashboardTab = 'RESUMO' | 'GRAFICOS' | 'INVESTIMENTOS';
 
-const TABS: { 
-  id: DashboardTab; 
-  label: string; 
+const TABS: {
+  id: DashboardTab;
+  label: string;
   icon: React.ComponentType<{ className?: string }>;
-  activeBg: string;
-  inactiveIconColor: string;
-  accentBadge: string;
 }[] = [
-  { 
-    id: 'RESUMO', 
-    label: 'RESUMO MONETÁRIO', 
+  {
+    id: 'RESUMO',
+    label: 'Resumo Monetário',
     icon: LayoutDashboard,
-    activeBg: 'bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 border-blue-400/40 ring-2 ring-blue-500/30 text-white shadow-lg shadow-blue-500/25',
-    inactiveIconColor: 'text-blue-500 dark:text-blue-400',
-    accentBadge: 'bg-blue-400/20 text-blue-100 border-blue-300/30'
   },
-  { 
-    id: 'GRAFICOS', 
-    label: 'RESUMO FINANCEIRO', 
+  {
+    id: 'GRAFICOS',
+    label: 'Resumo Financeiro',
     icon: PieChart,
-    activeBg: 'bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 border-indigo-400/40 ring-2 ring-indigo-500/30 text-white shadow-lg shadow-indigo-500/25',
-    inactiveIconColor: 'text-indigo-500 dark:text-indigo-400',
-    accentBadge: 'bg-indigo-400/20 text-indigo-100 border-indigo-300/30'
   },
-  { 
-    id: 'INVESTIMENTOS', 
-    label: 'INVESTIMENTOS', 
+  {
+    id: 'INVESTIMENTOS',
+    label: 'Investimentos',
     icon: TrendingUp,
-    activeBg: 'bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 border-purple-400/40 ring-2 ring-purple-500/30 text-white shadow-lg shadow-purple-500/25',
-    inactiveIconColor: 'text-purple-500 dark:text-purple-400',
-    accentBadge: 'bg-purple-400/20 text-purple-100 border-purple-300/30'
   },
 ];
 
@@ -667,11 +655,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
         </p>
       </div>
 
-      {/* 3 Tabs Navigation Bar (Uppercase, touch-swipeable, highlighted cards & auto-centering) */}
+      {/* Segmented Navigation Bar */}
       <div className="space-y-2">
-        <div 
+        <div
           ref={tabsContainerRef}
-          className="flex items-center gap-2 sm:gap-3 bg-slate-200/70 dark:bg-slate-900/90 p-2 sm:p-2.5 rounded-2xl border border-slate-300/80 dark:border-slate-800 shadow-xs overflow-x-auto scrollbar-none scroll-smooth snap-x snap-mandatory"
+          className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-none scroll-smooth snap-x snap-mandatory"
         >
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -686,40 +674,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                   setActiveTab(tab.id);
                   scrollToCenterTab(tab.id);
                 }}
-                className={`relative flex-1 min-w-[170px] sm:min-w-0 flex items-center justify-center gap-2.5 py-3 px-3.5 sm:px-4 rounded-xl font-black text-xs sm:text-sm tracking-wider uppercase transition-all duration-250 cursor-pointer select-none snap-center ${
+                className={`relative flex-1 min-w-[165px] sm:min-w-0 flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-lg font-semibold text-xs sm:text-sm transition-colors duration-150 cursor-pointer select-none snap-center whitespace-nowrap ${
                   isActive
-                    ? `${tab.activeBg} scale-[1.02]`
-                    : 'bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-800/90 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                  isActive 
-                    ? 'bg-white/20 text-white backdrop-blur-xs' 
-                    : `bg-slate-100 dark:bg-slate-850 ${tab.inactiveIconColor}`
-                }`}>
-                  <Icon className="h-4 w-4 shrink-0" />
-                </div>
+                <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
                 <span className="truncate">{tab.label}</span>
-                {isActive && (
-                  <span className="hidden sm:inline-flex h-2 w-2 rounded-full bg-white animate-pulse" />
-                )}
               </button>
             );
           })}
         </div>
 
         {/* Mobile Swipe Hint */}
-        <div className="sm:hidden flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 py-0.5">
-          <ChevronLeft className="h-3 w-3 opacity-70 animate-pulse text-blue-500" />
-          <span>Deslize para navegar ou clique nas abas destacadas</span>
-          <ChevronRight className="h-3 w-3 opacity-70 animate-pulse text-blue-500" />
+        <div className="sm:hidden flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 py-0.5">
+          <ChevronLeft className="h-3 w-3 opacity-70" />
+          <span>Deslize para navegar entre as abas</span>
+          <ChevronRight className="h-3 w-3 opacity-70" />
         </div>
       </div>
 
       {/* Swipeable Tab Content Area */}
-      <div 
-        className="touch-pan-y min-w-0" 
-        onTouchStart={handleTouchStart} 
+      <div
+        className="touch-pan-y min-w-0"
+        onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
         <AnimatePresence mode="wait">
@@ -730,17 +709,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
+              transition={{ duration: 0.16 }}
               className="space-y-6"
             >
-              {/* Line with text: RESUMO MONETÁRIO GERAL (Above filter with blue theme matching the tab card) */}
-              <div className="relative my-4 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-blue-300/80 dark:border-blue-700/60" />
-                </div>
-                <div className="relative bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 px-5 py-1.5 rounded-full border border-blue-400/50 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-blue-500/25">
-                  RESUMO MONETÁRIO GERAL
-                </div>
+              {/* Hairline Section Header */}
+              <div className="relative my-3 flex items-center justify-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                <span className="absolute bg-slate-50 dark:bg-slate-950 px-3 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  Resumo Monetário Geral
+                </span>
               </div>
 
               {/* KPI Filter Bar (Mês e Ano selecionados com mês e ano atuais por padrão) */}
@@ -808,7 +785,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                     </div>
                   </div>
                   <div className="mt-2.5">
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white font-mono">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white font-mono tabular-nums">
                       R$ {totals.incomes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -818,15 +795,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 </div>
 
                 {/* Expenses Card */}
-                <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Total de Despesas</span>
+                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total de Despesas</span>
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
                       <ArrowDownRight className="h-4 w-4" />
                     </div>
                   </div>
                   <div className="mt-2.5">
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white font-mono">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white font-mono tabular-nums">
                       R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -836,15 +813,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 </div>
 
                 {/* Saldo Receitas x Despesas Card */}
-                <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Saldo Receitas x Despesas</span>
+                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Saldo Receitas x Despesas</span>
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
                       <Wallet className="h-4 w-4" />
                     </div>
                   </div>
                   <div className="mt-2.5">
-                    <h3 className={`text-xl font-bold font-mono ${
+                    <h3 className={`text-xl font-bold font-mono tabular-nums ${
                       Math.abs(totals.balance) < 0.005
                         ? 'text-slate-400 dark:text-slate-500 font-normal'
                         : totals.balance > 0
@@ -860,28 +837,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 </div>
               </div>
 
-              {/* Highlighted Divider Bar */}
-              <div className="relative my-6 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-slate-200 dark:border-slate-800" />
-                </div>
-                <div className="relative bg-slate-50 px-4 py-1 rounded-full border border-slate-200 dark:border-slate-800 dark:bg-slate-950 text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+              {/* Hairline Divider */}
+              <div className="relative my-5 flex items-center justify-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                <span className="absolute bg-slate-50 dark:bg-slate-950 px-3 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 whitespace-nowrap">
                   Orçamento vs Execução Financeira
-                </div>
+                </span>
               </div>
 
               {/* Budget & Consolidated Cards Group */}
               <div className="grid gap-4 sm:grid-cols-3">
                 {/* Total Orçado Card */}
-                <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Total Orçado</span>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total Orçado</span>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
                       <Calendar className="h-4 w-4" />
                     </div>
                   </div>
                   <div className="mt-2.5">
-                    <h3 className="text-xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+                    <h3 className="text-xl font-bold text-blue-600 dark:text-blue-400 font-mono tabular-nums">
                       R$ {totalBudgeted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -944,14 +919,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               transition={{ duration: 0.18 }}
               className="space-y-6"
             >
-              {/* Line with text: RESUMO FINANCEIRO (Indigo theme matching tab card) */}
-              <div className="relative my-4 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-indigo-300/80 dark:border-indigo-700/60" />
-                </div>
-                <div className="relative bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 px-5 py-1.5 rounded-full border border-indigo-400/50 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-indigo-500/25">
-                  RESUMO FINANCEIRO
-                </div>
+              {/* Hairline Section Header */}
+              <div className="relative my-3 flex items-center justify-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                <span className="absolute bg-slate-50 dark:bg-slate-950 px-3 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  Resumo Financeiro e Gráficos
+                </span>
               </div>
 
               {/* Main Charts Area */}
@@ -1124,7 +1097,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {recentTransactions.length === 0 ? (
-                    <p className="text-slate-400 text-xs py-4 text-center">Nenhum lançamento recente registrado.</p>
+                    <div className="py-8 text-center space-y-3">
+                      <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+                        Nenhum lançamento recente registrado neste filtro.
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('Receitas (Lançar Ganhos)')}
+                          className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          Lançar Receita
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('Despesas (Lançar Gastos)')}
+                          className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          Lançar Despesa
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     recentTransactions.map((item, idx) => {
                       const isIncome = item.type === 'receita';
@@ -1132,20 +1125,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                         <div key={idx} className="flex items-center justify-between py-3">
                           <div className="flex items-center gap-3">
                             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                              isIncome ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40' : 'bg-red-50 text-red-500 dark:bg-red-950/40'
+                              isIncome ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
                             }`}>
-                              <span className="text-lg font-bold">{isIncome ? '＋' : '－'}</span>
+                              <span className="text-base font-bold">{isIncome ? '＋' : '－'}</span>
                             </div>
                             <div>
-                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.description}</p>
-                              <p className="text-[10px] text-slate-400">{item.category} • {item.paymentType}</p>
+                              <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200">{item.description}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400">{item.category} · {item.paymentType}</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className={`text-xs font-bold font-mono ${isIncome ? 'text-blue-600' : 'text-red-500'}`}>
+                            <p className={`text-xs sm:text-sm font-bold font-mono tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                               {isIncome ? '+' : '-'} R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </p>
-                            <p className="text-[9px] text-slate-400 font-mono">
+                            <p className="text-[10px] text-slate-400 font-mono tabular-nums">
                               {item.date ? (item.date.includes('/') ? item.date : item.date.split('-').reverse().join('/')) : '-'}
                             </p>
                           </div>
@@ -1165,32 +1158,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
+              transition={{ duration: 0.16 }}
               className="space-y-6"
             >
-              {/* Divider line: GRÁFICOS DE INVESTIMENTO (Purple theme matching tab card) */}
-              <div className="relative my-4 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-purple-300/80 dark:border-purple-700/60" />
-                </div>
-                <div className="relative bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 px-5 py-1.5 rounded-full border border-purple-400/50 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-purple-500/25">
-                  GRÁFICOS DE INVESTIMENTO
-                </div>
+              {/* Hairline Section Header */}
+              <div className="relative my-3 flex items-center justify-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                <span className="absolute bg-slate-50 dark:bg-slate-950 px-3 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  Gráficos de Investimento
+                </span>
               </div>
 
               {/* 5-Year Investment Charts Section */}
               <div className="space-y-6">
-                <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   Investimentos: Visão Geral dos Últimos 5 Anos ({fiveYears[0]} - {fiveYears[fiveYears.length - 1]})
                 </h3>
 
                 <div className="grid gap-6 lg:grid-cols-3 min-w-0">
                   {/* Chart 1: Total Investments (Last 5 Years) */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
                     <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
-                        <Wallet className="h-4 w-4 text-purple-600" />
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <Wallet className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         Total por Ano
                       </h4>
                     </div>
@@ -1198,10 +1189,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                   </div>
 
                   {/* Chart 2: Types of Investments (Last 5 Years) */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
                     <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
-                        <Layers className="h-4 w-4 text-purple-600" />
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <Layers className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         Tipos de Investimentos
                       </h4>
                     </div>
@@ -1213,10 +1204,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                   </div>
 
                   {/* Chart 3: Status of Investments (Last 5 Years) */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
                     <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
-                        <Tag className="h-4 w-4 text-purple-600" />
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <Tag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         Status dos Investimentos
                       </h4>
                     </div>
@@ -1232,19 +1223,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
               {/* Monthly Investment Filter & Charts Section */}
               <div className="space-y-6 pt-2">
                 {/* Month / Year Filter Bar */}
-                <div className="flex flex-wrap items-center justify-between bg-purple-50/80 p-4 rounded-xl dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 text-xs sm:text-sm gap-3">
-                  <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-extrabold uppercase text-xs">
-                    <Filter className="h-4 w-4 text-purple-600 shrink-0" />
+                <div className="flex flex-wrap items-center justify-between bg-slate-100/70 p-4 rounded-xl dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm gap-3">
+                  <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-semibold text-xs sm:text-sm">
+                    <Filter className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                     Filtro Mensal de Investimentos ({MONTH_NAMES[investmentMonth]}/{investmentYear})
                   </div>
-                  
+
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-slate-700 dark:text-slate-300 font-bold text-xs">Mês:</span>
+                      <span className="text-slate-600 dark:text-slate-300 font-semibold text-xs">Mês:</span>
                       <select
                         value={investmentMonth}
                         onChange={(e) => setInvestmentMonth(parseInt(e.target.value, 10))}
-                        className="rounded-lg border border-purple-200 bg-white px-3 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-purple-800 dark:bg-slate-950 dark:text-white text-xs"
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-800 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white text-xs"
                       >
                         {MONTH_NAMES.map((mName, idx) => (
                           <option key={idx} value={idx}>{mName}</option>
@@ -1253,11 +1244,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <span className="text-slate-700 dark:text-slate-300 font-bold text-xs">Ano:</span>
+                      <span className="text-slate-600 dark:text-slate-300 font-semibold text-xs">Ano:</span>
                       <select
                         value={investmentYear}
                         onChange={(e) => setInvestmentYear(parseInt(e.target.value, 10))}
-                        className="rounded-lg border border-purple-200 bg-white px-3 py-1.5 font-bold text-slate-800 focus:outline-none dark:border-purple-800 dark:bg-slate-950 dark:text-white text-xs"
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-800 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white text-xs"
                       >
                         {[...fiveYears].reverse().map(y => (
                           <option key={y} value={y}>{y}</option>
@@ -1271,7 +1262,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                         setInvestmentMonth(new Date().getMonth());
                         setInvestmentYear(new Date().getFullYear());
                       }}
-                      className="p-1.5 rounded-lg border border-purple-200 hover:border-red-300 bg-white hover:bg-red-50 text-purple-600 hover:text-red-600 transition-colors dark:border-purple-800 dark:bg-slate-950 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                      className="p-1.5 rounded-lg border border-slate-200 hover:border-red-300 bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 transition-colors dark:border-slate-700 dark:bg-slate-950 dark:hover:bg-red-950/30 dark:hover:text-red-400 cursor-pointer"
                       title="Limpar filtros (voltar ao mês/ano atual)"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1282,13 +1273,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                 {/* Monthly Investment Charts Grid */}
                 <div className="grid gap-6 md:grid-cols-2 min-w-0">
                   {/* Chart 4: Monthly Investments by Type */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
-                    <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800 flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
-                        <Layers className="h-4 w-4 text-purple-600" />
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                    <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <Layers className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         Tipos de Investimento ({MONTH_NAMES[investmentMonth]}/{investmentYear})
                       </h4>
-                      <span className="text-xs font-mono font-bold text-purple-700 dark:text-purple-300">
+                      <span className="text-xs font-mono tabular-nums font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
                         R$ {monthlyInvestmentTypesData.totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -1300,13 +1291,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userData, onNavigate }) =>
                   </div>
 
                   {/* Chart 5: Monthly Investments by Status */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
-                    <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800 flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 uppercase tracking-wide">
-                        <Tag className="h-4 w-4 text-purple-600" />
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 min-w-0 max-w-full overflow-hidden">
+                    <div className="border-b border-slate-100 pb-3 mb-4 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <Tag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         Status dos Investimentos ({MONTH_NAMES[investmentMonth]}/{investmentYear})
                       </h4>
-                      <span className="text-xs font-mono font-bold text-purple-700 dark:text-purple-300">
+                      <span className="text-xs font-mono tabular-nums font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
                         R$ {monthlyInvestmentStatusesData.totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
                     </div>

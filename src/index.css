@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
-@variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
 
 html, body, #root {
   height: 100%;
@@ -8,70 +13,61 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@keyframes cintilante {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+/* Alinhamento tabular consistente para valores financeiros, KPIs e tabelas */
+.tabular-nums,
+.font-mono,
+table td,
+table th {
+  font-variant-numeric: tabular-nums;
 }
 
-@keyframes sparkleGlow {
-  0%, 100% {
-    filter: drop-shadow(0 0 2px rgba(147, 197, 253, 0.6));
-    transform: scale(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.9));
-    transform: scale(1.1);
-  }
+/* Base limpa e sem !important para campos de entrada (respeita variantes locais como Login escuro e barras compactas) */
+:where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  font-weight: 500;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  transition: border-color 150ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease;
 }
 
-.text-cintilante {
-  background: linear-gradient(
-    110deg,
-    #3b82f6 0%,
-    #60a5fa 20%,
-    #ffffff 45%,
-    #bfdbfe 55%,
-    #60a5fa 80%,
-    #3b82f6 100%
-  );
-  background-size: 200% 100%;
-  color: transparent;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: cintilante 3.5s linear infinite;
+:where(input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus) {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
-.sparkle-glow {
-  animation: sparkleGlow 2s ease-in-out infinite;
+:where(input::placeholder, textarea::placeholder) {
+  color: #94a3b8;
+  font-weight: 400;
 }
 
-/* Estilos de alto contraste para campos de entrada de valores e textos */
-input:not([type="checkbox"]):not([type="radio"]), select, textarea {
-  background-color: #ffffff !important;
-  border: 1px solid #e2e8f0 !important; /* border-slate-200 (fino e cinza claro) */
-  color: #0f172a !important; /* text-slate-900 */
-  font-weight: 500 !important;
-  font-size: 0.875rem !important; /* text-sm */
-  border-radius: 0.5rem !important; /* rounded-lg */
-  transition: all 150ms ease-in-out !important;
+:where(.dark input:not([type="checkbox"]):not([type="radio"]), .dark select, .dark textarea) {
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  color: #f8fafc;
 }
 
-input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
-  border-color: #3b82f6 !important; /* focus:border-blue-500 */
-  outline: none !important;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15) !important;
+:where(.dark input:not([type="checkbox"]):not([type="radio"]):focus, .dark select:focus, .dark textarea:focus) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22);
 }
 
-/* Estilos de placeholder para alto contraste */
-input::placeholder, textarea::placeholder {
-  color: #94a3b8 !important; /* slate-400 */
-  font-weight: 400 !important;
+:where(.dark input::placeholder, .dark textarea::placeholder) {
+  color: #64748b;
+  font-weight: 400;
+}
+
+/* Destaque tipográfico sóbrio da marca (substitui efeito cintilante animado) */
+.text-cintilante,
+.text-brand-highlight {
+  color: #60a5fa;
 }
 
 /* Barra de rolagem customizada */
@@ -87,34 +83,17 @@ input::placeholder, textarea::placeholder {
   background: rgba(255, 255, 255, 0.04);
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.45);
   border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.8);
-}
-
-/* No modo escuro */
-.dark input:not([type="checkbox"]):not([type="radio"]), .dark select, .dark textarea {
-  background-color: #0f172a !important; /* bg-slate-900 */
-  border: 1px solid #334155 !important; /* border-slate-700 (fino e cinza escuro) */
-  color: #ffffff !important; /* white text */
-}
-
-.dark input:not([type="checkbox"]):not([type="radio"]):focus, .dark select:focus, .dark textarea:focus {
-  border-color: #3b82f6 !important; /* border-blue-500 */
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
-}
-
-.dark input::placeholder, .dark textarea::placeholder {
-  color: #94a3b8 !important; /* slate-400 */
-  font-weight: 400 !important;
+  background: rgba(100, 116, 139, 0.75);
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: scale(0.97);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -123,6 +102,14 @@ input::placeholder, textarea::placeholder {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none !important;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}

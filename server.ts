@@ -51,6 +51,11 @@ import {
   sendMonitoringAlertWebhook,
   buildHealthPayload,
 } from "./src/server/healthMonitor";
+import { parsePtBrNumber } from "./src/utils/numberUtils";
+import {
+  isTransientSupabaseErrorText,
+  createResilientSupabaseFetch,
+} from "./src/server/supabaseResilience";
 
 // Define _dirname de forma segura para ambientes ES Module (ESM) e CommonJS (CJS)
 const _dirname = typeof __dirname !== "undefined"
@@ -194,6 +199,12 @@ function markSupabaseKeyAsInvalid(reason?: string) {
   }
 }
 
+const resilientSupabaseFetch = createResilientSupabaseFetch({
+  onRetry: ({ attempt, status, reason }) => {
+    console.warn(`[Supabase Retry] Tentativa ${attempt} após erro transitório (${reason}${status ? `, HTTP ${status}` : ""}).`);
+  },
+});
+
 function getSupabaseClient() {
   const rawUrl = process.env.SUPABASE_URL || process.env.supabase_url || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const rawServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
@@ -226,7 +237,9 @@ function getSupabaseClient() {
     if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
       try {
         if (!supabaseClient || supabaseClient.supabaseKey !== cleanKey || supabaseClient.supabaseUrl !== cleanUrl) {
-          supabaseClient = createClient(cleanUrl, cleanKey);
+          supabaseClient = createClient(cleanUrl, cleanKey, {
+            global: { fetch: resilientSupabaseFetch },
+          });
         }
         return supabaseClient;
       } catch (err) {
@@ -288,18 +301,7 @@ async function logAuditEvent(params: {
 }
 
 function isTransientNetworkError(err: any): boolean {
-  const msg = String(err?.message || err || "").toLowerCase();
-  return (
-    msg.includes("timeout") ||
-    msg.includes("econnreset") ||
-    msg.includes("etimedout") ||
-    msg.includes("econnrefused") ||
-    msg.includes("fetch failed") ||
-    msg.includes("network") ||
-    msg.includes("502") ||
-    msg.includes("503") ||
-    msg.includes("504")
-  );
+  return isTransientSupabaseErrorText(err?.message || String(err || ""));
 }
 
 async function withSupabaseRetry<T = any>(fn: () => PromiseLike<T>, label: string, retries = 2): Promise<T> {
@@ -416,6 +418,9 @@ async function savePlanPrices(prices: { mensal_de: string; mensal_por: string; a
 }
 
 async function getFreeTrialDays(): Promise<number> {
+  if (freeTrialDaysCache && (Date.now() - freeTrialDaysCache.timestamp < 300000)) {
+    return freeTrialDaysCache.value;
+  }
   const supabase = requireSupabase();
   try {
     const { data, error } = await withSupabaseRetry<any>(
@@ -438,6 +443,7 @@ async function getFreeTrialDays(): Promise<number> {
     throw err;
   }
 
+  freeTrialDaysCache = { value: 60, timestamp: Date.now() };
   return 60;
 }
 
@@ -458,7 +464,7 @@ async function saveFreeTrialDays(days: number): Promise<void> {
 let userMessagesCache: { data: Record<string, string>; timestamp: number } | null = null;
 
 async function getUserMessagesMap(bypassCache = false): Promise<Record<string, string>> {
-  if (!bypassCache && userMessagesCache && (Date.now() - userMessagesCache.timestamp < 15000)) {
+  if (!bypassCache && userMessagesCache && (Date.now() - userMessagesCache.timestamp < 60000)) {
     return userMessagesCache.data;
   }
 
@@ -471,8 +477,10 @@ async function getUserMessagesMap(bypassCache = false): Promise<Record<string, s
       'getUserMessagesMap'
     );
 
-    if (!error && data && data.value && typeof data.value === 'object') {
-      map = { ...data.value };
+    if (!error) {
+      if (data && data.value && typeof data.value === 'object') {
+        map = { ...data.value };
+      }
       userMessagesCache = { data: map, timestamp: Date.now() };
       return map;
     }
@@ -860,7 +868,7 @@ async function getUserByEmail(
 
   if (!bypassCache) {
     const cached = userCache.get(lowerEmail);
-    if (cached && Date.now() - cached.timestamp < 30000) {
+    if (cached && Date.now() - cached.timestamp < 120000) {
       return cached.data;
     }
   }
@@ -868,11 +876,13 @@ async function getUserByEmail(
   const supabase = requireSupabase();
 
   try {
-    const [userRes, profileRes, subRes] = await withSupabaseRetry(async () => {
+    const [userRes, profileRes, subRes, messagesMap, trialDays] = await withSupabaseRetry(async () => {
       const queryPromise = Promise.all([
         supabase.from('users').select('*').eq('email', lowerEmail).maybeSingle(),
         supabase.from('profiles').select('*').eq('email', lowerEmail).maybeSingle(),
-        supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle()
+        supabase.from('subscriptions').select('*').eq('email', lowerEmail).maybeSingle(),
+        getUserMessagesMap().catch(() => ({} as Record<string, string>)),
+        getFreeTrialDays().catch(() => 60)
       ]);
       const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_USER')), 15000));
       return Promise.race([queryPromise, timeoutPromise]);
@@ -900,7 +910,6 @@ async function getUserByEmail(
     const subData = subRes.data;
     const cpfValue = profileData ? profileData.cpf : (userData.cpf || '');
 
-    const messagesMap = await getUserMessagesMap();
     const resolvedUserMessage = (messagesMap[lowerEmail] !== undefined && messagesMap[lowerEmail] !== '')
       ? messagesMap[lowerEmail]
       : (profileData?.user_message !== undefined && profileData.user_message !== ''
@@ -946,7 +955,6 @@ async function getUserByEmail(
       subscriptionHistory: Array.isArray(subData?.history) ? subData.history : []
     };
 
-    const trialDays = await getFreeTrialDays().catch(() => 60);
     normalizeUserSubscription(compiledUser, trialDays);
     userCache.set(lowerEmail, { data: compiledUser, timestamp: Date.now() });
     return compiledUser;
@@ -1511,14 +1519,14 @@ async function getUserDataByEmail(
   }
 }
 
-// Fast version-checked read for writes: verifies remote _version with 1 PK query before skipping 18-table reload
+// Fast version-checked read for writes: verifies remote _version with 1 PK query (or reads user_data snapshot on cache miss) before skipping 18-table reload
 async function getCurrentUserDataForWrite(email: string): Promise<any> {
   const lowerEmail = email.toLowerCase().trim();
   const cached = userDataCache.get(lowerEmail);
+  const supabase = requireSupabase();
 
-  if (cached && cached.data && cached.data._version && (Date.now() - cached.timestamp < 5 * 60 * 1000)) {
+  if (cached && cached.data && cached.data._version && (Date.now() - cached.timestamp < 30 * 60 * 1000)) {
     try {
-      const supabase = requireSupabase();
       const { data: verRow, error: verErr } = await withSupabaseRetry<any>(
         () => supabase.from('user_data').select('updated_at').eq('email', lowerEmail).maybeSingle(),
         `getCurrentUserDataForWrite:versionCheck:${lowerEmail}`
@@ -1528,8 +1536,23 @@ async function getCurrentUserDataForWrite(email: string): Promise<any> {
         return cached.data;
       }
     } catch {
-      // fallback to full reload below
+      // fallback below
     }
+  }
+
+  try {
+    const { data: row, error: rowErr } = await withSupabaseRetry<any>(
+      () => supabase.from('user_data').select('updated_at, data').eq('email', lowerEmail).maybeSingle(),
+      `getCurrentUserDataForWrite:snapshot:${lowerEmail}`
+    );
+    if (!rowErr && row?.data && typeof row.data === 'object' && row.updated_at) {
+      const baseEmpty = getEmptyUserData();
+      const hydrated = { ...baseEmpty, ...row.data, _version: String(row.updated_at) };
+      userDataCache.set(lowerEmail, { data: hydrated, timestamp: Date.now() });
+      return hydrated;
+    }
+  } catch {
+    // fallback to full relational reload below
   }
 
   return getUserDataByEmail(lowerEmail, { bypassCache: true, throwOnError: true });
@@ -2304,15 +2327,17 @@ const ENTITY_TABLE_MAP: Record<GranularEntityKey, { table: string; mapRow: (emai
 async function saveGranularEntityMutation(
   email: string,
   entity: GranularEntityKey,
-  action: 'upsert' | 'delete',
+  action: 'upsert' | 'upsert_many' | 'delete' | 'delete_many',
   currentData: any,
   item?: any,
-  id?: string
+  id?: string,
+  options?: { items?: any[]; ids?: string[]; ownershipAlreadyVerified?: boolean }
 ): Promise<{ nextData: any; newVersion: string; retentionCleanedCount: number }> {
   const lowerEmail = email.toLowerCase().trim();
   const supabase = requireSupabase();
   const meta = ENTITY_TABLE_MAP[entity];
   const currentList = Array.isArray(currentData[entity]) ? [...currentData[entity]] : [];
+  let deletedItemsForTrash: any[] = [];
 
   let updatedList: any[];
   if (action === 'upsert') {
@@ -2321,7 +2346,7 @@ async function saveGranularEntityMutation(
     }
     const cleanId = item.id.trim();
     const isAlreadyOwnedInList = currentList.some((x: any) => String(x?.id || '').trim() === cleanId);
-    if (!isAlreadyOwnedInList) {
+    if (!isAlreadyOwnedInList && !options?.ownershipAlreadyVerified) {
       await assertNoForeignRowOwnership(supabase, meta.table, lowerEmail, [cleanId], withSupabaseRetry);
     }
     const row = meta.mapRow(lowerEmail, { ...item, id: cleanId });
@@ -2340,13 +2365,88 @@ async function saveGranularEntityMutation(
     if (upErr) {
       throw new Error(`[${meta.table}] Erro ao gravar registro: ${upErr.message}`);
     }
-    const idx = currentList.findIndex((x: any) => x.id === item.id);
+    const idx = currentList.findIndex((x: any) => String(x?.id || '').trim() === cleanId);
     if (idx >= 0) {
-      currentList[idx] = item;
+      currentList[idx] = { ...item, id: cleanId };
       updatedList = currentList;
     } else {
-      updatedList = [item, ...currentList];
+      updatedList = [{ ...item, id: cleanId }, ...currentList];
     }
+  } else if (action === 'upsert_many') {
+    const items = Array.isArray(options?.items) ? options!.items! : [];
+    if (items.length === 0) {
+      throw new Error('Lista de registros inválida para gravação em lote.');
+    }
+    const cleanItems: any[] = [];
+    const seenIds = new Set<string>();
+    for (const rawEntry of items) {
+      if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry) || typeof rawEntry.id !== 'string' || !rawEntry.id.trim()) {
+        throw new Error('Registro inválido na gravação em lote.');
+      }
+      const cleanId = rawEntry.id.trim();
+      if (!seenIds.has(cleanId)) {
+        seenIds.add(cleanId);
+        cleanItems.push({ ...rawEntry, id: cleanId });
+      }
+    }
+    const ownedSet = new Set(currentList.map((x: any) => String(x?.id || '').trim()).filter(Boolean));
+    const unownedIds = cleanItems.map((it) => it.id).filter((cid) => !ownedSet.has(cid));
+    if (unownedIds.length > 0 && !options?.ownershipAlreadyVerified) {
+      await assertNoForeignRowOwnership(supabase, meta.table, lowerEmail, unownedIds, withSupabaseRetry);
+    }
+    const rows = cleanItems.map((it) => meta.mapRow(lowerEmail, it));
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i + 500);
+      let { error: upErr } = await withSupabaseRetry<any>(
+        () => supabase.from(meta.table).upsert(chunk, { onConflict: 'id' }),
+        `granular:upsertMany:${meta.table}`
+      );
+      if (upErr && entity === 'expenses' && (upErr.code === '42703' || upErr.code === 'PGRST204' || String(upErr.message || '').includes('classification'))) {
+        const fallbackChunk = chunk.map(({ classification, ...rest }: any) => rest);
+        const retry = await withSupabaseRetry<any>(
+          () => supabase.from(meta.table).upsert(fallbackChunk, { onConflict: 'id' }),
+          `granular:upsertManyFallback:${meta.table}`
+        );
+        upErr = retry.error;
+      }
+      if (upErr) {
+        throw new Error(`[${meta.table}] Erro ao gravar registros em lote: ${upErr.message}`);
+      }
+    }
+    const existingIdxMap = new Map<string, number>();
+    currentList.forEach((x: any, i: number) => {
+      const eid = String(x?.id || '').trim();
+      if (eid) existingIdxMap.set(eid, i);
+    });
+    const newAdditions: any[] = [];
+    for (const it of cleanItems) {
+      const existingIdx = existingIdxMap.get(it.id);
+      if (existingIdx !== undefined) {
+        currentList[existingIdx] = it;
+      } else {
+        newAdditions.push(it);
+      }
+    }
+    updatedList = [...newAdditions, ...currentList];
+  } else if (action === 'delete_many') {
+    const rawIds = Array.isArray(options?.ids) ? options!.ids! : [];
+    const targetIds = Array.from(new Set(rawIds.map((v) => String(v || '').trim()).filter(Boolean)));
+    if (targetIds.length === 0) {
+      throw new Error('IDs dos registros são obrigatórios para exclusão em lote.');
+    }
+    const targetIdSet = new Set(targetIds);
+    deletedItemsForTrash = currentList.filter((x: any) => targetIdSet.has(String(x?.id || '').trim()));
+    for (let i = 0; i < targetIds.length; i += 500) {
+      const chunk = targetIds.slice(i, i + 500);
+      const { error: delErr } = await withSupabaseRetry<any>(
+        () => supabase.from(meta.table).delete().eq('email', lowerEmail).in('id', chunk),
+        `granular:deleteMany:${meta.table}`
+      );
+      if (delErr) {
+        throw new Error(`[${meta.table}] Erro ao excluir registros em lote: ${delErr.message}`);
+      }
+    }
+    updatedList = currentList.filter((x: any) => !targetIdSet.has(String(x?.id || '').trim()));
   } else {
     const targetId = id || item?.id;
     if (!targetId) {
@@ -2361,7 +2461,7 @@ async function saveGranularEntityMutation(
       throw new Error(`[${meta.table}] Erro ao excluir registro: ${delErr.message}`);
     }
     if (deletedItem) {
-      await archiveDeletedItemsToTrash(supabase, lowerEmail, entity, [deletedItem]);
+      deletedItemsForTrash = [deletedItem];
     }
     updatedList = currentList.filter((x: any) => String(x.id) !== String(targetId));
   }
@@ -2370,32 +2470,44 @@ async function saveGranularEntityMutation(
   const retentionResult = applyThreeYearRetention({ ...cleanCurrent, [entity]: updatedList });
   const nextCleanData = retentionResult.prunedData;
 
-  // Clean up any items exceeding 3-year retention directly from relational tables
+  const cleanupPromises: Promise<any>[] = [];
   for (const [remEntity, remIds] of Object.entries(retentionResult.removedByEntity)) {
     if (remIds.length > 0 && Object.prototype.hasOwnProperty.call(ENTITY_TABLE_MAP, remEntity)) {
       const tbl = ENTITY_TABLE_MAP[remEntity as GranularEntityKey].table;
-      await withSupabaseRetry<any>(
-        () => supabase.from(tbl).delete().eq('email', lowerEmail).in('id', remIds),
-        `granular:retentionCleanup:${tbl}`
+      cleanupPromises.push(
+        withSupabaseRetry<any>(
+          () => supabase.from(tbl).delete().eq('email', lowerEmail).in('id', remIds),
+          `granular:retentionCleanup:${tbl}`
+        )
       );
     }
   }
   if (retentionResult.removedAnnualYears.length > 0) {
-    await withSupabaseRetry<any>(
-      () => supabase.from('annual_planning').delete().eq('email', lowerEmail).in('year', retentionResult.removedAnnualYears),
-      'granular:retentionCleanup:annual_planning'
+    cleanupPromises.push(
+      withSupabaseRetry<any>(
+        () => supabase.from('annual_planning').delete().eq('email', lowerEmail).in('year', retentionResult.removedAnnualYears),
+        'granular:retentionCleanup:annual_planning'
+      )
     );
+  }
+  if (deletedItemsForTrash.length > 0) {
+    cleanupPromises.push(archiveDeletedItemsToTrash(supabase, lowerEmail, entity, deletedItemsForTrash));
   }
 
   const newVersion = nextMonotonicVersion(currentData._version);
-  const { error: backupErr } = await withSupabaseRetry<any>(
-    () => supabase.from('user_data').upsert({
-      email: lowerEmail,
-      data: nextCleanData,
-      updated_at: newVersion
-    }),
-    'granular:user_data:upsert'
-  );
+  const [userDataUpsertRes] = await Promise.all([
+    withSupabaseRetry<any>(
+      () => supabase.from('user_data').upsert({
+        email: lowerEmail,
+        data: nextCleanData,
+        updated_at: newVersion
+      }),
+      'granular:user_data:upsert'
+    ),
+    ...cleanupPromises
+  ]);
+
+  const backupErr = userDataUpsertRes?.error;
   if (backupErr) {
     throw new Error(`Erro ao sincronizar snapshot incremental: ${backupErr.message}`);
   }
@@ -2602,7 +2714,9 @@ app.get("/api/health", async (_req, res) => {
         const rawErrMsg = String(error.message || "").toLowerCase();
         const rawHint = String(error.hint || "").toLowerCase();
         console.error(`[Health] Falha na consulta Supabase (HTTP ${status || "?"}, code=${error.code || "none"}):`, error.message || error.details || "sem mensagem");
-        if (rawErrMsg.includes("invalid api key") || rawHint.includes("api key") || error.code === "PGRST301" || status === 401) {
+        if (rawErrMsg.includes("jwt issued at future")) {
+          dbError = "Dessincronia temporária de relógio (JWT) com o Supabase";
+        } else if (rawErrMsg.includes("invalid api key") || rawHint.includes("api key") || error.code === "PGRST301" || status === 401) {
           dbError = usingServiceRoleKey
             ? "Chave SUPABASE_SERVICE_ROLE_KEY inválida"
             : "Chave SUPABASE_ANON_KEY inválida";
@@ -3452,19 +3566,43 @@ app.post("/api/user/profile", async (req, res) => {
   if (!authUser) return;
 
   try {
-    const { name, address, phone, city, state, cpf } = req.body;
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const { name, address, phone, city, state, cpf } = body;
+
+    if (name !== undefined && typeof name !== "string") {
+      return res.status(400).json({ error: "Nome inválido." });
+    }
+    const cleanName = typeof name === "string" ? name.trim().slice(0, 120) : undefined;
+    if (cleanName !== undefined && cleanName.length === 0) {
+      return res.status(400).json({ error: "O nome completo é obrigatório." });
+    }
+
+    const sanitizeOptionalText = (val: unknown, maxLen: number): string | undefined => {
+      if (val === undefined || val === null) return undefined;
+      if (typeof val !== "string") return "";
+      return val.trim().slice(0, maxLen);
+    };
+
     const user = await getUserByEmail(authUser.email, { bypassCache: true, throwOnError: true });
 
     if (!user) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
-    user.name = name || user.name;
-    user.address = address !== undefined ? address : user.address;
-    user.phone = phone !== undefined ? phone : user.phone;
-    user.city = city !== undefined ? city : user.city;
-    user.state = state !== undefined ? state : user.state;
-    user.cpf = cpf !== undefined ? cpf : user.cpf;
+    if (cleanName !== undefined) user.name = cleanName;
+    const cleanAddress = sanitizeOptionalText(address, 250);
+    const cleanPhone = sanitizeOptionalText(phone, 30);
+    const cleanCity = sanitizeOptionalText(city, 100);
+    const cleanState = sanitizeOptionalText(state, 30);
+    const cleanCpf = sanitizeOptionalText(cpf, 20);
+
+    if (cleanAddress !== undefined) user.address = cleanAddress;
+    if (cleanPhone !== undefined) user.phone = cleanPhone;
+    if (cleanCity !== undefined) user.city = cleanCity;
+    if (cleanState !== undefined) {
+      user.state = cleanState.length === 2 ? cleanState.toUpperCase() : cleanState;
+    }
+    if (cleanCpf !== undefined) user.cpf = cleanCpf;
 
     const checkHistory = await checkIsBlacklisted(user.email, user.cpf);
     if (checkHistory.blacklisted) {
@@ -3482,6 +3620,13 @@ app.post("/api/user/profile", async (req, res) => {
     }
 
     await saveUser(user);
+    await logAuditEvent({
+      actorEmail: authUser.email,
+      action: "USER_PROFILE_UPDATED",
+      entity: "users",
+      status: "success",
+      req
+    });
 
     const { password: _, ...userProfile } = user;
     res.json({ user: userProfile });
@@ -3716,8 +3861,8 @@ app.post("/api/payment/create-preference", async (req, res) => {
   // Retrieve current official price configured exclusively by admin
   const currentPrices = await getPlanPrices();
   const configuredPriceStr = planName === "mensal" ? currentPrices.mensal_por : currentPrices.anual_por;
-  const configuredPrice = parseFloat(configuredPriceStr.replace(",", "."));
-  const unitPrice = (!isNaN(configuredPrice) && configuredPrice > 0) ? configuredPrice : (planName === "mensal" ? 19.90 : 149.00);
+  const configuredPrice = parsePtBrNumber(configuredPriceStr);
+  const unitPrice = (Number.isFinite(configuredPrice) && configuredPrice > 0) ? configuredPrice : (planName === "mensal" ? 19.90 : 149.00);
 
   const hasToken = hasRealMercadoPagoToken();
   const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
@@ -4263,22 +4408,49 @@ app.post("/api/user/entity/:entity", async (req, res) => {
     return res.status(400).json({ error: "Entidade financeira inválida." });
   }
 
-  const { action, item, id, _expectedVersion } = req.body || {};
-  if (action !== "upsert" && action !== "delete") {
-    return res.status(400).json({ error: "Ação incremental inválida. Use 'upsert' ou 'delete'." });
+  const { action, item, items, id, ids, _expectedVersion } = req.body || {};
+  if (action !== "upsert" && action !== "upsert_many" && action !== "delete" && action !== "delete_many") {
+    return res.status(400).json({ error: "Ação incremental inválida. Use 'upsert', 'upsert_many', 'delete' ou 'delete_many'." });
   }
   if (action === "upsert" && (!item || typeof item !== "object" || Array.isArray(item) || typeof item.id !== "string" || !item.id.trim())) {
     return res.status(400).json({ error: "Registro inválido para gravação." });
   }
+  if (action === "upsert_many" && (!Array.isArray(items) || items.length === 0 || items.some((entry: any) => !entry || typeof entry !== "object" || Array.isArray(entry) || typeof entry.id !== "string" || !entry.id.trim()))) {
+    return res.status(400).json({ error: "Lista de registros inválida para gravação em lote." });
+  }
   if (action === "delete" && typeof (id || item?.id) !== "string") {
     return res.status(400).json({ error: "ID do registro inválido para exclusão." });
+  }
+  if (action === "delete_many" && (!Array.isArray(ids) || ids.length === 0 || ids.some((entry: any) => typeof entry !== "string" || !entry.trim()))) {
+    return res.status(400).json({ error: "Lista de IDs inválida para exclusão em lote." });
   }
 
   const wantCompact = req.query.compact === "1";
 
   try {
     const result = await withUserWriteLock(authUser.email, async () => {
-      const currentData = await getCurrentUserDataForWrite(authUser.email);
+      const lowerEmail = authUser.email.toLowerCase().trim();
+      const supabase = requireSupabase();
+      const meta = ENTITY_TABLE_MAP[entity];
+      const cachedList = Array.isArray(userDataCache.get(lowerEmail)?.data?.[entity])
+        ? userDataCache.get(lowerEmail)!.data[entity]
+        : [];
+      const cachedOwnedIds = new Set(cachedList.map((x: any) => String(x?.id || '').trim()).filter(Boolean));
+
+      const candidateUpsertIds: string[] = action === "upsert"
+        ? [String(item.id).trim()]
+        : action === "upsert_many"
+        ? Array.from(new Set<string>(items.map((entry: any) => String(entry.id).trim())))
+        : [];
+      const unverifiedIds: string[] = candidateUpsertIds.filter((cid) => !cachedOwnedIds.has(cid));
+
+      const [currentData] = await Promise.all([
+        getCurrentUserDataForWrite(authUser.email),
+        unverifiedIds.length > 0
+          ? assertNoForeignRowOwnership(supabase, meta.table, lowerEmail, unverifiedIds, withSupabaseRetry)
+          : Promise.resolve()
+      ]);
+
       if (!currentData || typeof currentData !== "object") {
         return { status: 503, body: { error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." } };
       }
@@ -4299,7 +4471,19 @@ app.post("/api/user/entity/:entity", async (req, res) => {
         };
       }
 
-      const { nextData, newVersion, retentionCleanedCount } = await saveGranularEntityMutation(authUser.email, entity, action, currentData, item, id);
+      const { nextData, newVersion, retentionCleanedCount } = await saveGranularEntityMutation(
+        authUser.email,
+        entity,
+        action,
+        currentData,
+        item,
+        id,
+        {
+          items,
+          ids,
+          ownershipAlreadyVerified: unverifiedIds.length > 0
+        }
+      );
       return {
         status: 200,
         version: newVersion,

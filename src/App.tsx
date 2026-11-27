@@ -9,7 +9,7 @@ import { isUserSubscriptionActive } from './utils/subscriptionUtils';
 import { FloatingMenuButton } from './components/FloatingMenuButton';
 import { PullToRefresh } from './components/PullToRefresh';
 import { clearAuthToken, getAuthHeaders } from './utils/authToken';
-import { detectSingleGranularMutation } from './utils/dataDiff';
+import { detectGranularMutation } from './utils/dataDiff';
 
 // Lazy loading heavy pages and components to drastically reduce initial bundle size
 const Home = lazy(() => import('./components/Home').then(m => ({ default: m.Home })));
@@ -208,9 +208,11 @@ export default function App() {
       'Situações de recebimento',
       'Situação de pagamento',
       'Situações de pagamento',
+      'Categoria Receitas',
       'Cadastro Categoria Receitas',
       'Cadastro categoria Receitas',
       'Cadastro tipos de Receitas',
+      'Categoria Despesas',
       'Cadastro Categoria Despesas',
       'Cadastro categoria Despesas',
       'Tipos e Status Investimentos',
@@ -459,8 +461,8 @@ export default function App() {
     updateUserDataState(merged); // Optimistic UI update using latest ref
 
     try {
-      const granularMutation = detectSingleGranularMutation(baseData as Record<string, any>, newData as Record<string, any>);
-      const compactQuery = fullHistoryLoadedRef.current ? '?compact=1' : '';
+      const granularMutation = detectGranularMutation(baseData as Record<string, any>, newData as Record<string, any>);
+      const compactQuery = (granularMutation || fullHistoryLoadedRef.current) ? '?compact=1' : '';
       const endpoint = granularMutation
         ? `/api/user/entity/${granularMutation.entity}${compactQuery}`
         : `/api/user/data${compactQuery}`;
@@ -471,8 +473,10 @@ export default function App() {
       const payloadToSend = granularMutation
         ? {
             action: granularMutation.action,
-            item: granularMutation.item,
-            id: granularMutation.id,
+            ...(granularMutation.item !== undefined ? { item: granularMutation.item } : {}),
+            ...(granularMutation.items !== undefined ? { items: granularMutation.items } : {}),
+            ...(granularMutation.id !== undefined ? { id: granularMutation.id } : {}),
+            ...(granularMutation.ids !== undefined ? { ids: granularMutation.ids } : {}),
             ...(dataVersionRef.current ? { _expectedVersion: dataVersionRef.current } : {})
           }
         : {
@@ -1031,13 +1035,14 @@ export default function App() {
             }}
           />
         );
+      case 'Categoria Receitas':
       case 'Cadastro Categoria Receitas':
       case 'Cadastro categoria Receitas':
       case 'Cadastro tipos de Receitas':
         if (!userData) return null;
         return (
           <ListManagerPage
-            title="Cadastro Categoria Receitas"
+            title="Categoria Receitas"
             description="Organize suas fontes de renda por categoria (Salário, Investimentos, Freelance, Bônus, etc)."
             items={userData.incomeCategories || []}
             placeholder="Ex: Aluguel Recebido"
@@ -1053,13 +1058,14 @@ export default function App() {
             }}
           />
         );
+      case 'Categoria Despesas':
       case 'Cadastro Categoria Despesas':
       case 'Cadastro categoria Despesas':
       case 'Cadastro tipos de Despesas':
         if (!userData) return null;
         return (
           <ListManagerPage
-            title="Cadastro Categoria Despesas"
+            title="Categoria Despesas"
             description="Agrupe seus custos mensais para entender onde você gasta mais (Moradia, Alimentação, Saúde, Transporte, etc)."
             items={userData.expenseCategories || []}
             placeholder="Ex: Serviços de Streaming"
@@ -1179,8 +1185,8 @@ export default function App() {
     { name: 'Tipo de pagamento', icon: CreditCard },
     { name: 'Situação de recebimento', icon: CheckCircle2 },
     { name: 'Situação de pagamento', icon: CheckCircle },
-    { name: 'Cadastro Categoria Receitas', icon: TrendingUp },
-    { name: 'Cadastro Categoria Despesas', icon: TrendingDown },
+    { name: 'Categoria Receitas', icon: TrendingUp },
+    { name: 'Categoria Despesas', icon: TrendingDown },
     { name: 'Tipos e Status Investimentos', icon: Vault },
     { name: 'Modo app Web', icon: Globe },
   ];
@@ -1219,21 +1225,25 @@ export default function App() {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Brand logo */}
-        <div className="p-3 sm:p-3.5 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/40">
-          <div
+        <div className="p-3 sm:p-3.5 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/50">
+          <button
+            type="button"
             onClick={() => {
               setCurrentPage('Início');
               setSidebarOpen(false);
             }}
-            className="flex items-center gap-2.5 cursor-pointer group"
+            className="flex items-center cursor-pointer group text-left"
             title="Ir para o Início"
           >
-            <FinanFlyLogo size={32} rounded="rounded-lg" shadow className="transition-transform group-hover:scale-105" />
-            <div>
-              <span className="text-base font-extrabold text-white tracking-tight block leading-tight">FinanFly</span>
-              <span className="text-[9.5px] text-slate-300 font-medium tracking-wider uppercase block">Finanças Inteligente</span>
-            </div>
-          </div>
+            <FinanFlyLogo
+              size={34}
+              rounded="rounded-lg"
+              shadow
+              showWordmark
+              subtitle="Gestão Financeira"
+              className="transition-transform group-hover:scale-[1.02]"
+            />
+          </button>
           {/* Close button for mobile */}
           <button
             onClick={() => setSidebarOpen(false)}
@@ -1273,7 +1283,7 @@ export default function App() {
 
                 {/* Highlighted divider line below Plano de Ajuste */}
                 {(item.name === 'Plano de Ajuste' || item.name === 'Inconsistência financeira' || item.name === 'P. A. desvio financeiro' || item.name === 'Melhoria financeira') && (
-                  <div className="my-2 border-b-2 border-slate-700/80 shadow-xs mx-1" />
+                  <div className="my-2 border-b border-slate-800 mx-1" />
                 )}
               </div>
             );
@@ -1290,10 +1300,10 @@ export default function App() {
                     scrollToSection(settingsSectionRef);
                   }
                 }}
-                className="w-full flex items-center justify-between px-3 tracking-wide text-sky-300 hover:text-sky-200 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-3 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
               >
-                <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-sky-300">Configurações</span>
-                <Settings className="h-4 w-4 text-sky-300" />
+                <span className="text-xs font-semibold tracking-wide">Configurações</span>
+                <Settings className="h-4 w-4 text-slate-400" />
               </button>
             </div>
 
@@ -1326,7 +1336,7 @@ export default function App() {
 
           {/* Dados Seção / Header */}
           <div ref={dadosSectionRef}>
-            <div className="pt-3 pb-1.5 border-t border-slate-800/60 mt-2">
+            <div className="pt-3 pb-1.5 border-t border-slate-800/80 mt-2">
               <button
                 onClick={() => {
                   const next = !dadosExpanded;
@@ -1335,10 +1345,10 @@ export default function App() {
                     scrollToSection(dadosSectionRef);
                   }
                 }}
-                className="w-full flex items-center justify-between px-3 tracking-wide text-sky-300 hover:text-sky-200 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-3 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
               >
-                <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-sky-300">Dados</span>
-                <Database className="h-4 w-4 text-sky-300" />
+                <span className="text-xs font-semibold tracking-wide">Dados</span>
+                <Database className="h-4 w-4 text-slate-400" />
               </button>
             </div>
 
@@ -1446,44 +1456,44 @@ export default function App() {
               <FinanFlyLogo size={30} rounded="rounded-lg" shadow />
             </div>
 
-            <h2 className="text-base sm:text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
               {currentPage}
             </h2>
 
-            <div className={`hidden sm:inline-flex text-xs px-2.5 py-1 rounded-md uppercase font-bold ${
+            <span className={`hidden sm:inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-md border font-medium whitespace-nowrap shrink-0 ${
               currentUser.role === 'admin'
-                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60'
                 : isSubscriptionActive()
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
-                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60'
+                : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60'
             }`}>
               {currentUser.role === 'admin'
                 ? 'Administrador'
                 : isSubscriptionActive()
-                ? 'Assinatura Ativa ✓'
-                : 'Assinatura Pendente/Inativa'}
-            </div>
+                ? 'Assinatura ativa'
+                : 'Assinatura pendente'}
+            </span>
           </div>
 
-          <div className="flex items-center gap-4 text-sm font-semibold">
+          <div className="flex items-center gap-3 sm:gap-4 text-sm font-semibold shrink-0">
             {/* Modo Claro / Escuro */}
             <button
               onClick={() => setIsDark(!isDark)}
-              className="p-2.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
               title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
             >
-              {isDark ? <Sun className="h-6 w-6 text-amber-400" /> : <Moon className="h-6 w-6 text-slate-700 dark:text-slate-200" />}
+              {isDark ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-slate-700 dark:text-slate-200" />}
             </button>
 
             {/* Display profile initials in blue circle */}
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <div className="text-sm font-bold text-slate-800 dark:text-white">{currentUser.name}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">{currentUser.email}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white leading-tight">{currentUser.name}</div>
+                <div className="text-xs font-normal text-slate-500 dark:text-slate-400 leading-tight">{currentUser.email}</div>
               </div>
               <div
                 onClick={() => setCurrentPage('Dados pessoais')}
-                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-blue-600/10 cursor-pointer hover:opacity-85 select-none"
+                className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold cursor-pointer hover:bg-blue-700 transition-colors select-none"
                 title={`Perfil de ${currentUser.name} (${getUserInitials(currentUser.name, currentUser.email)})`}
               >
                 {getUserInitials(currentUser.name, currentUser.email)}

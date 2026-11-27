@@ -19,7 +19,7 @@ import {
   BACKUP_RETENTION_DAYS,
   RETENTION_YEARS,
 } from "../src/server/retention";
-import { detectSingleGranularMutation } from "../src/utils/dataDiff";
+import { detectSingleGranularMutation, detectGranularMutation } from "../src/utils/dataDiff";
 import {
   ForeignRowOwnershipError,
   pickAllowedUserDataFields,
@@ -43,6 +43,8 @@ import {
   buildHealthPayload,
 } from "../src/server/healthMonitor";
 import { generateRecordId } from "../src/utils/id";
+import { parsePtBrNumber, formatPtBrCurrency } from "../src/utils/numberUtils";
+import { getTodayLocalDateStr } from "../src/utils/dateUtils";
 
 describe("FinanFly Schema Safety & Performance Catalog", () => {
   it("contém 26 tabelas incluindo audit_logs, trash_items, user_backups e índices compostos", () => {
@@ -201,6 +203,40 @@ describe("FinanFly Incremental Save Diff Detector", () => {
       ],
     };
     assert.equal(detectSingleGranularMutation(base, bulk), null);
+  });
+
+  it("detecta inclusões parceladas (upsert_many) e exclusões em lote (delete_many) sem reenviar toda a lista", () => {
+    const base = {
+      expenses: [
+        { id: "e1", description: "Café", value: 10 },
+        { id: "e2", description: "Almoço", value: 35 },
+      ],
+    };
+
+    const parcelado = {
+      expenses: [
+        { id: "e3", description: "Compra (1/2)", value: 100 },
+        { id: "e4", description: "Compra (2/2)", value: 100 },
+        ...base.expenses,
+      ],
+    };
+    assert.deepEqual(detectGranularMutation(base, parcelado), {
+      entity: "expenses",
+      action: "upsert_many",
+      items: [
+        { id: "e3", description: "Compra (1/2)", value: 100 },
+        { id: "e4", description: "Compra (2/2)", value: 100 },
+      ],
+    });
+
+    const bulkDelete = {
+      expenses: [],
+    };
+    assert.deepEqual(detectGranularMutation(base, bulkDelete), {
+      entity: "expenses",
+      action: "delete_many",
+      ids: ["e1", "e2"],
+    });
   });
 });
 
@@ -530,4 +566,81 @@ describe("FinanFly Health Monitor & 5xx Alert Telemetry", () => {
     assert.equal(health.retention.backupDays, 3);
   });
 });
+
+describe("FinanFly PT-BR Number Parsing & Local Date Formatting", () => {
+  it("interpreta corretamente milhares e decimais PT-BR, formato US e entradas inválidas", () => {
+    assert.equal(parsePtBrNumber("1.149,00"), 1149);
+    assert.equal(parsePtBrNumber("1.250,50"), 1250.5);
+    assert.equal(parsePtBrNumber("19,90"), 19.9);
+    assert.equal(parsePtBrNumber("149.90"), 149.9);
+    assert.equal(parsePtBrNumber("1.000"), 1000);
+    assert.equal(parsePtBrNumber("R$ 2.500,75"), 2500.75);
+    assert.equal(parsePtBrNumber(""), 0);
+    assert.equal(parsePtBrNumber("invalido"), 0);
+    assert.equal(parsePtBrNumber(Number.NaN), 0);
+    assert.equal(formatPtBrCurrency(1149.5), "1.149,50");
+    assert.equal(formatPtBrCurrency(0), "");
+  });
+
+  it("formata data local YYYY-MM-DD sem deslocar o dia pelo fuso UTC", () => {
+    const localLateNight = new Date(2026, 10, 26, 23, 55, 0);
+    assert.equal(getTodayLocalDateStr(localLateNight), "2026-11-26");
+  });
+});
+
+import {
+  isTransientSupabaseErrorText,
+  createResilientSupabaseFetch,
+} from "../src/server/supabaseResilience";
+
+describe("FinanFly Supabase Gateway Clock-Skew & Transient Error Resilience", () => {
+  it("reconhece e faz retry automático em 'JWT issued at future' sem mascarar chave inválida", async () => {
+    assert.equal(isTransientSupabaseErrorText("JWT issued at future"), true);
+    assert.equal(isTransientSupabaseErrorText("Invalid API key"), false);
+
+    let attempts = 0;
+    const retries: string[] = [];
+    const flakyFetch: typeof fetch = async () => {
+      attempts++;
+      if (attempts < 3) {
+        return new Response(
+          JSON.stringify({ code: "PGRST301", message: "JWT issued at future" }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify([{ email: "user@example.com" }]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const resilientFetch = createResilientSupabaseFetch({
+      baseFetch: flakyFetch,
+      retryDelaysMs: [1, 1],
+      onRetry: (info) => retries.push(info.reason),
+    });
+
+    const okRes = await resilientFetch("https://example.supabase.co/rest/v1/users");
+    assert.equal(okRes.status, 200);
+    assert.equal(attempts, 3);
+    assert.deepEqual(retries, ["JWT issued at future", "JWT issued at future"]);
+
+    let permanentAttempts = 0;
+    const badKeyFetch: typeof fetch = async () => {
+      permanentAttempts++;
+      return new Response(JSON.stringify({ message: "Invalid API key" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const resilientBadKeyFetch = createResilientSupabaseFetch({
+      baseFetch: badKeyFetch,
+      retryDelaysMs: [1, 1],
+    });
+    const badRes = await resilientBadKeyFetch("https://example.supabase.co/rest/v1/users");
+    assert.equal(badRes.status, 401);
+    assert.equal(permanentAttempts, 1, "Chave inválida permanente não deve ser retentada");
+  });
+});
+
 

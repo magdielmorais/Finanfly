@@ -11,9 +11,12 @@ import { renameExpenseCategoryInUserData, migrateLocalBudgetsCategory } from '..
 import { exportExpensesToPdf, exportMonthlySummaryToPdf } from '../utils/pdfExport';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
-import { getMonthWeeksCount } from '../utils/dateUtils';
+import { getMonthWeeksCount, getTodayLocalDateStr } from '../utils/dateUtils';
 import { getAuthHeaders } from '../utils/authToken';
 import { generateRecordId } from '../utils/id';
+import { parsePtBrNumber, formatPtBrCurrency, formatPtBrLiveInput } from '../utils/numberUtils';
+
+export { parsePtBrNumber, formatPtBrCurrency, formatPtBrLiveInput };
 
 dayjs.extend(isoWeek);
 // dayjs('2026-09-01').isoWeek(); // Retorna 36
@@ -28,81 +31,6 @@ export interface PageProps {
   initialCategory?: string;
   onClearInitialAdd?: () => void;
 }
-
-// ======================== BRAZILIAN CURRENCY FORMATTERS ========================
-// Automatic thousand separators (.) and decimal comma (,) e.g. 1.500,00
-export const parsePtBrNumber = (val: string | number | undefined): number => {
-  if (val === undefined || val === null || val === '') return 0;
-  if (typeof val === 'number') return val;
-  const str = String(val).trim();
-  if (!str) return 0;
-
-  // 1. Se contém vírgula, a vírgula é o separador decimal oficial brasileiro (ex: 1.500,50 ou 1500,50)
-  if (str.includes(',')) {
-    const clean = str.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
-    return parseFloat(clean) || 0;
-  }
-
-  // 2. Se contém ponto: verificar se é separador de milhar (ex: 1.000, 1.500, 10.000, 1.000.000)
-  if (str.includes('.')) {
-    const parts = str.split('.');
-    const lastPart = parts[parts.length - 1];
-    // Se o último bloco tem exatamente 3 dígitos e temos múltiplos blocos, é separador de milhar
-    if (lastPart.length === 3 && parts.length >= 2) {
-      const clean = str.replace(/\./g, '').replace(/[^\d]/g, '');
-      return parseFloat(clean) || 0;
-    }
-    // Se tem apenas 2 blocos e o último tem 1 ou 2 dígitos (ex: 15.5 ou 1500.50 colado de teclado US), trata como decimal
-    if (lastPart.length <= 2 && parts.length === 2) {
-      const clean = str.replace(/[^\d.]/g, '');
-      return parseFloat(clean) || 0;
-    }
-    // Caso padrão com pontos: remove pontos de milhar
-    const clean = str.replace(/\./g, '').replace(/[^\d]/g, '');
-    return parseFloat(clean) || 0;
-  }
-
-  // 3. Apenas dígitos inteiros
-  const clean = str.replace(/[^\d]/g, '');
-  return parseFloat(clean) || 0;
-};
-
-export const formatPtBrCurrency = (val: number): string => {
-  if (!val || val === 0) return '';
-  return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-export const formatPtBrLiveInput = (raw: string): string => {
-  if (!raw) return '';
-  const val = raw.trim();
-  if (!val) return '';
-
-  // 1. Se o valor contém vírgula (separador decimal brasileiro)
-  if (val.includes(',')) {
-    const [intStr, ...rest] = val.split(',');
-    const decStr = rest.join('').replace(/\D/g, '').slice(0, 2);
-    const digitsInt = intStr.replace(/\D/g, '');
-    const formattedInt = digitsInt ? parseInt(digitsInt, 10).toLocaleString('pt-BR') : '0';
-    if (val.endsWith(',') && decStr.length === 0) {
-      return `${formattedInt},`;
-    }
-    return decStr.length > 0 ? `${formattedInt},${decStr}` : `${formattedInt},`;
-  }
-
-  // 2. Se o usuário acabou de digitar um ponto no final (separador de milhar), mantém o ponto
-  // sem converter erroneamente para vírgula, permitindo digitar 1.000 ou 1.500
-  if (val.endsWith('.')) {
-    const digitsInt = val.replace(/\D/g, '');
-    if (!digitsInt) return '';
-    const formattedInt = parseInt(digitsInt, 10).toLocaleString('pt-BR');
-    return `${formattedInt}.`;
-  }
-
-  // 3. Formatação automática de milhar com ponto para números inteiros (ex: 1000 -> 1.000)
-  const digitsOnly = val.replace(/\D/g, '');
-  if (!digitsOnly) return '';
-  return parseInt(digitsOnly, 10).toLocaleString('pt-BR');
-};
 
 export const getNextMonthDate = (baseDateStr: string, monthsToAdd: number): string => {
   if (monthsToAdd === 0) return baseDateStr;
@@ -347,6 +275,7 @@ export const HelpCard: React.FC<HelpCardProps> = ({
 // ======================== RECEITAS PAGE ========================
 export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) => {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isSavingIncome, setIsSavingIncome] = useState(false);
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
@@ -462,10 +391,12 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingIncome) return;
     if (!date || !description || !value || !category || !paymentType || !status) return;
     const numValue = parsePtBrNumber(value);
     if (numValue <= 0) return;
 
+    setIsSavingIncome(true);
     try {
       if (editingIncomeId) {
         // Edit mode
@@ -521,6 +452,8 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
       }
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingIncome(false);
     }
   };
 
@@ -806,6 +739,7 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
               transition={{ duration: 0.15 }}
               className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm cursor-pointer"
               onClick={() => {
+                if (isSavingIncome) return;
                 setShowAddForm(false);
                 setEditingIncomeId(null);
               }}
@@ -841,11 +775,13 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                     )}
                     <button
                       type="button"
+                      disabled={isSavingIncome}
                       onClick={() => {
+                        if (isSavingIncome) return;
                         setShowAddForm(false);
                         setEditingIncomeId(null);
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Fechar"
                     >
                       <X className="h-5 w-5" />
@@ -962,7 +898,9 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                 <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
                   <button
                     type="button"
+                    disabled={isSavingIncome}
                     onClick={() => {
+                      if (isSavingIncome) return;
                       setShowAddForm(false);
                       setEditingIncomeId(null);
                       setDate('');
@@ -975,16 +913,17 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
                       setShowManageReceiptTypes(false);
                       setShowManageReceiptStatuses(false);
                     }}
-                    className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 cursor-pointer"
+                    className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     form="form-receitas-modal"
-                    className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-sm shadow-blue-600/20 cursor-pointer"
+                    disabled={isSavingIncome}
+                    className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-sm shadow-blue-600/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {editingIncomeId ? 'Atualizar Registro' : 'Salvar Registro'}
+                    {isSavingIncome ? 'Salvando...' : (editingIncomeId ? 'Atualizar Registro' : 'Salvar Registro')}
                   </button>
                 </div>
               </motion.div>
@@ -1549,7 +1488,14 @@ export const ReceitasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {filteredIncomes.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">Nenhum registro de receita localizado.</td>
+                  <td colSpan={7} className="text-center py-12 px-4">
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                      Nenhum registro de receita localizado
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Adicione uma nova receita acima ou ajuste os filtros do período.
+                    </p>
+                  </td>
                 </tr>
               ) : (
                 filteredIncomes.map((inc) => (
@@ -1669,6 +1615,7 @@ export const DespesasPage: React.FC<PageProps> = ({
   onClearInitialAdd
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isSavingExpense, setIsSavingExpense] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [date, setDate] = useState('');
   const [description, setDescription] = useState('');
@@ -1774,7 +1721,7 @@ export const DespesasPage: React.FC<PageProps> = ({
         if (e.key === 'Escape') {
           if (showBulkEditModal) {
             setShowBulkEditModal(false);
-          } else if (showAddForm) {
+          } else if (showAddForm && !isSavingExpense) {
             setShowAddForm(false);
             setEditingExpenseId(null);
           }
@@ -1787,7 +1734,7 @@ export const DespesasPage: React.FC<PageProps> = ({
         window.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [showAddForm, showBulkEditModal]);
+  }, [showAddForm, showBulkEditModal, isSavingExpense]);
 
   const currentMonthYearStr = useMemo(() => {
     const today = new Date();
@@ -2139,10 +2086,12 @@ export const DespesasPage: React.FC<PageProps> = ({
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingExpense) return;
     if (!date || !description || !value || !category || !paymentType || !status || !classification) return;
     const parsedVal = parsePtBrNumber(value);
     if (parsedVal <= 0) return;
 
+    setIsSavingExpense(true);
     try {
       if (editingExpenseId) {
         // Edit mode
@@ -2216,6 +2165,8 @@ export const DespesasPage: React.FC<PageProps> = ({
       setShowAddForm(false);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingExpense(false);
     }
   };
 
@@ -2684,6 +2635,7 @@ export const DespesasPage: React.FC<PageProps> = ({
               transition={{ duration: 0.15 }}
               className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm cursor-pointer"
               onClick={() => {
+                if (isSavingExpense) return;
                 setShowAddForm(false);
                 setEditingExpenseId(null);
               }}
@@ -2719,11 +2671,13 @@ export const DespesasPage: React.FC<PageProps> = ({
                     )}
                     <button
                       type="button"
+                      disabled={isSavingExpense}
                       onClick={() => {
+                        if (isSavingExpense) return;
                         setShowAddForm(false);
                         setEditingExpenseId(null);
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Fechar"
                     >
                       <X className="h-5 w-5" />
@@ -2873,7 +2827,9 @@ export const DespesasPage: React.FC<PageProps> = ({
                 <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-950/50">
                   <button
                     type="button"
+                    disabled={isSavingExpense}
                     onClick={() => {
+                      if (isSavingExpense) return;
                       setShowAddForm(false);
                       setEditingExpenseId(null);
                       setDate('');
@@ -2888,16 +2844,17 @@ export const DespesasPage: React.FC<PageProps> = ({
                       setShowManagePaymentTypes(false);
                       setShowManagePaymentStatuses(false);
                     }}
-                    className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer font-medium"
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     form="form-despesas-modal"
-                    className="rounded-lg bg-rose-600 px-5 py-2 font-bold text-white hover:bg-rose-500 transition-colors shadow-sm shadow-rose-600/20 cursor-pointer"
+                    disabled={isSavingExpense}
+                    className="rounded-lg bg-rose-600 px-5 py-2 font-bold text-white hover:bg-rose-500 transition-colors shadow-sm shadow-rose-600/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {editingExpenseId ? 'Atualizar Registro' : 'Salvar Registro'}
+                    {isSavingExpense ? 'Salvando...' : (editingExpenseId ? 'Atualizar Registro' : 'Salvar Registro')}
                   </button>
                 </div>
               </motion.div>
@@ -3875,7 +3832,14 @@ export const DespesasPage: React.FC<PageProps> = ({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {filteredExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-slate-400 text-sm">Nenhum registro de despesa localizado.</td>
+                  <td colSpan={8} className="text-center py-12 px-4">
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                      Nenhum registro de despesa localizado
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Adicione uma nova despesa acima ou ajuste os filtros do período.
+                    </p>
+                  </td>
                 </tr>
               ) : (
                 filteredExpenses.map((exp) => (
@@ -4113,6 +4077,7 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
 
   // Estados para o popup de Novo Registro de Despesa disparado no Resumo Mensal
   const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
+  const [isSavingQuickLaunch, setIsSavingQuickLaunch] = useState(false);
   const [newExpDate, setNewExpDate] = useState('');
   const [newExpDescription, setNewExpDescription] = useState('');
   const [newExpValue, setNewExpValue] = useState('');
@@ -4183,10 +4148,12 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
 
   const handleSaveNewExpense = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingQuickLaunch) return;
     if (!newExpDate || !newExpDescription || !newExpValue || !newExpCategory || !newExpPaymentType || !newExpStatus || !newExpClassification) return;
     const parsedVal = parsePtBrNumber(newExpValue);
     if (parsedVal <= 0) return;
 
+    setIsSavingQuickLaunch(true);
     try {
       if (newExpInstallments > 1) {
         const newExpensesList: Expense[] = [];
@@ -4227,6 +4194,8 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
       setShowNewExpenseModal(false);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingQuickLaunch(false);
     }
   };
 
@@ -4268,11 +4237,13 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
 
   const handleSaveEditedLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingQuickLaunch) return;
     if (!editingLaunchItem) return;
     if (!editLaunchDate || !editLaunchDescription || !editLaunchValue || !editLaunchCategory) return;
     const parsedVal = parsePtBrNumber(editLaunchValue);
     if (parsedVal <= 0) return;
 
+    setIsSavingQuickLaunch(true);
     try {
       if (editingLaunchItem.type === 'despesa') {
         const updatedExpenses = userData.expenses.map(exp => {
@@ -4319,6 +4290,8 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
       setEditingLaunchItem(null);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingQuickLaunch(false);
     }
   };
 
@@ -5014,14 +4987,12 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
 
       {/* Seção com Separadores e Gráficos Tipo Pizza: Orçado e Realizado */}
       <div className="space-y-4 pt-2">
-        {/* Line with pill badge in the style of GRÁFICOS FINANCEIROS do Painel */}
+        {/* Hairline Section Divider */}
         <div className="relative my-4 flex items-center justify-center">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t-2 border-slate-200 dark:border-slate-800" />
-          </div>
-          <div className="relative bg-emerald-100/80 border border-emerald-300 dark:border-emerald-800/60 dark:bg-emerald-950/40 px-4 py-1.5 rounded-full text-xs sm:text-xs font-extrabold uppercase tracking-wider text-emerald-950 dark:text-emerald-300 shadow-sm text-center">
-            Gráficos de percentuais
-          </div>
+          <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+          <span className="absolute bg-slate-50 dark:bg-slate-950 px-3 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            Gráficos de Percentuais
+          </span>
         </div>
         {/* Card Gráfico Realizado */}
         <div className="space-y-3">
@@ -5791,9 +5762,10 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
                   <button
                     type="submit"
                     form="form-novo-registro-resumo"
-                    className="rounded-lg bg-rose-600 px-5 py-2 font-bold text-white hover:bg-rose-500 transition-colors shadow-sm shadow-rose-600/20 cursor-pointer text-xs sm:text-sm"
+                    disabled={isSavingQuickLaunch}
+                    className="rounded-lg bg-rose-600 px-5 py-2 font-bold text-white hover:bg-rose-500 transition-colors shadow-sm shadow-rose-600/20 cursor-pointer text-xs sm:text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Salvar Registro
+                    {isSavingQuickLaunch ? 'Salvando...' : 'Salvar Registro'}
                   </button>
                 </div>
               </motion.div>
@@ -5969,9 +5941,10 @@ export const ResumoMensalPage: React.FC<PageProps> = ({ userData, userProfile, o
                   <button
                     type="submit"
                     form="form-editar-lancamento-resumo"
-                    className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-sm shadow-blue-600/20 cursor-pointer text-xs sm:text-sm"
+                    disabled={isSavingQuickLaunch}
+                    className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-sm shadow-blue-600/20 cursor-pointer text-xs sm:text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Salvar Alterações
+                    {isSavingQuickLaunch ? 'Salvando...' : 'Salvar Alterações'}
                   </button>
                 </div>
               </motion.div>
@@ -6649,6 +6622,7 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
   const [targetDate, setTargetDate] = useState('');
   const [value, setValue] = useState('');
   const [status, setStatus] = useState<'Pendente' | 'Em Andamento' | 'Concluído'>('Pendente');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Filters State
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -6656,14 +6630,18 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !value) return;
+    if (isSaving) return;
+    if (!title.trim() || !value.trim()) return;
+    const numValue = parsePtBrNumber(value);
+    if (!Number.isFinite(numValue) || numValue <= 0) return;
 
+    setIsSaving(true);
     try {
       if (editingPlanId) {
         await onUpdateUserData({
           actionPlans: userData.actionPlans.map(p =>
             p.id === editingPlanId
-              ? { ...p, title, description, targetDate, value: parseFloat(value), status }
+              ? { ...p, title: title.trim(), description, targetDate, value: numValue, status }
               : p
           )
         });
@@ -6671,10 +6649,10 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
       } else {
         const newPlan: ActionPlan = {
           id: generateRecordId('plan'),
-          title,
+          title: title.trim(),
           description,
           targetDate,
-          value: parseFloat(value),
+          value: numValue,
           status
         };
 
@@ -6691,6 +6669,8 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
       setShowAdd(false);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -6699,12 +6679,13 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
     setTitle(plan.title);
     setDescription(plan.description);
     setTargetDate(plan.targetDate);
-    setValue(plan.value.toString());
+    setValue(formatPtBrCurrency(Number(plan.value) || 0) || (plan.value ? String(plan.value) : ''));
     setStatus(plan.status);
     setShowAdd(true);
   };
 
   const handleCancelEdit = () => {
+    if (isSaving) return;
     setEditingPlanId(null);
     setTitle('');
     setDescription('');
@@ -6917,7 +6898,21 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400">Valor Alvo (R$)</label>
-                <input type="number" required placeholder="Ex: 15000,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  required
+                  placeholder="Ex: 15.000,00"
+                  value={value}
+                  onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                  onBlur={() => {
+                    if (value && value.trim()) {
+                      const num = parsePtBrNumber(value);
+                      if (num > 0) setValue(formatPtBrCurrency(num));
+                    }
+                  }}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400">Data Limite</label>
@@ -6933,9 +6928,9 @@ export const MetasPage: React.FC<PageProps> = ({ userData, onUpdateUserData }) =
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button type="button" onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
-              <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">
-                {editingPlanId ? 'Salvar Alterações' : 'Cadastrar Objetivo'}
+              <button type="button" disabled={isSaving} onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed">Cancelar</button>
+              <button type="submit" disabled={isSaving} className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                {isSaving ? 'Salvando...' : (editingPlanId ? 'Salvar Alterações' : 'Cadastrar Objetivo')}
               </button>
             </div>
           </form>
@@ -7120,6 +7115,7 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
   const [targetDate, setTargetDate] = useState('');
   const [value, setValue] = useState('');
   const [status, setStatus] = useState<'Pendente' | 'Concluído'>('Pendente');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Filters State
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -7127,14 +7123,18 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !value) return;
+    if (isSaving) return;
+    if (!title.trim() || !value.trim()) return;
+    const numValue = parsePtBrNumber(value);
+    if (!Number.isFinite(numValue) || numValue <= 0) return;
 
+    setIsSaving(true);
     try {
       if (editingWishId) {
         await onUpdateUserData({
           wishes: wishesList.map(w =>
             w.id === editingWishId
-              ? { ...w, title, description, targetDate, value: parseFloat(value), status }
+              ? { ...w, title: title.trim(), description, targetDate, value: numValue, status }
               : w
           )
         });
@@ -7142,10 +7142,10 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
       } else {
         const newWish: Wish = {
           id: generateRecordId('wish'),
-          title,
+          title: title.trim(),
           description,
           targetDate,
-          value: parseFloat(value),
+          value: numValue,
           status
         };
 
@@ -7162,6 +7162,8 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
       setShowAdd(false);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -7170,12 +7172,13 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
     setTitle(wish.title);
     setDescription(wish.description);
     setTargetDate(wish.targetDate);
-    setValue(wish.value.toString());
+    setValue(formatPtBrCurrency(Number(wish.value) || 0) || (wish.value ? String(wish.value) : ''));
     setStatus(wish.status);
     setShowAdd(true);
   };
 
   const handleCancelEdit = () => {
+    if (isSaving) return;
     setEditingWishId(null);
     setTitle('');
     setDescription('');
@@ -7388,7 +7391,21 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400">Valor Alvo (R$)</label>
-                <input type="number" required placeholder="Ex: 5000,00" value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  required
+                  placeholder="Ex: 5.000,00"
+                  value={value}
+                  onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                  onBlur={() => {
+                    if (value && value.trim()) {
+                      const num = parsePtBrNumber(value);
+                      if (num > 0) setValue(formatPtBrCurrency(num));
+                    }
+                  }}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400">Data Limite</label>
@@ -7403,9 +7420,9 @@ export const DesejosPage: React.FC<PageProps> = ({ userData, onUpdateUserData })
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button type="button" onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
-              <button type="submit" className="rounded-lg bg-pink-600 px-5 py-2 font-bold text-white hover:bg-pink-500 transition-colors">
-                {editingWishId ? 'Salvar Alterações' : 'Cadastrar Desejo'}
+              <button type="button" disabled={isSaving} onClick={handleCancelEdit} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed">Cancelar</button>
+              <button type="submit" disabled={isSaving} className="rounded-lg bg-pink-600 px-5 py-2 font-bold text-white hover:bg-pink-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                {isSaving ? 'Salvando...' : (editingWishId ? 'Salvar Alterações' : 'Cadastrar Desejo')}
               </button>
             </div>
           </form>
@@ -7586,8 +7603,9 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
   const [reason, setReason] = useState('');
   const [correctionAction, setCorrectionAction] = useState('');
   const [responsible, setResponsible] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayLocalDateStr());
   const [status, setStatus] = useState<'Pendente' | 'Em Andamento' | 'Concluído'>('Pendente');
+  const [isSaving, setIsSaving] = useState(false);
 
   const deficitActions = userData.deficitActions || [];
 
@@ -7650,18 +7668,20 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
   // Close popup with Escape key
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showAdd) {
+      if (e.key === 'Escape' && showAdd && !isSaving) {
         handleCancelEdit();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showAdd]);
+  }, [showAdd, isSaving]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     if (!costCenter || !reason || !correctionAction || !responsible || !date) return;
 
+    setIsSaving(true);
     try {
       if (editingActionId) {
         await onUpdateUserData({
@@ -7690,11 +7710,13 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
       setReason('');
       setCorrectionAction('');
       setResponsible('');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayLocalDateStr());
       setStatus('Pendente');
       setShowAdd(false);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -7704,17 +7726,18 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
     setReason(action.reason);
     setCorrectionAction(action.correctionAction);
     setResponsible(action.responsible);
-    setDate(action.date || new Date().toISOString().split('T')[0]);
+    setDate(action.date || getTodayLocalDateStr());
     setStatus(action.status);
     setShowAdd(true);
   };
 
   const handleCancelEdit = () => {
+    if (isSaving) return;
     setEditingActionId(null);
     setReason('');
     setCorrectionAction('');
     setResponsible('');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(getTodayLocalDateStr());
     setStatus('Pendente');
     setShowAdd(false);
   };
@@ -7755,7 +7778,7 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
             setReason('');
             setCorrectionAction('');
             setResponsible('');
-            setDate(new Date().toISOString().split('T')[0]);
+            setDate(getTodayLocalDateStr());
             setStatus('Pendente');
             setShowAdd(true);
           }}
@@ -7917,8 +7940,9 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
                   </div>
                   <button
                     type="button"
+                    disabled={isSaving}
                     onClick={handleCancelEdit}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Fechar"
                   >
                     <X className="h-4 w-4" />
@@ -8001,16 +8025,18 @@ export const AcaoDeficitPage: React.FC<PageProps> = ({ userData, onUpdateUserDat
                   <div className="sm:col-span-2 flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 mt-2">
                     <button
                       type="button"
+                      disabled={isSaving}
                       onClick={handleCancelEdit}
-                      className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer"
+                      className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
-                      className="rounded-lg bg-red-600 px-5 py-2 font-bold text-white hover:bg-red-500 transition-colors shadow-sm shadow-red-600/20 cursor-pointer"
+                      disabled={isSaving}
+                      className="rounded-lg bg-red-600 px-5 py-2 font-bold text-white hover:bg-red-500 transition-colors shadow-sm shadow-red-600/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {editingActionId ? 'Salvar Alterações' : 'Cadastrar Ação'}
+                      {isSaving ? 'Salvando...' : (editingActionId ? 'Salvar Alterações' : 'Cadastrar Ação')}
                     </button>
                   </div>
                 </form>
@@ -8172,7 +8198,8 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
   const [quantity, setQuantity] = useState('1');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('Alimentação');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayLocalDateStr());
+  const [isSaving, setIsSaving] = useState(false);
 
   // Filters State
   const [filterMonth, setFilterMonth] = useState<string>('all');
@@ -8185,18 +8212,20 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) return;
+    if (isSaving) return;
+    if (!name.trim()) return;
 
     const newItem: ShoppingItem = {
       id: generateRecordId('shop'),
-      name,
-      quantity: parseInt(quantity) || 1,
-      price: parseFloat(price) || 0,
+      name: name.trim(),
+      quantity: Math.max(1, parseInt(quantity, 10) || 1),
+      price: parsePtBrNumber(price) || 0,
       category,
       checked: false,
       date
     };
 
+    setIsSaving(true);
     try {
       await onUpdateUserData({
         shoppingList: [...userData.shoppingList, newItem]
@@ -8205,10 +8234,12 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
       setName('');
       setQuantity('1');
       setPrice('');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayLocalDateStr());
       setShowAdd(false);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -8317,7 +8348,9 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
       {showAdd && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
-          onClick={() => setShowAdd(false)}
+          onClick={() => {
+            if (!isSaving) setShowAdd(false);
+          }}
         >
           <form 
             onSubmit={handleAdd} 
@@ -8338,7 +8371,20 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400">Preço Estimado Unitário (R$)</label>
-                <input type="number" step="0.01" placeholder="Ex: 19,90" value={price} onChange={(e) => setPrice(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white" />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Ex: 19,90"
+                  value={price}
+                  onChange={(e) => setPrice(formatPtBrLiveInput(e.target.value))}
+                  onBlur={() => {
+                    if (price && price.trim()) {
+                      const num = parsePtBrNumber(price);
+                      if (num > 0) setPrice(formatPtBrCurrency(num));
+                    }
+                  }}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400">Setor / Categoria</label>
@@ -8357,8 +8403,23 @@ export const ListaDeComprasPage: React.FC<PageProps> = ({ userData, onUpdateUser
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button type="button" onClick={() => setShowAdd(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900">Cancelar</button>
-              <button type="submit" className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors">Adicionar na Lista</button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => {
+                  if (!isSaving) setShowAdd(false);
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSaving ? 'Adicionando...' : 'Adicionar na Lista'}
+              </button>
             </div>
           </form>
         </div>
@@ -9479,30 +9540,40 @@ export const ListManagerPage: React.FC<{
   const [newVal, setNewVal] = useState('');
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     if (!newVal.trim()) return;
     if (items.includes(newVal.trim())) {
       return;
     }
+    setIsSaving(true);
     try {
       await onUpdateItems([...items, newVal.trim()]);
       setNewVal('');
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDelete = async (itemToDelete: string) => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       await onUpdateItems(items.filter(item => item !== itemToDelete));
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleSaveEdit = async (oldVal: string) => {
+    if (isSaving) return;
     const trimmed = editValue.trim();
     if (!trimmed) return;
     if (trimmed === oldVal) {
@@ -9512,6 +9583,7 @@ export const ListManagerPage: React.FC<{
     if (items.includes(trimmed)) {
       return;
     }
+    setIsSaving(true);
     try {
       if (onRenameItem) {
         await onRenameItem(oldVal, trimmed);
@@ -9522,6 +9594,8 @@ export const ListManagerPage: React.FC<{
       setEditValue('');
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -9544,9 +9618,10 @@ export const ListManagerPage: React.FC<{
         />
         <button
           type="submit"
-          className="rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 font-bold transition-colors shrink-0"
+          disabled={isSaving}
+          className="rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 font-bold transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Adicionar
+          {isSaving ? 'Salvando...' : 'Adicionar'}
         </button>
       </form>
 
@@ -9650,6 +9725,16 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void; on
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    if (loading) return;
+    setName(userProfile.name || '');
+    setAddress(userProfile.address || '');
+    setCity(userProfile.city || '');
+    setState(userProfile.state || '');
+    setPhone(userProfile.phone || '');
+    setCpf(userProfile.cpf || '');
+  }, [userProfile.name, userProfile.address, userProfile.city, userProfile.state, userProfile.phone, userProfile.cpf]);
 
   // Accordion open/closed states
   const [isTrashAccordionOpen, setIsTrashAccordionOpen] = useState(false);
@@ -9780,7 +9865,7 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void; on
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `finanfly-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `finanfly-backup-${getTodayLocalDateStr()}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -9939,6 +10024,13 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void; on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+    const cleanName = name.trim();
+    if (!cleanName) {
+      setProfileError('O nome completo é obrigatório.');
+      return;
+    }
+
     setLoading(true);
     setSuccess(false);
     setProfileError('');
@@ -9950,12 +10042,19 @@ export const DadosPessoaisPage: React.FC<PageProps & { onLogout?: () => void; on
           'Content-Type': 'application/json',
           'x-user-email': userProfile.email
         }),
-        body: JSON.stringify({ name, address, phone, city, state, cpf }),
+        body: JSON.stringify({ name: cleanName, address, phone, city, state, cpf }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      onUpdateUserProfile(name, address, phone, city, state, data.user.cpf);
+      onUpdateUserProfile(
+        data.user?.name ?? cleanName,
+        data.user?.address ?? address.trim(),
+        data.user?.phone ?? phone.trim(),
+        data.user?.city ?? city.trim(),
+        data.user?.state ?? state.trim(),
+        data.user?.cpf ?? cpf.trim()
+      );
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {

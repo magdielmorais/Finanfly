@@ -298,6 +298,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [newRole, setNewRole] = useState<'user' | 'admin'>('user');
   const [newPlan, setNewPlan] = useState<'none' | 'inativo' | 'gratis' | 'mensal' | 'anual' | 'livre'>('none');
+  const [creatingUserLoading, setCreatingUserLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
   // Password reminder state
@@ -826,6 +827,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (creatingUserLoading) return;
     setError('');
     setSuccessMsg('');
 
@@ -834,6 +836,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       return;
     }
 
+    setCreatingUserLoading(true);
     try {
       const res = await fetch('/api/admin/create-user', {
         method: 'POST',
@@ -863,6 +866,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
       fetchUsers();
     } catch (err: any) {
       setError(err.message || 'Erro ao criar usuário.');
+    } finally {
+      setCreatingUserLoading(false);
     }
   };
 
@@ -1680,20 +1685,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ adminUser }) => {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={creatingUserLoading}
                   onClick={() => {
+                    if (creatingUserLoading) return;
                     setShowCreateForm(false);
                     setError('');
                     setSuccessMsg('');
                   }}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors"
+                  disabled={creatingUserLoading}
+                  className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Criar Conta e Liberar Acesso
+                  {creatingUserLoading ? 'Criando...' : 'Criar Conta e Liberar Acesso'}
                 </button>
               </div>
             </form>

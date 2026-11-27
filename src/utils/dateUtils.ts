@@ -49,4 +49,15 @@ export function getYearMonthsWeeks(year: number): number[] {
   return Array.from({ length: 12 }, (_, mIdx) => getMonthWeeksCount(year, mIdx));
 }
 
+/**
+ * Retorna a data local atual (ou da referência) no formato YYYY-MM-DD,
+ * evitando deslocamentos para o dia seguinte em horários noturnos (UTC).
+ */
+export function getTodayLocalDateStr(referenceDate: Date = new Date()): string {
+  const year = referenceDate.getFullYear();
+  const month = String(referenceDate.getMonth() + 1).padStart(2, '0');
+  const day = String(referenceDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export { dayjs, isoWeek };

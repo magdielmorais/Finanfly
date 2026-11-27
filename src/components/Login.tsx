@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { FinanFlyLogo } from './FinanFlyLogo';
-import loginLogo from '../assets/images/logo_oficial_finanfly.png';
 import { LogIn, UserPlus, Mail, Lock, User, Shield, Info, ArrowRight, X, CheckCircle, RefreshCw, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { isUserSubscriptionActive } from '../utils/subscriptionUtils';
 import { setAuthToken } from '../utils/authToken';
@@ -286,53 +285,53 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
     setBlockedDetails(null);
   };
 
-  const [logoFailed, setLogoFailed] = useState(false);
-
   return (
-    <div className="min-h-screen w-full overflow-y-auto bg-slate-900 px-4 py-8 sm:py-12 flex flex-col items-center justify-start sm:justify-center">
+    <div className="min-h-screen w-full overflow-y-auto bg-slate-950 px-4 py-8 sm:py-12 flex flex-col items-center justify-start sm:justify-center">
       <div className="w-full max-w-md space-y-6 my-auto">
         {/* Brand Header */}
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center">
-            <FinanFlyLogo size={96} rounded="rounded-2xl" shadow />
+            <FinanFlyLogo size={76} rounded="rounded-2xl" shadow />
           </div>
-          <h2 className="mt-4 text-2xl font-bold tracking-tight text-white font-sans">
-            FinanFly
-          </h2>
-          <p className="mt-1.5 text-base font-extrabold tracking-wide text-cintilante drop-shadow-sm">
-            Suas finanças voando!
+          <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-white">
+            Finan<span className="text-blue-400">Fly</span>
+          </h1>
+          <p className="mt-1 text-sm font-semibold text-blue-400">
+            Suas finanças voando
           </p>
-          <p className="mt-2 text-xs text-white font-medium">
+          <p className="mt-1.5 text-xs text-slate-400">
             Controle financeiro inteligente, prático e seguro.
           </p>
-          <p className="mt-2.5 text-sm font-semibold text-blue-500">
+          <p className="mt-1 text-xs text-slate-400">
             Comece grátis
           </p>
         </div>
 
         {/* Form Card */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-8 shadow-2xl shadow-blue-900/10">
-          <div className="mb-6 flex border-b border-slate-800 pb-2">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-6 sm:p-8 shadow-lg">
+          <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-slate-950 p-1 border border-slate-800">
             <button
+              type="button"
               onClick={() => {
                 setIsRegister(false);
                 setError('');
                 setBlockedDetails(null);
               }}
-              className={`flex-1 pb-3 text-center text-sm font-semibold transition-all ${
-                !isRegister ? 'border-b-2 border-blue-500 text-blue-500' : 'text-slate-500 hover:text-slate-400'
+              className={`rounded-md py-2 text-center text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                !isRegister ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               Acessar Conta
             </button>
             <button
+              type="button"
               onClick={() => {
                 setIsRegister(true);
                 setError('');
                 setBlockedDetails(null);
               }}
-              className={`flex-1 pb-3 text-center text-sm font-semibold transition-all ${
-                isRegister ? 'border-b-2 border-blue-500 text-blue-500' : 'text-slate-500 hover:text-slate-400'
+              className={`rounded-md py-2 text-center text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                isRegister ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               Criar Conta Nova
@@ -393,7 +392,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Seu Nome Completo"
-                      className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -412,7 +411,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                       value={cpf}
                       onChange={(e) => setCpf(e.target.value)}
                       placeholder="123.456.789-00"
-                      className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -433,7 +432,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="exemplo@gmail.com"
-                  className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -449,10 +448,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  minLength={isRegister ? 4 : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="******"
-                  className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-10 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-10 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                 />
                 <button
                   type="button"
@@ -477,10 +477,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
+                    minLength={isRegister ? 4 : undefined}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="******"
-                    className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2.5 pl-10 pr-10 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-10 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                   />
                   <button
                     type="button"
@@ -535,11 +536,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRedirectToSubscr
         </div>
 
         {/* Beta Disclaimer Message */}
-        <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/10 p-3.5 text-center text-xs text-yellow-100 shadow-sm leading-relaxed">
-          <p className="font-bold text-yellow-200 mb-1 tracking-wide">
-            versão Beta 1.1
+        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3.5 text-center text-xs text-slate-300 leading-relaxed">
+          <p className="font-semibold text-amber-300 mb-1">
+            Versão Beta 1.1
           </p>
-          <p className="text-yellow-100/90">
+          <p className="text-slate-400">
             Atenção! Versão liberada somente para testes de funcionalidades, o app poderá sofrer instabilidades ou perda de dados na migração do banco de dados. Assim que for liberado o usuário receberá uma mensagem.
           </p>
         </div>

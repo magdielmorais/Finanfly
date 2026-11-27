@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { UserData, Investment } from '../types';
 import { generateRecordId } from '../utils/id';
+import { getTodayLocalDateStr } from '../utils/dateUtils';
+import { parsePtBrNumber, formatPtBrCurrency, formatPtBrLiveInput } from '../utils/numberUtils';
 import { HelpCard } from './Pages';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import {
@@ -38,13 +40,15 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
   // Modal State for Add / Edit Investment
   const [showModal, setShowModal] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isSavingConfig, setIsSavingConfig] = useState<boolean>(false);
 
   // Form Fields State
   const [name, setName] = useState<string>('');
   const [type, setType] = useState<string>(investmentTypes[0] || '');
   const [status, setStatus] = useState<string>(investmentStatuses[0] || '');
   const [value, setValue] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(getTodayLocalDateStr());
   const [notes, setNotes] = useState<string>('');
 
   // Modal State for Types & Statuses Management
@@ -120,11 +124,13 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
   // Handle Add / Edit Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !value || !type || !status) return;
+    if (isSaving) return;
+    if (!name.trim() || !value.trim() || !type || !status) return;
 
-    const numericValue = parseFloat(value.replace(',', '.'));
-    if (isNaN(numericValue) || numericValue < 0) return;
+    const numericValue = parsePtBrNumber(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return;
 
+    setIsSaving(true);
     try {
       if (editingId) {
         // Edit
@@ -156,9 +162,11 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
         await onUpdateUserData({ investments: [newInv, ...investments] });
       }
 
-      closeModal();
+      closeModal(true);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -167,8 +175,8 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
     setName(inv.name);
     setType(inv.type || investmentTypes[0] || '');
     setStatus(inv.status || investmentStatuses[0] || '');
-    setValue(inv.value.toString());
-    setDate(inv.date || new Date().toISOString().split('T')[0]);
+    setValue(formatPtBrCurrency(Number(inv.value) || 0) || (inv.value ? String(inv.value) : ''));
+    setDate(inv.date || getTodayLocalDateStr());
     setNotes(inv.notes || '');
     setShowModal(true);
   };
@@ -190,29 +198,34 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
     }
   };
 
-  const closeModal = () => {
+  const closeModal = (force = false) => {
+    if (!force && isSaving) return;
     setShowModal(false);
     setEditingId(null);
     setName('');
     setType(investmentTypes[0] || '');
     setStatus(investmentStatuses[0] || '');
     setValue('');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(getTodayLocalDateStr());
     setNotes('');
   };
 
   // Type & Status Management
   const handleAddType = async () => {
+    if (isSavingConfig) return;
     if (!newTypeName.trim()) return;
     const cleanType = newTypeName.trim();
     if (!investmentTypes.includes(cleanType)) {
       const updated = [...investmentTypes, cleanType];
+      setIsSavingConfig(true);
       try {
         await onUpdateUserData({ investmentTypes: updated });
         setType(cleanType);
         setNewTypeName('');
       } catch {
         // Falha tratada pelo popup centralizado de erro de conexão
+      } finally {
+        setIsSavingConfig(false);
       }
     } else {
       setNewTypeName('');
@@ -220,7 +233,9 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
   };
 
   const handleDeleteType = async (typeToDelete: string) => {
+    if (isSavingConfig) return;
     const updated = investmentTypes.filter((t) => t !== typeToDelete);
+    setIsSavingConfig(true);
     try {
       await onUpdateUserData({ investmentTypes: updated });
       if (type === typeToDelete) {
@@ -228,20 +243,26 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
       }
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingConfig(false);
     }
   };
 
   const handleAddStatus = async () => {
+    if (isSavingConfig) return;
     if (!newStatusName.trim()) return;
     const cleanStatus = newStatusName.trim();
     if (!investmentStatuses.includes(cleanStatus)) {
       const updated = [...investmentStatuses, cleanStatus];
+      setIsSavingConfig(true);
       try {
         await onUpdateUserData({ investmentStatuses: updated });
         setStatus(cleanStatus);
         setNewStatusName('');
       } catch {
         // Falha tratada pelo popup centralizado de erro de conexão
+      } finally {
+        setIsSavingConfig(false);
       }
     } else {
       setNewStatusName('');
@@ -249,7 +270,9 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
   };
 
   const handleDeleteStatus = async (statusToDelete: string) => {
+    if (isSavingConfig) return;
     const updated = investmentStatuses.filter((s) => s !== statusToDelete);
+    setIsSavingConfig(true);
     try {
       await onUpdateUserData({ investmentStatuses: updated });
       if (status === statusToDelete) {
@@ -257,6 +280,8 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
       }
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingConfig(false);
     }
   };
 
@@ -321,7 +346,7 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
               setType(investmentTypes[0] || 'Ações');
               setStatus(investmentStatuses[0] || 'Ativo');
               setValue('');
-              setDate(new Date().toISOString().split('T')[0]);
+              setDate(getTodayLocalDateStr());
               setNotes('');
               setShowModal(true);
             }}
@@ -536,7 +561,7 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                   setType(investmentTypes[0] || 'Ações');
                   setStatus(investmentStatuses[0] || 'Ativo');
                   setValue('');
-                  setDate(new Date().toISOString().split('T')[0]);
+                  setDate(getTodayLocalDateStr());
                   setNotes('');
                   setShowModal(true);
                 }}
@@ -632,7 +657,7 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
       {showModal && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in cursor-pointer"
-          onClick={closeModal}
+          onClick={() => closeModal()}
         >
           <div 
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-lg w-full space-y-4 text-xs animate-slide-down cursor-default"
@@ -643,8 +668,10 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                 {editingId ? 'Editar Investimento' : 'Novo Investimento'}
               </h3>
               <button
-                onClick={closeModal}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                type="button"
+                disabled={isSaving}
+                onClick={() => closeModal()}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -730,13 +757,20 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                     Valor Investido (R$) *
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     required
                     placeholder="0,00"
                     value={value}
-                    onChange={(e) => setValue(e.target.value)}
+                    onChange={(e) => setValue(formatPtBrLiveInput(e.target.value))}
+                    onBlur={() => {
+                      if (value && value.trim()) {
+                        const num = parsePtBrNumber(value);
+                        if (num > 0) {
+                          setValue(formatPtBrCurrency(num));
+                        }
+                      }
+                    }}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 font-mono font-bold focus:outline-none focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-white"
                   />
                 </div>
@@ -773,16 +807,18 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+                  disabled={isSaving}
+                  onClick={() => closeModal()}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-md shadow-blue-600/20"
+                  disabled={isSaving}
+                  className="rounded-lg bg-blue-600 px-5 py-2 font-bold text-white hover:bg-blue-500 transition-colors shadow-md shadow-blue-600/20 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingId ? 'Salvar Alterações' : 'Cadastrar Investimento'}
+                  {isSaving ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Cadastrar Investimento')}
                 </button>
               </div>
             </form>
@@ -833,10 +869,11 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                 />
                 <button
                   type="button"
+                  disabled={isSavingConfig}
                   onClick={handleAddType}
-                  className="rounded-lg bg-blue-600 px-3 py-2 font-bold text-white hover:bg-blue-500 transition-colors"
+                  className="rounded-lg bg-blue-600 px-3 py-2 font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Adicionar
+                  {isSavingConfig ? 'Salvando...' : 'Adicionar'}
                 </button>
               </div>
 
@@ -879,10 +916,11 @@ export const InvestimentosPage: React.FC<PageProps> = ({ userData, onUpdateUserD
                 />
                 <button
                   type="button"
+                  disabled={isSavingConfig}
                   onClick={handleAddStatus}
-                  className="rounded-lg bg-emerald-600 px-3 py-2 font-bold text-white hover:bg-emerald-500 transition-colors"
+                  className="rounded-lg bg-emerald-600 px-3 py-2 font-bold text-white hover:bg-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Adicionar
+                  {isSavingConfig ? 'Salvando...' : 'Adicionar'}
                 </button>
               </div>
 

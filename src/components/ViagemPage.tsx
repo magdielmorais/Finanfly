@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { UserData, Trip, TripExpense } from '../types';
 import { generateRecordId } from '../utils/id';
+import { getTodayLocalDateStr } from '../utils/dateUtils';
+import { parsePtBrNumber, formatPtBrCurrency, formatPtBrLiveInput } from '../utils/numberUtils';
 import { HelpCard } from './Pages';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
@@ -37,6 +39,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   const [showTripForm, setShowTripForm] = useState(false);
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
   const [tripName, setTripName] = useState('');
+  const [isSavingTrip, setIsSavingTrip] = useState(false);
 
   // State for Suspended Window (Modal de Detalhes da Viagem)
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
@@ -52,9 +55,10 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseValue, setExpenseValue] = useState('');
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expenseDate, setExpenseDate] = useState(getTodayLocalDateStr());
   const [expensePaymentType, setExpensePaymentType] = useState('');
   const [expenseStatus, setExpenseStatus] = useState('Pago'); // Default "Pago"
+  const [isSavingExpense, setIsSavingExpense] = useState(false);
 
   // Accordion state for Aviso card
   const [isAvisoOpen, setIsAvisoOpen] = useState(false);
@@ -150,8 +154,10 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   // Create / Edit Trip handler
   const handleSaveTrip = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingTrip) return;
     if (!tripName.trim()) return;
 
+    setIsSavingTrip(true);
     try {
       if (editingTripId) {
         // Edit mode
@@ -174,6 +180,8 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       setShowTripForm(false);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingTrip(false);
     }
   };
 
@@ -211,10 +219,11 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
   // Create / Edit Expense handler
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingExpense) return;
     if (!expenseDescription.trim() || !expenseValue || !selectedTripId) return;
 
-    const val = parseFloat(expenseValue);
-    if (isNaN(val) || val <= 0) return;
+    const val = parsePtBrNumber(expenseValue);
+    if (!Number.isFinite(val) || val <= 0) return;
 
     const cleanPaymentType = expensePaymentType.trim();
     const cleanStatus = expenseStatus.trim() || 'Não pago';
@@ -252,30 +261,34 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
       return t;
     });
 
+    setIsSavingExpense(true);
     try {
       await onUpdateUserData({ trips: updatedTrips });
-      resetExpenseForm();
+      resetExpenseForm(true);
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingExpense(false);
     }
   };
 
-  const resetExpenseForm = () => {
+  const resetExpenseForm = (force = false) => {
+    if (!force && isSavingExpense) return;
     setShowExpenseForm(false);
     setEditingExpenseId(null);
     setSelectedTripId('');
     setExpenseDescription('');
     setExpenseValue('');
-    setExpenseDate(new Date().toISOString().split('T')[0]);
+    setExpenseDate(getTodayLocalDateStr());
     setExpensePaymentType('');
     setExpenseStatus('Pago');
   };
 
   // Open expense form for a specific trip
   const openNewExpenseForTrip = (tripId: string) => {
-    resetExpenseForm();
+    resetExpenseForm(true);
     setSelectedTripId(tripId);
-    setExpenseDate(new Date().toISOString().split('T')[0]);
+    setExpenseDate(getTodayLocalDateStr());
     setExpensePaymentType(availablePaymentTypes[0] || '');
     setExpenseStatus('Pago');
     setShowExpenseForm(true);
@@ -286,8 +299,8 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
     setSelectedTripId(tripId);
     setEditingExpenseId(expense.id);
     setExpenseDescription(expense.description);
-    setExpenseValue(expense.value.toString());
-    setExpenseDate(expense.date || new Date().toISOString().split('T')[0]);
+    setExpenseValue(formatPtBrCurrency(Number(expense.value) || 0) || (expense.value ? String(expense.value) : ''));
+    setExpenseDate(expense.date || getTodayLocalDateStr());
     setExpensePaymentType(expense.paymentType || '');
     setExpenseStatus(expense.status || 'Pago');
     setShowExpenseForm(true);
@@ -949,7 +962,9 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
         {showTripForm && (
           <div 
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in cursor-pointer"
-            onClick={() => setShowTripForm(false)}
+            onClick={() => {
+              if (!isSavingTrip) setShowTripForm(false);
+            }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
@@ -969,8 +984,12 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                   </h3>
                 </div>
                 <button 
-                  onClick={() => setShowTripForm(false)} 
-                  className="p-1 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  type="button"
+                  disabled={isSavingTrip}
+                  onClick={() => {
+                    if (!isSavingTrip) setShowTripForm(false);
+                  }} 
+                  className="p-1 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -995,17 +1014,21 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <button
                     type="button"
-                    onClick={() => setShowTripForm(false)}
-                    className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium text-slate-600 dark:text-slate-400"
+                    disabled={isSavingTrip}
+                    onClick={() => {
+                      if (!isSavingTrip) setShowTripForm(false);
+                    }}
+                    className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium text-slate-600 dark:text-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20"
+                    disabled={isSavingTrip}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Check className="h-3.5 w-3.5" />
-                    Salvar Viagem
+                    {isSavingTrip ? 'Salvando...' : 'Salvar Viagem'}
                   </button>
                 </div>
               </form>
@@ -1021,7 +1044,7 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
         {showExpenseForm && (
           <div 
             className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in cursor-pointer"
-            onClick={resetExpenseForm}
+            onClick={() => resetExpenseForm()}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
@@ -1041,8 +1064,10 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                   </h3>
                 </div>
                 <button 
-                  onClick={resetExpenseForm} 
-                  className="p-1 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  type="button"
+                  disabled={isSavingExpense}
+                  onClick={() => resetExpenseForm()} 
+                  className="p-1 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1090,13 +1115,20 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                     Valor (R$)
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
+                    type="text"
+                    inputMode="decimal"
                     required
                     placeholder="0,00"
                     value={expenseValue}
-                    onChange={(e) => setExpenseValue(e.target.value)}
+                    onChange={(e) => setExpenseValue(formatPtBrLiveInput(e.target.value))}
+                    onBlur={() => {
+                      if (expenseValue && expenseValue.trim()) {
+                        const num = parsePtBrNumber(expenseValue);
+                        if (num > 0) {
+                          setExpenseValue(formatPtBrCurrency(num));
+                        }
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 dark:text-white font-mono font-medium"
                   />
                 </div>
@@ -1208,17 +1240,19 @@ export const ViagemPage: React.FC<ViagemPageProps> = ({ userData, onUpdateUserDa
                 <div className="sm:col-span-2 flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <button
                     type="button"
-                    onClick={resetExpenseForm}
-                    className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium text-slate-600 dark:text-slate-400"
+                    disabled={isSavingExpense}
+                    onClick={() => resetExpenseForm()}
+                    className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium text-slate-600 dark:text-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
+                    disabled={isSavingExpense}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Check className="h-3.5 w-3.5" />
-                    Salvar Lançamento
+                    {isSavingExpense ? 'Salvando...' : 'Salvar Lançamento'}
                   </button>
                 </div>
               </form>

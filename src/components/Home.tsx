@@ -100,44 +100,39 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-6 sm:p-8 text-white md:p-10 border border-slate-800 shadow-xl">
-        <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-        
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="relative overflow-hidden rounded-xl bg-slate-900 p-6 sm:p-8 text-white md:p-10 border border-slate-800 shadow-sm">
+        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="max-w-2xl space-y-4">
             <div className="flex items-center gap-3">
-              <FinanFlyLogo size={46} rounded="rounded-2xl" shadow />
-              <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 px-3 py-0.5 text-xs font-semibold text-blue-300">
-                  👋 Bem-vindo {userName}!
-                </span>
-                <p className="text-[11px] text-slate-400 font-medium tracking-wide mt-0.5">FinanFly • Controle Financeiro Inteligente</p>
+              <FinanFlyLogo size={42} rounded="rounded-xl" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-blue-300 truncate">
+                  Olá, {userName}
+                </p>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                  FinanFly · Controle Financeiro Inteligente
+                </p>
               </div>
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Sua saúde financeira, <br />
-              <span className="text-blue-400">sob controle absoluto.</span>
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl text-balance leading-tight">
+              Sua saúde financeira, <span className="text-blue-400">sob controle absoluto.</span>
             </h1>
-            <p className="text-slate-200 text-base max-w-xl leading-relaxed">
-              Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações para melhoria contínua de finanças. Tudo em um único lugar, adaptado para qualquer tela.
+            <p className="text-slate-300 text-sm sm:text-base max-w-xl leading-relaxed">
+              Acompanhe suas receitas, despesas e investimentos, planeje seu ano, viagens e objetivos. Controle sua lista de compras, anote seus desejos e seus planos de ações em um único lugar.
             </p>
 
-            <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 border border-emerald-400/30 px-3.5 py-2 text-xs sm:text-sm font-semibold text-emerald-200">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-emerald-300">
               <Shield className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span>Guarde seus dados e histórico por até 3 anos</span>
+              <span>Histórico e backups protegidos por até 3 anos</span>
             </div>
 
-            <p className="text-blue-300 font-semibold text-sm sm:text-base">
-              Para começar só escolher abaixo.
-            </p>
-
-            {/* Botões de Ações Rápidas - largura no limite das letras e alinhado à esquerda */}
-            <div className="pt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-w-xl justify-items-start items-start">
-              {/* Par 1: Menu e Ir para o Painel (abaixo do Menu) */}
+            {/* Botões de Ações Rápidas */}
+            <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-w-xl justify-items-start items-start">
+              {/* Par 1: Menu e Ir para o Painel */}
               <div className="flex flex-col gap-1.5 items-start">
                 <button
                   onClick={onOpenMenu}
-                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 text-sm font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.01] active:scale-95 border border-blue-400/30 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 text-sm font-semibold transition-colors border border-blue-500 cursor-pointer whitespace-nowrap"
                   title="Abrir menu de navegação lateral"
                 >
                   <Menu className="h-4 w-4 shrink-0" />
@@ -145,7 +140,7 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
                 </button>
                 <button
                   onClick={() => onNavigate(isAdmin ? 'Administrador' : 'Painel')}
-                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 text-sm font-semibold transition-all border border-slate-700/50 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 px-3.5 py-2 text-sm font-semibold transition-colors border border-slate-700 cursor-pointer whitespace-nowrap"
                   title={`Ir para o ${isAdmin ? 'Painel Admin' : 'Painel'}`}
                 >
                   <span>Ir para o {isAdmin ? 'Painel Admin' : 'Painel'}</span>
@@ -153,32 +148,32 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
                 </button>
               </div>
 
-              {/* Par 2: Adicionar Receitas e Adicionar Despesas abaixo */}
+              {/* Par 2: Adicionar Receitas e Adicionar Despesas */}
               <div className="flex flex-col gap-1.5 items-start">
                 <button
                   onClick={() => onNavigate('Receitas (Lançar Ganhos)')}
-                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3.5 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-colors border border-slate-700 cursor-pointer whitespace-nowrap"
                   title="Cadastrar novas receitas"
                 >
-                  <PlusCircle className="h-4 w-4 text-emerald-400 animate-pulse shrink-0" />
+                  <PlusCircle className="h-4 w-4 text-emerald-400 shrink-0" />
                   <span>Adicionar Receitas</span>
                 </button>
                 <button
                   onClick={() => onNavigate('Despesas (Lançar Gastos)')}
-                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-all border border-slate-700/50 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-slate-800 px-3.5 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-colors border border-slate-700 cursor-pointer whitespace-nowrap"
                   title="Cadastrar novas despesas"
                 >
-                  <PlusCircle className="h-4 w-4 text-rose-400 animate-pulse shrink-0" />
+                  <PlusCircle className="h-4 w-4 text-rose-400 shrink-0" />
                   <span>Adicionar Despesas</span>
                 </button>
               </div>
 
-              {/* Par 3: Modo Celular e Menu Suspenso colocado abaixo dele */}
+              {/* Par 3: Modo Celular e Menu Suspenso */}
               <div className="flex flex-col gap-1.5 items-start">
                 <button
                   id="btn-home-modo-celular"
                   onClick={() => onNavigate('Modo app Web')}
-                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 text-sm font-bold shadow-md shadow-emerald-950/25 transition-all hover:scale-[1.01] active:scale-100 border border-emerald-400/40 cursor-pointer"
+                  className="w-fit inline-flex items-center justify-start gap-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-3.5 py-2 text-sm font-semibold transition-colors border border-emerald-600 cursor-pointer whitespace-nowrap"
                   title="Acessar instruções do Modo Celular / PWA"
                 >
                   <Smartphone className="h-4 w-4 text-emerald-100 shrink-0" />
@@ -187,32 +182,30 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
                 <button
                   id="btn-home-menu-suspenso"
                   onClick={() => setIsMenuSuspensoModalOpen(true)}
-                  className={`w-fit inline-flex items-center justify-start gap-2 rounded-lg px-3 py-2 text-sm font-bold shadow-md transition-all hover:scale-[1.01] active:scale-100 border cursor-pointer ${
+                  className={`w-fit inline-flex items-center justify-start gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors border cursor-pointer whitespace-nowrap ${
                     localFloatingMenuEnabled
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-blue-400/40 shadow-blue-900/25'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/60'
+                      ? 'bg-slate-800 hover:bg-slate-700 text-white border-blue-500/60'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
                   }`}
                   title="Ativar ou desativar o Menu Suspenso flutuante na tela"
                 >
-                  <Sliders className="h-4 w-4 text-blue-200 shrink-0" />
+                  <Sliders className="h-4 w-4 text-blue-400 shrink-0" />
                   <span>Menu suspenso</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold uppercase ${
-                    localFloatingMenuEnabled
-                      ? 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/40'
-                      : 'bg-slate-700 text-slate-400'
-                  }`}>
-                    {localFloatingMenuEnabled ? 'Ativo' : 'Inativo'}
+                  <span className={`text-xs font-medium ${localFloatingMenuEnabled ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    · {localFloatingMenuEnabled ? 'Ativo' : 'Inativo'}
                   </span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Logo Badge in Hero on medium+ screens */}
-          <div className="hidden lg:flex flex-col items-center justify-center p-6 rounded-2xl bg-slate-950/40 border border-slate-800/80 backdrop-blur-sm shrink-0 shadow-2xl">
-            <FinanFlyLogo size={120} rounded="rounded-3xl" shadow />
-            <span className="mt-3 text-sm font-extrabold tracking-wider text-white">FinanFly</span>
-            <span className="text-[11px] font-bold text-sky-400 tracking-wide">Finanças Inteligente</span>
+          {/* Logo Badge in Hero on large screens */}
+          <div className="hidden lg:flex flex-col items-center justify-center p-6 rounded-xl bg-slate-950/60 border border-slate-800 shrink-0">
+            <FinanFlyLogo size={96} rounded="rounded-2xl" />
+            <span className="mt-3 text-sm font-extrabold tracking-tight text-white">
+              Finan<span className="text-blue-400">Fly</span>
+            </span>
+            <span className="text-xs font-medium text-slate-400">Gestão Financeira</span>
           </div>
         </div>
       </div>
@@ -253,19 +246,19 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
         </div>
       </div>
 
-      {/* Card COMO COMEÇAR (Separated above) */}
-      <div className="bg-white rounded-xl border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 overflow-hidden transition-all duration-300 shadow-sm">
+      {/* Card Como Começar */}
+      <div className="bg-white rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 overflow-hidden transition-colors">
         <button
           onClick={() => setIsComoComecarOpen(!isComoComecarOpen)}
-          className="w-full flex items-center justify-between p-4 text-left font-semibold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all"
+          className="w-full flex items-center justify-between p-4 text-left font-semibold text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
         >
-          <div className="flex items-center gap-2">
-            <Info className="h-5 w-5 text-blue-600" />
-            <span className="font-bold tracking-wide">COMO COMEÇAR</span>
+          <div className="flex items-center gap-2.5">
+            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <span className="font-bold">Como começar</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase">
-              {isComoComecarOpen ? 'Clique para fechar' : 'Clique para abrir'}
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              {isComoComecarOpen ? 'Fechar guia' : 'Ver passo a passo'}
             </span>
             {isComoComecarOpen ? (
               <ChevronUp className="h-4 w-4 text-slate-400" />
@@ -275,28 +268,28 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
           </div>
         </button>
         {isComoComecarOpen && (
-          <div className="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/50 pt-3 animate-fade-in">
-            Para começar você deve realizar o cadastro de <strong>Tipo de recebimento</strong>, <strong>Tipo de pagamento</strong>, <strong>Situação de recebimento</strong>, <strong>Situação de pagamento</strong>, <strong>Cadastro Categoria Receitas</strong> e <strong>Cadastro Categoria Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Orçamento anual</strong> clicando em <strong>Orçar por categoria</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
+          <div className="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/80 pt-3 animate-fade-in">
+            Para começar você deve realizar o cadastro de <strong>Tipo de recebimento</strong>, <strong>Tipo de pagamento</strong>, <strong>Situação de recebimento</strong>, <strong>Situação de pagamento</strong>, <strong>Categoria Receitas</strong> e <strong>Categoria Despesas</strong>, posteriormente é necessário realizar a configuração em <strong>Orçamento anual</strong> clicando em <strong>Orçar por categoria</strong> e definir o Orçado de cada um centro de custo. Terminando, faça seus lançamentos e veja em resumo mensal e anual.
           </div>
         )}
       </div>
 
       {/* Financial Tips Section */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 dark:border-slate-800 dark:bg-slate-900/40">
-        <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
-          <Shield className="h-5 w-5 text-blue-600" />
+      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-6 dark:border-slate-800 dark:bg-slate-900/40">
+        <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
+          <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           Dicas para Saúde Financeira
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
-            <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-blue-400 uppercase tracking-wider">{notices.rule50_30_20.title}</h4>
-            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+          <div className="space-y-1.5 p-4 bg-white rounded-lg border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-blue-400">{notices.rule50_30_20.title}</h4>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
               {notices.rule50_30_20.message}
             </p>
           </div>
-          <div className="space-y-1 p-3.5 bg-white rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
-            <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-blue-400 uppercase tracking-wider">{notices.weeklyCheck.title}</h4>
-            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+          <div className="space-y-1.5 p-4 bg-white rounded-lg border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 animate-fade-in">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-blue-400">{notices.weeklyCheck.title}</h4>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
               {notices.weeklyCheck.message}
             </p>
           </div>
@@ -380,8 +373,8 @@ export const Home: React.FC<HomeProps> = ({ userName, onNavigate, isAdmin, onOpe
                           <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">
                             Ativar Menu Suspenso
                           </span>
-                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                            Recomendado
+                          <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                            · Recomendado
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">

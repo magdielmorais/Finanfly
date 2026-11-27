@@ -39,26 +39,33 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
 
   // Active tab or section view
   const [activeTab, setActiveTab] = useState<'all' | 'types' | 'statuses'>('all');
+  const [isSavingType, setIsSavingType] = useState(false);
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   // Add Type handler
   const handleAddType = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingType) return;
     const clean = newType.trim();
     if (!clean) return;
     if (types.some((t) => t.toLowerCase() === clean.toLowerCase())) {
       return;
     }
     const updated = [...types, clean];
+    setIsSavingType(true);
     try {
       await onUpdateUserData({ investmentTypes: updated });
       setNewType('');
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingType(false);
     }
   };
 
   // Rename Type handler
   const handleSaveTypeEdit = async (oldType: string) => {
+    if (isSavingType) return;
     const clean = editTypeValue.trim();
     if (!clean) return;
     if (clean === oldType) {
@@ -75,6 +82,7 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       inv.type === oldType ? { ...inv, type: clean } : inv
     );
 
+    setIsSavingType(true);
     try {
       await onUpdateUserData({
         investmentTypes: updatedTypes,
@@ -84,38 +92,49 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       setEditTypeValue('');
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingType(false);
     }
   };
 
   // Delete Type handler
   const handleDeleteType = async (typeToDelete: string) => {
+    if (isSavingType) return;
     const updatedTypes = types.filter((t) => t !== typeToDelete);
+    setIsSavingType(true);
     try {
       await onUpdateUserData({ investmentTypes: updatedTypes });
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingType(false);
     }
   };
 
   // Add Status handler
   const handleAddStatus = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingStatus) return;
     const clean = newStatus.trim();
     if (!clean) return;
     if (statuses.some((s) => s.toLowerCase() === clean.toLowerCase())) {
       return;
     }
     const updated = [...statuses, clean];
+    setIsSavingStatus(true);
     try {
       await onUpdateUserData({ investmentStatuses: updated });
       setNewStatus('');
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingStatus(false);
     }
   };
 
   // Rename Status handler
   const handleSaveStatusEdit = async (oldStatus: string) => {
+    if (isSavingStatus) return;
     const clean = editStatusValue.trim();
     if (!clean) return;
     if (clean === oldStatus) {
@@ -132,6 +151,7 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       inv.status === oldStatus ? { ...inv, status: clean } : inv
     );
 
+    setIsSavingStatus(true);
     try {
       await onUpdateUserData({
         investmentStatuses: updatedStatuses,
@@ -141,16 +161,22 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
       setEditStatusValue('');
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingStatus(false);
     }
   };
 
   // Delete Status handler
   const handleDeleteStatus = async (statusToDelete: string) => {
+    if (isSavingStatus) return;
     const updatedStatuses = statuses.filter((s) => s !== statusToDelete);
+    setIsSavingStatus(true);
     try {
       await onUpdateUserData({ investmentStatuses: updatedStatuses });
     } catch {
       // Falha tratada pelo popup centralizado de erro de conexão
+    } finally {
+      setIsSavingStatus(false);
     }
   };
 
@@ -269,10 +295,11 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
               />
               <button
                 type="submit"
-                className="rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 font-bold transition-colors shrink-0 flex items-center gap-1"
+                disabled={isSavingType}
+                className="rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 font-bold transition-colors shrink-0 flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Plus className="h-4 w-4" />
-                <span>Adicionar</span>
+                <span>{isSavingType ? 'Salvando...' : 'Adicionar'}</span>
               </button>
             </form>
 
@@ -384,10 +411,11 @@ export const InvestimentosConfigPage: React.FC<Props> = ({
               />
               <button
                 type="submit"
-                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 font-bold transition-colors shrink-0 flex items-center gap-1"
+                disabled={isSavingStatus}
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 font-bold transition-colors shrink-0 flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Plus className="h-4 w-4" />
-                <span>Adicionar</span>
+                <span>{isSavingStatus ? 'Salvando...' : 'Adicionar'}</span>
               </button>
             </form>
 

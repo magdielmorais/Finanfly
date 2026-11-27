@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserProfile, SubscriptionHistoryItem } from '../types';
 import { getSubscriptionDetails } from '../utils/subscriptionUtils';
 import { getAuthHeaders } from '../utils/authToken';
+import { parsePtBrNumber } from '../utils/numberUtils';
 import { 
   Check, 
   AlertCircle, 
@@ -109,9 +110,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
   // Cálculo da parcela mensal do plano anual: valor do plano anual dividido por 12
   const annualPerMonth = useMemo(() => {
     if (!prices?.anual_por) return null;
-    const cleanStr = prices.anual_por.replace(/\./g, '').replace(',', '.');
-    const val = parseFloat(cleanStr);
-    if (isNaN(val) || val <= 0) return null;
+    const val = parsePtBrNumber(prices.anual_por);
+    if (!Number.isFinite(val) || val <= 0) return null;
     const perMonth = val / 12;
     return `R$ ${perMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, [prices?.anual_por]);
@@ -474,13 +474,17 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             <button
               onClick={() => handleSelectPlan('mensal')}
               disabled={currentPlan === 'mensal' || !!loadingPlan}
-              className={`w-full py-2.5 rounded-lg text-xs font-bold transition-all ${
+              className={`w-full py-2.5 rounded-lg text-xs font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                 currentPlan === 'mensal'
                   ? 'bg-blue-100 text-blue-800 cursor-default dark:bg-blue-950/40 dark:text-blue-300'
                   : 'bg-blue-600 text-white hover:bg-blue-500 shadow-md shadow-blue-600/10'
               }`}
             >
-              {currentPlan === 'mensal' ? 'Plano Ativo' : 'Assinar com MercadoPago'}
+              {currentPlan === 'mensal'
+                ? 'Plano Ativo'
+                : loadingPlan === 'mensal'
+                ? 'Processando...'
+                : 'Assinar com MercadoPago'}
             </button>
           </div>
         </div>
@@ -541,13 +545,17 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ user, onUpda
             <button
               onClick={() => handleSelectPlan('anual')}
               disabled={currentPlan === 'anual' || !!loadingPlan}
-              className={`w-full py-2.5 rounded-lg text-xs font-bold transition-all ${
+              className={`w-full py-2.5 rounded-lg text-xs font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                 currentPlan === 'anual'
                   ? 'bg-blue-100 text-blue-800 cursor-default dark:bg-blue-950/40 dark:text-blue-300'
                   : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-600/10'
               }`}
             >
-              {currentPlan === 'anual' ? 'Plano Ativo' : 'Assinar com MercadoPago'}
+              {currentPlan === 'anual'
+                ? 'Plano Ativo'
+                : loadingPlan === 'anual'
+                ? 'Processando...'
+                : 'Assinar com MercadoPago'}
             </button>
           </div>
         </div>
