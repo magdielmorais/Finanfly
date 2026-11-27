@@ -33,6 +33,9 @@ import {
   assertNoForeignRowOwnership,
   remapCollidingImportIds,
   mergeScopedYearUserData,
+  normalizeVersionTimestamp,
+  versionsMatch,
+  nextMonotonicVersion,
 } from "./src/server/isolation";
 import {
   verifyMercadoPagoWebhookSignature,
@@ -1491,7 +1494,7 @@ async function getUserDataByEmail(
       ),
       investmentTypes: resolveNameList(invTypesRes, backupData?.investmentTypes, cached?.data?.investmentTypes),
       investmentStatuses: resolveNameList(invStatusesRes, backupData?.investmentStatuses, cached?.data?.investmentStatuses),
-      _version: (!backupError && backupUserDataRes?.data?.updated_at) ? String(backupUserDataRes.data.updated_at) : undefined,
+      _version: (!backupError && backupUserDataRes?.data?.updated_at) ? normalizeVersionTimestamp(String(backupUserDataRes.data.updated_at)) : undefined,
       ...(filterYear ? { _loadedYear: filterYear } : {})
     };
 
@@ -1531,7 +1534,7 @@ async function getCurrentUserDataForWrite(email: string): Promise<any> {
         () => supabase.from('user_data').select('updated_at').eq('email', lowerEmail).maybeSingle(),
         `getCurrentUserDataForWrite:versionCheck:${lowerEmail}`
       );
-      if (!verErr && verRow?.updated_at && String(verRow.updated_at) === String(cached.data._version)) {
+      if (!verErr && verRow?.updated_at && versionsMatch(verRow.updated_at, cached.data._version)) {
         cached.timestamp = Date.now();
         return cached.data;
       }
@@ -1547,7 +1550,7 @@ async function getCurrentUserDataForWrite(email: string): Promise<any> {
     );
     if (!rowErr && row?.data && typeof row.data === 'object' && row.updated_at) {
       const baseEmpty = getEmptyUserData();
-      const hydrated = { ...baseEmpty, ...row.data, _version: String(row.updated_at) };
+      const hydrated = { ...baseEmpty, ...row.data, _version: normalizeVersionTimestamp(String(row.updated_at)) };
       userDataCache.set(lowerEmail, { data: hydrated, timestamp: Date.now() });
       return hydrated;
     }
@@ -1888,14 +1891,6 @@ async function syncIdEntityTable(
 }
 
 // Save/Update user workspace data strictly on Supabase (throws on failure, never saves locally)
-function nextMonotonicVersion(prevVersion?: string): string {
-  const nowIso = new Date().toISOString();
-  if (prevVersion && prevVersion === nowIso) {
-    return new Date(Date.now() + 1).toISOString();
-  }
-  return nowIso;
-}
-
 async function saveUserDataByEmail(
   email: string,
   data: any,
@@ -4227,20 +4222,16 @@ app.post("/api/user/data", async (req, res) => {
         return { status: 503, body: { error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." } };
       }
 
-      if (
-        typeof newData._expectedVersion === "string" &&
-        newData._expectedVersion.trim() !== "" &&
-        typeof currentData._version === "string" &&
-        currentData._version.trim() !== "" &&
-        newData._expectedVersion !== currentData._version
-      ) {
+      const expectedVer = normalizeVersionTimestamp(newData._expectedVersion);
+      const currentVer = normalizeVersionTimestamp(currentData._version);
+      if (expectedVer && currentVer && !versionsMatch(expectedVer, currentVer)) {
         await logAuditEvent({
           actorEmail: authUser.email,
           action: "DATA_VERSION_CONFLICT",
           entity: "user_data",
           status: "conflict",
           req,
-          details: { expected: newData._expectedVersion, current: currentData._version }
+          details: { expected: expectedVer, current: currentVer }
         });
         return {
           status: 409,
@@ -4455,13 +4446,17 @@ app.post("/api/user/entity/:entity", async (req, res) => {
         return { status: 503, body: { error: "Houve uma falha na gravação por instabilidade de conexão. Por favor, tente gravar novamente." } };
       }
 
-      if (
-        typeof _expectedVersion === "string" &&
-        _expectedVersion.trim() !== "" &&
-        typeof currentData._version === "string" &&
-        currentData._version.trim() !== "" &&
-        _expectedVersion !== currentData._version
-      ) {
+      const expectedVer = normalizeVersionTimestamp(_expectedVersion);
+      const currentVer = normalizeVersionTimestamp(currentData._version);
+      if (expectedVer && currentVer && !versionsMatch(expectedVer, currentVer)) {
+        await logAuditEvent({
+          actorEmail: authUser.email,
+          action: "DATA_VERSION_CONFLICT",
+          entity,
+          status: "conflict",
+          req,
+          details: { expected: expectedVer, current: currentVer }
+        });
         return {
           status: 409,
           body: {

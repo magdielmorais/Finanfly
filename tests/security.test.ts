@@ -27,6 +27,9 @@ import {
   assertNoForeignRowOwnership,
   remapCollidingImportIds,
   mergeScopedYearUserData,
+  normalizeVersionTimestamp,
+  versionsMatch,
+  nextMonotonicVersion,
 } from "../src/server/isolation";
 import {
   verifyMercadoPagoWebhookSignature,
@@ -643,4 +646,50 @@ describe("FinanFly Supabase Gateway Clock-Skew & Transient Error Resilience", ()
   });
 });
 
+describe("FinanFly Optimistic Version Timestamp Canonicalization", () => {
+  it("normaliza formatos +00:00 do PostgreSQL para ISO Z sem gerar falso conflito 409", () => {
+    assert.equal(
+      normalizeVersionTimestamp("2026-11-27T09:39:26.336+00:00"),
+      "2026-11-27T09:39:26.336Z"
+    );
+    assert.equal(
+      normalizeVersionTimestamp("2026-11-27T09:39:26.3+00:00"),
+      "2026-11-27T09:39:26.300Z"
+    );
+    assert.equal(
+      normalizeVersionTimestamp("2026-11-27T09:39:26+00:00"),
+      "2026-11-27T09:39:26.000Z"
+    );
 
+    assert.equal(
+      versionsMatch("2026-11-27T09:39:26.336Z", "2026-11-27T09:39:26.336+00:00"),
+      true
+    );
+    assert.equal(
+      versionsMatch("2026-11-27T09:39:26.300Z", "2026-11-27T09:39:26.3+00:00"),
+      true
+    );
+    assert.equal(
+      versionsMatch("2026-11-27T09:39:26.336Z", "2026-11-27T09:39:26.337+00:00"),
+      false,
+      "Diferença real de timestamp deve continuar detectando conflito entre abas"
+    );
+    assert.equal(versionsMatch("", "2026-11-27T09:39:26.336Z"), false);
+  });
+
+  it("avança versão monotônica em +1ms mesmo com prevVersion em +00:00 no mesmo milissegundo", () => {
+    const fixedNowMs = Date.parse("2026-11-27T09:39:26.336Z");
+    assert.equal(
+      nextMonotonicVersion("2026-11-27T09:39:26.336+00:00", fixedNowMs),
+      "2026-11-27T09:39:26.337Z"
+    );
+    assert.equal(
+      nextMonotonicVersion("2026-11-27T09:39:26.500+00:00", fixedNowMs),
+      "2026-11-27T09:39:26.501Z"
+    );
+    assert.equal(
+      nextMonotonicVersion("2026-11-27T09:39:25.000+00:00", fixedNowMs),
+      "2026-11-27T09:39:26.336Z"
+    );
+  });
+});

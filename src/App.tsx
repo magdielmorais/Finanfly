@@ -455,6 +455,7 @@ export default function App() {
 
     const writeVersion = ++dataMutationVersionRef.current;
     const merged = { ...baseData, ...newData };
+    let handledConflictReload = false;
 
     setSaveError('');
     setSaveFailurePopup(null);
@@ -555,6 +556,7 @@ export default function App() {
 
       if (!res.ok) {
         if (res.status === 409) {
+          handledConflictReload = true;
           await fetchUserData(currentUser.email, { full: true });
         } else if (dataMutationVersionRef.current === writeVersion) {
           updateUserDataState(baseData);
@@ -590,7 +592,7 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Error saving user data:', err);
-      if (dataMutationVersionRef.current === writeVersion) {
+      if (!handledConflictReload && dataMutationVersionRef.current === writeVersion) {
         updateUserDataState(baseData);
       }
       const errMsg = typeof err?.message === 'string' ? err.message.trim() : '';

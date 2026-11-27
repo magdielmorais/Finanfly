@@ -222,3 +222,40 @@ export function mergeScopedYearUserData(
   return merged;
 }
 
+/**
+ * Normaliza timestamps de versão otimista (_version / user_data.updated_at) para formato
+ * ISO UTC canônico (`YYYY-MM-DDTHH:mm:ss.sssZ`), eliminando falsos conflitos 409 causados pela
+ * diferença de serialização do PostgreSQL TIMESTAMPTZ (`+00:00` vs `Z`, zeros finais omitidos).
+ */
+export function normalizeVersionTimestamp(val: unknown): string | undefined {
+  if (typeof val !== "string") return undefined;
+  const trimmed = val.trim();
+  if (!trimmed) return undefined;
+  const parsedMs = Date.parse(trimmed);
+  if (Number.isFinite(parsedMs)) {
+    return new Date(parsedMs).toISOString();
+  }
+  return trimmed;
+}
+
+/**
+ * Compara duas versões otimistas de forma canônica (equivalência de instante UTC).
+ * Retorna `false` se qualquer uma estiver ausente ou não corresponder à outra.
+ */
+export function versionsMatch(expected: unknown, current: unknown): boolean {
+  const normExpected = normalizeVersionTimestamp(expected);
+  const normCurrent = normalizeVersionTimestamp(current);
+  if (!normExpected || !normCurrent) return false;
+  return normExpected === normCurrent;
+}
+
+/**
+ * Gera a próxima versão monotônica em ISO UTC (`...Z`), garantindo avanço estrito de pelo
+ * menos +1ms mesmo quando chamadas consecutivas ocorrem no mesmo milissegundo ou com clock skew.
+ */
+export function nextMonotonicVersion(prevVersion?: unknown, nowMs: number = Date.now()): string {
+  const normPrev = normalizeVersionTimestamp(prevVersion);
+  const prevMs = normPrev ? Date.parse(normPrev) : Number.NaN;
+  const targetMs = Number.isFinite(prevMs) && prevMs >= nowMs ? prevMs + 1 : nowMs;
+  return new Date(targetMs).toISOString();
+}
